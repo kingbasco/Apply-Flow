@@ -117,15 +117,14 @@ function PublicApplication({slug}:{slug:string}) {
     })
     const emailQ=questions.find(q=>q.type==='email'), nameQ=questions.find(q=>q.label.toLowerCase().includes('full name')||q.label.toLowerCase()==='name')
     const {data:v,error:ve}=await supabase.from('form_versions').select('id').eq('application_id',app!.id).eq('status','published').order('version_number',{ascending:false}).limit(1).single();if(ve)throw ve
-    const {data:subId,error:se}=await supabase.rpc('submit_application',{p_application_id:app!.id,p_form_version_id:v.id,p_email:emailQ?String(answers[emailQ.id]||''):null,p_full_name:nameQ?String(answers[nameQ.id]||''):null,p_answers:answerPayload});if(se)throw se
+    const {data:submissionResult,error:se}=await supabase.rpc('submit_application_with_id',{p_application_id:app!.id,p_form_version_id:v.id,p_email:emailQ?String(answers[emailQ.id]||''):null,p_full_name:nameQ?String(answers[nameQ.id]||''):null,p_answers:answerPayload});if(se)throw se
     for(const q of questions.filter(q=>(q.type==='file'||q.type==='image')&&files[q.id])){
       const file=files[q.id]!, meta=answerPayload.find(x=>x.question_id===q.id)?.value as {path:string}
       const {error:uploadError}=await supabase.storage.from('application-files').upload(meta.path,file,{contentType:file.type||'application/octet-stream',upsert:false})
       if(uploadError)throw uploadError
 
     }
-    const submissionId=typeof subId==='string'?subId:subId?.id
-    if(submissionId){const {data:applicant,error:applicantError}=await supabase.from('applicants').select('unique_id').eq('id',(await supabase.from('submissions').select('applicant_id').eq('id',submissionId).single()).data?.applicant_id||'').maybeSingle();if(applicantError)throw applicantError;setUniqueId(applicant?.unique_id||'')}
+    setUniqueId(submissionResult?.unique_id||'')
     setSubmitted(true)
   }catch(e){setError(e instanceof Error?e.message:'Could not submit application.')}finally{setLoading(false)}}
   if(loading&&!app)return <div className="public-shell"><div className="public-card card">Loading application…</div></div>
