@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight, BarChart3, Bell, Check, ChevronDown, ChevronRight, ClipboardList, FileCheck2, FileText,
   FolderKanban, LayoutDashboard, LogOut, Menu, Plus, Search, Settings,
-  ShieldCheck, Sparkles, Users, X, Download, TrendingUp, MapPin, Tags, Target, CheckCircle2, Layers, Workflow, Brain,
+  ShieldCheck, Sparkles, Users, X, Download, TrendingUp, MapPin, Tags, Target, CheckCircle2, Layers, Workflow, Brain, BadgeCheck,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { NIGERIAN_STATES, getNigerianLgas } from './lib/nigeria'
+import ParticipantsPanel from './components/ParticipantsPanel'
 
 type AppStatus = 'draft' | 'published' | 'screening' | 'closed' | 'completed'
 type Application = {
@@ -18,7 +19,7 @@ type Organization = { id: string; name: string; slug: string }
 const nav = [
   { label: 'Dashboard', icon: LayoutDashboard }, { label: 'Applications', icon: FolderKanban },
   { label: 'Forms', icon: FileText }, { label: 'Screening', icon: ShieldCheck },
-  { label: 'Reviews', icon: ClipboardList }, { label: 'Analytics', icon: BarChart3 },
+  { label: 'Reviews', icon: ClipboardList }, { label: 'Participants', icon: BadgeCheck }, { label: 'Analytics', icon: BarChart3 },
 ]
 const bottomNav = [{ label: 'Team', icon: Users }, { label: 'Settings', icon: Settings }]
 
