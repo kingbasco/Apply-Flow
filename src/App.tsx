@@ -733,7 +733,38 @@ function FormBuilder({applicationId}:{applicationId:string}) {
     const full=await Promise.all(rows.map(async q=>{const {data:opts,error:o}=await supabase.from('question_options').select('id,label,value,position').eq('question_id',q.id).order('position'); if(o) throw o; return {...q,options:(opts||[]) as BuilderOption[]}}))
     setQuestions(full); if(full[0]) setSelectedId(full[0].id)
   }
-  useEffect(()=>{(async()=>{try{const {data}=await supabase.from('form_versions').select('id,version_number').eq('application_id',applicationId).eq('status','draft').order('version_number',{ascending:false}).limit(1).maybeSingle(); if(data){setVersionId(data.id);setVersion(data.version_number);await loadQuestions(data.id)}}catch(e){setNotice(e instanceof Error?e.message:'Could not load form.')}})()},[applicationId])
+  useEffect(()=>{(async()=>{try{
+    const {data:draft}=await supabase.from('form_versions').select('id,version_number').eq('application_id',applicationId).eq('status','draft').order('version_number',{ascending:false}).limit(1).maybeSingle()
+    if(draft){setVersionId(draft.id);setVersion(draft.version_number);await loadQuestions(draft.id);return}
+
+    // Published versions are immutable. When an admin opens the builder again,
+    // create a new draft by cloning the latest published version so it can be edited safely.
+    const {data:published}=await supabase.from('form_versions').select('id,version_number,title').eq('application_id',applicationId).eq('status','published').order('version_number',{ascending:false}).limit(1).maybeSingle()
+    if(!published)return
+
+    const {data:newVersion,error:versionError}=await supabase.from('form_versions').insert({
+      application_id:applicationId,
+      version_number:published.version_number+1,
+      created_by:(await supabase.auth.getUser()).data.user?.id,
+      title:published.title||'Application form',
+      status:'draft'
+    }).select('id,version_number').single()
+    if(versionError)throw versionError
+
+    const {data:sourceQuestions,error:questionsError}=await supabase.from('questions').select('id,type,label,description,required,placeholder,position,config,conditional_rules').eq('form_version_id',published.id).order('position')
+    if(questionsError)throw questionsError
+    for(const source of sourceQuestions||[]){
+      const {data:cloned,error:cloneError}=await supabase.from('questions').insert({
+        form_version_id:newVersion.id,type:source.type,label:source.label,description:source.description,required:source.required,
+        placeholder:source.placeholder,position:source.position,config:source.config,conditional_rules:source.conditional_rules
+      }).select('id,type,label,description,required,placeholder,position,config,conditional_rules').single()
+      if(cloneError)throw cloneError
+      const {data:opts,error:optionsError}=await supabase.from('question_options').select('label,value,position').eq('question_id',source.id).order('position')
+      if(optionsError)throw optionsError
+      if(opts?.length){const {error}=await supabase.from('question_options').insert(opts.map(o=>({question_id:cloned.id,label:o.label,value:o.value,position:o.position})));if(error)throw error}
+    }
+    setVersionId(newVersion.id);setVersion(newVersion.version_number);await loadQuestions(newVersion.id)
+  }catch(e){setNotice(e instanceof Error?e.message:'Could not load form.')}})()},[applicationId])
 
   async function ensureVersion(){
     if(versionId)return versionId
@@ -793,7 +824,7 @@ function FormBuilder({applicationId}:{applicationId:string}) {
     try{for(let i=0;i<copy.length;i++){const {error}=await supabase.from('questions').update({position:i}).eq('id',copy[i].id);if(error)throw error}setQuestions(copy.map((q,i)=>({...q,position:i})))}catch(e){setNotice(e instanceof Error?e.message:'Could not reorder questions.')}finally{setBusy(false)}
   }
   async function removeQuestion(){if(!selected)return;setBusy(true);const {error}=await supabase.from('questions').delete().eq('id',selected.id);if(!error){const left=questions.filter(q=>q.id!==selected.id).map((q,i)=>({...q,position:i}));for(const q of left)await supabase.from('questions').update({position:q.position}).eq('id',q.id);setQuestions(left);setSelectedId(left[0]?.id||null)}else setNotice(error.message);setBusy(false)}
-  async function publish(){if(!versionId)return;setBusy(true);setNotice('');const {error}=await supabase.from('form_versions').update({status:'published',published_at:new Date().toISOString()}).eq('id',versionId);if(error)setNotice(error.message);else{setNotice('Form published successfully.');setVersionId(null);setQuestions([]);setSelectedId(null)}setBusy(false)}
+  async function publish(){if(!versionId)return;setBusy(true);setNotice('');const {error}=await supabase.from('form_versions').update({status:'published',published_at:new Date().toISOString()}).eq('id',versionId);if(error){setNotice(error.message)}else{setNotice('Form published successfully.');setQuestions([]);setSelectedId(null);setVersionId(null)}setBusy(false)}
 
   return <div className="form-builder">
     <div className="builder-top"><div><p className="eyebrow">Form builder · Version {version}</p><h2>Application form</h2><p>Build the questions applicants will answer.</p></div><div className="builder-actions">{notice&&<span className="builder-notice">{notice}</span>}<button className="secondary-button" disabled={busy||!questions.length} onClick={()=>setNotice('Draft saved.')}>Save draft</button><button className="secondary-button" disabled={!questions.length} onClick={()=>setPreview(true)}>Preview</button><button className="primary-button" disabled={busy||!questions.length} onClick={publish}>Publish form</button></div></div>
