@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, Users, Settings, FileText, ShieldCheck, ClipboardList, Save, Eye, Search, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
-type Application={id:string;name:string;description:string|null;status:string;deadline:string|null;target_count:number|null;created_at:string}
+type Application={id:string;name:string;description:string|null;status:'draft'|'published'|'screening'|'closed'|'completed';deadline:string|null;target_count:number|null;created_at:string}
 type FormSummary={application:Application;version:number|null;versionStatus:'draft'|'published'|'none';questionCount:number;submissionCount:number;publicSlug:string|null}
 async function loadFormSummaries(applications:Application[]):Promise<FormSummary[]>{
  if(!applications.length)return []
