@@ -36,6 +36,12 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null)
+  const [detailTab, setDetailTab] = useState<'Overview'|'Form'|'Eligibility'|'Scoring'|'Screening'|'Applicants'>('Overview')
+  const [applicationSettings, setApplicationSettings] = useState<{ public_slug: string; confirmation_message: string } | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailSaving, setDetailSaving] = useState(false)
+  const [detailError, setDetailError] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
@@ -132,6 +138,47 @@ function App() {
 
   async function signOut() { await supabase.auth.signOut(); setSession(null); setProfile(null); setOrganization(null); setApplications([]) }
 
+  async function openApplication(application: Application) {
+    setSelectedApplication(application)
+    setDetailTab('Overview')
+    setDetailLoading(true)
+    setDetailError('')
+    const { data, error: settingsError } = await supabase.from('application_settings').select('public_slug,confirmation_message').eq('application_id', application.id).single()
+    if (settingsError) setDetailError(settingsError.message)
+    setApplicationSettings(data)
+    setDetailLoading(false)
+  }
+
+  function closeApplication() {
+    setSelectedApplication(null)
+    setApplicationSettings(null)
+    setDetailError('')
+  }
+
+  async function saveApplicationDetails(patch: Partial<Application>, settingsPatch?: Partial<{public_slug:string;confirmation_message:string}>) {
+    if (!selectedApplication) return
+    setDetailSaving(true); setDetailError('')
+    try {
+      const { data, error: updateError } = await supabase.from('applications')
+        .update({ ...patch, updated_at: new Date().toISOString() })
+        .eq('id', selectedApplication.id)
+        .select('id,name,description,status,deadline,target_count,created_at')
+        .single()
+      if (updateError) throw updateError
+      let nextSettings = applicationSettings
+      if (settingsPatch) {
+        const { data: s, error: sError } = await supabase.from('application_settings').update(settingsPatch).eq('application_id', selectedApplication.id).select('public_slug,confirmation_message').single()
+        if (sError) throw sError
+        nextSettings = s
+      }
+      setSelectedApplication(data)
+      setApplicationSettings(nextSettings)
+      setApplications(current => current.map(item => item.id === data.id ? data : item))
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : 'Could not save changes.')
+    } finally { setDetailSaving(false) }
+  }
+
   function openCreate() { setCreateError(''); setNewName(''); setNewDescription(''); setNewDeadline(''); setNewTarget(''); setCreateOpen(true) }
 
   async function createApplication(e: React.FormEvent) {
@@ -182,11 +229,11 @@ function App() {
     </aside>
     <main className="main"><header className="topbar"><button className="mobile-menu" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Menu size={20}/></button><div className="breadcrumbs"><span>Workspace</span><span>/</span><strong>{active}</strong></div><div className="top-actions"><button className="icon-button" aria-label="Notifications"><Bell size={18}/></button><div className="top-avatar">{profileName.slice(0,2).toUpperCase()}</div></div></header>
       <div className="content">
-        {loading ? <div className="loading-card card">Loading your workspace…</div> : error ? <div className="form-error page-error">{error}</div> : active==='Dashboard' ? <>
+        {selectedApplication ? <ApplicationDetails application={selectedApplication} settings={applicationSettings} tab={detailTab} setTab={setDetailTab} loading={detailLoading} saving={detailSaving} error={detailError} onBack={closeApplication} onSave={saveApplicationDetails} /> : loading ? <div className="loading-card card">Loading your workspace…</div> : error ? <div className="form-error page-error">{error}</div> : active==='Dashboard' ? <>
           <section className="page-heading"><div><p className="eyebrow">Your workspace</p><h1>Good evening, {firstName}.</h1><p className="subtitle">Here’s what is happening across your programmes.</p></div><button className="primary-button" onClick={openCreate}><Plus size={17}/> New application</button></section>
           <section className="stats-grid"><StatCard label="Programmes" value={applications.length.toLocaleString()} note="In your workspace" icon={FolderKanban}/><StatCard label="Targets" value={totalTarget.toLocaleString()} note="Across programmes" icon={FileCheck2}/><StatCard label="Published" value={applications.filter(a=>a.status==='published').length.toLocaleString()} note="Currently accepting" icon={ShieldCheck}/><StatCard label="Screening" value={applications.filter(a=>a.status==='screening').length.toLocaleString()} note="In review" icon={Users}/></section>
           <section className="dashboard-grid"><div className="card table-card"><div className="card-header"><div><h2>Programmes</h2><p>Your application programmes from Supabase.</p></div><button className="text-button" onClick={()=>setActive('Applications')}>View all</button></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th></tr></thead><tbody>{applications.length===0?<tr><td colSpan={4}><div className="table-empty">No programmes yet. Create your first application programme.</div></td></tr>:applications.map(item=><tr key={item.id}><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td></tr>)}</tbody></table></div></div><div className="card funnel-card"><div className="card-header"><div><h2>Workspace health</h2><p>Live database connection</p></div><span className="status green">Connected</span></div><div className="connection-list"><div><span>Organisation</span><strong>{organization?.name || '—'}</strong></div><div><span>Role</span><strong>{profile?.role || '—'}</strong></div><div><span>Programmes</span><strong>{applications.length}</strong></div></div></div></section>
-        </> : <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>{active}</h1><p className="subtitle">{active==='Applications'?'Manage your application programmes.':'This module is scaffolded and ready for the next implementation phase.'}</p></div>{active==='Applications'&&<button className="primary-button" onClick={openCreate}><Plus size={17}/> New application</button>}</div>{active==='Applications'?<div className="card table-card"><div className="toolbar"><div className="search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applications…"/></div><button className="secondary-button">All status <ChevronDown size={15}/></button></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th></tr></thead><tbody>{filtered.map(item=><tr key={item.id}><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td></tr>)}</tbody></table></div></div>:<div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{active} is coming next</h2><p>The shared workspace is now connected to Supabase. We’ll build this module on top of the live architecture.</p></div>}</section>}
+        </> : <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>{active}</h1><p className="subtitle">{active==='Applications'?'Manage your application programmes.':'This module is scaffolded and ready for the next implementation phase.'}</p></div>{active==='Applications'&&<button className="primary-button" onClick={openCreate}><Plus size={17}/> New application</button>}</div>{active==='Applications'?<div className="card table-card"><div className="toolbar"><div className="search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applications…"/></div><button className="secondary-button">All status <ChevronDown size={15}/></button></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th></tr></thead><tbody>{filtered.map(item=><tr key={item.id} onClick={()=>openApplication(item)} className="clickable-row"><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td></tr>)}</tbody></table></div></div>:<div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{active} is coming next</h2><p>The shared workspace is now connected to Supabase. We’ll build this module on top of the live architecture.</p></div>}</section>}
       </div>
     </main>
     {createOpen && <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setCreateOpen(false)}}>
@@ -202,6 +249,60 @@ function App() {
       </form>
     </div>}
   </div>
+}
+
+
+function ApplicationDetails({ application, settings, tab, setTab, loading, saving, error, onBack, onSave }:{
+  application: Application
+  settings: {public_slug:string; confirmation_message:string} | null
+  tab: 'Overview'|'Form'|'Eligibility'|'Scoring'|'Screening'|'Applicants'
+  setTab: (tab:'Overview'|'Form'|'Eligibility'|'Scoring'|'Screening'|'Applicants') => void
+  loading: boolean
+  saving: boolean
+  error: string
+  onBack: () => void
+  onSave: (patch: Partial<Application>, settingsPatch?: Partial<{public_slug:string;confirmation_message:string}>) => Promise<void>
+}) {
+  const [name,setName]=useState(application.name)
+  const [description,setDescription]=useState(application.description || '')
+  const [deadline,setDeadline]=useState(application.deadline || '')
+  const [target,setTarget]=useState(application.target_count?.toString() || '')
+  const [slug,setSlug]=useState(settings?.public_slug || '')
+  const [message,setMessage]=useState(settings?.confirmation_message || '')
+  useEffect(()=>{setName(application.name);setDescription(application.description||'');setDeadline(application.deadline||'');setTarget(application.target_count?.toString()||'')},[application])
+  useEffect(()=>{setSlug(settings?.public_slug||'');setMessage(settings?.confirmation_message||'')},[settings])
+  const tabs=['Overview','Form','Eligibility','Scoring','Screening','Applicants'] as const
+  const statusClass=application.status==='published'?'blue':application.status==='screening'?'amber':application.status==='closed'?'neutral':'neutral'
+  return <section className="application-detail">
+    <button className="back-link" onClick={onBack}>← Back to applications</button>
+    <div className="detail-header">
+      <div><p className="eyebrow">Application programme</p><div className="detail-title-row"><h1>{application.name}</h1><span className={'status '+statusClass}>{statusLabel(application.status)}</span></div><p className="subtitle">{application.description || 'No description yet.'}</p></div>
+      <div className="detail-actions">
+        {application.status==='draft' && <button className="primary-button" disabled={saving} onClick={()=>onSave({status:'published'})}>Publish</button>}
+        {application.status==='published' && <button className="secondary-button" disabled={saving} onClick={()=>onSave({status:'closed'})}>Close applications</button>}
+        {application.status==='closed' && <button className="secondary-button" disabled={saving} onClick={()=>onSave({status:'draft'})}>Reopen as draft</button>}
+      </div>
+    </div>
+    <div className="detail-meta">
+      <div><span>Deadline</span><strong>{formatDate(application.deadline)}</strong></div>
+      <div><span>Target</span><strong>{application.target_count?.toLocaleString() || 'Not set'}</strong></div>
+      <div><span>Public URL</span><strong>{settings?.public_slug ? '/apply/'+settings.public_slug : 'Not configured'}</strong></div>
+    </div>
+    <div className="detail-tabs">{tabs.map(item=><button key={item} className={tab===item?'detail-tab active':'detail-tab'} onClick={()=>setTab(item)}>{item}</button>)}</div>
+    {loading ? <div className="loading-card card">Loading programme settings…</div> : error ? <div className="form-error page-error">{error}</div> : tab==='Overview' ? <div className="detail-grid">
+      <div className="card detail-card"><div className="card-header"><div><h2>Programme details</h2><p>Update the basic information for this programme.</p></div></div><div className="detail-form">
+        <label>Programme name<input value={name} onChange={e=>setName(e.target.value)}/></label>
+        <label>Description<textarea rows={5} value={description} onChange={e=>setDescription(e.target.value)} placeholder="Describe the programme."/></label>
+        <div className="form-grid"><label>Application deadline<input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)}/></label><label>Target number<input type="number" min="0" value={target} onChange={e=>setTarget(e.target.value)} placeholder="150"/></label></div>
+        <div className="detail-form-footer"><button className="primary-button" disabled={saving} onClick={()=>onSave({name:name.trim(),description:description.trim()||null,deadline:deadline||null,target_count:target?Number(target):null})}>{saving?'Saving…':'Save changes'}</button></div>
+      </div></div>
+      <div className="card detail-card"><div className="card-header"><div><h2>Public application</h2><p>Settings applicants will see when they submit.</p></div></div><div className="detail-form">
+        <label>Public slug<input value={slug} onChange={e=>setSlug(e.target.value)} /></label>
+        <label>Confirmation message<textarea rows={5} value={message} onChange={e=>setMessage(e.target.value)}/></label>
+        <div className="detail-form-footer"><button className="secondary-button" disabled={saving} onClick={()=>onSave({}, {public_slug:slug.trim(),confirmation_message:message.trim()||'Thank you. Your application has been received.'})}>Save public settings</button></div>
+      </div></div>
+    </div> : <div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{tab} is the next build</h2><p>The programme shell is ready. This section will connect to the live {tab.toLowerCase()} data next.</p></div>}
+  </section>
 }
 
 function StatCard({label,value,note,icon:Icon}:{label:string;value:string;note:string;icon:typeof Users}){return <div className="card stat-card"><div className="stat-icon"><Icon size={18}/></div><div><p className="eyebrow">{label}</p><div className="stat-value">{value}</div><p className="muted">{note}</p></div></div>}
