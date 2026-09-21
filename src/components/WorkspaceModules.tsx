@@ -176,6 +176,8 @@ type ScreeningRow={
  score:number|null
  aiStatus:string
  aiRecommendation:string
+  reviewerId:string|null
+  reviewStatus:string|null
 }
 function screeningRecommendation(ai:any):string{
  if(!ai)return 'Not screened'
@@ -225,7 +227,6 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
    if(eligResult.error)throw eligResult.error
    if(scoreResult.error)throw scoreResult.error
    if(aiResult.error)throw aiResult.error
-   const submissionIds=(subs||[]).map(s=>s.id)
    const {data:assignmentData,error:assignmentError}=submissionIds.length?await supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,notes,decision').in('submission_id',submissionIds):{data:[],error:null}
    if(assignmentError)throw assignmentError
    setAssignments(assignmentData||[])
