@@ -511,15 +511,55 @@ function SelectionPanel({applicationId}:{applicationId:string}){
  </div>
 }
 function ReviewsPanel({applicationId}:{applicationId:string}){
- const [reviews,setReviews]=useState<ReviewRow[]>([]),[submissions,setSubmissions]=useState<any[]>([]),[reviewers,setReviewers]=useState<Profile[]>([]),[selected,setSelected]=useState<string>(''),[reviewer,setReviewer]=useState<string>(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState('')
- async function load(){const {data,error}=await supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,notes,created_at,updated_at').order('created_at',{ascending:false});if(error)setNotice(error.message);else setReviews((data||[]) as ReviewRow[]);const {data:s}=await supabase.from('submissions').select('id,submitted_at,applicants!inner(full_name,email)').eq('application_id',applicationId).order('submitted_at',{ascending:false});setSubmissions(s||[]);const {data:p}=await supabase.from('profiles').select('id,full_name,role').eq('role','reviewer');setReviewers((p||[]) as Profile[])}
+ const [reviews,setReviews]=useState<ReviewRow[]>([]),[submissions,setSubmissions]=useState<any[]>([]),[reviewers,setReviewers]=useState<Profile[]>([])
+ const [selected,setSelected]=useState<string>(''),[reviewer,setReviewer]=useState<string>(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState('')
+ const [role,setRole]=useState<Profile['role']>('reviewer'),[history,setHistory]=useState<any[]>([]),[historyReview,setHistoryReview]=useState<ReviewRow|null>(null)
+
+ async function load(){
+  const {data:user}=await supabase.auth.getUser()
+  if(user.user){
+   const {data:me}=await supabase.from('profiles').select('role').eq('id',user.user.id).single()
+   if(me?.role)setRole(me.role as Profile['role'])
+  }
+  const {data,error}=await supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,notes,created_at,updated_at').order('created_at',{ascending:false})
+  if(error)setNotice(error.message);else setReviews((data||[]) as ReviewRow[])
+  const {data:s,error:se}=await supabase.from('submissions').select('id,submitted_at,applicants!inner(full_name,email)').eq('application_id',applicationId).order('submitted_at',{ascending:false})
+  if(se)setNotice(se.message);else setSubmissions(s||[])
+  const {data:p,error:pe}=await supabase.from('profiles').select('id,full_name,role').eq('role','reviewer')
+  if(pe)setNotice(pe.message);else setReviewers((p||[]) as Profile[])
+ }
  useEffect(()=>{load()},[applicationId])
- async function assign(){if(!selected||!reviewer)return;setBusy(true);setNotice('');const {error}=await supabase.from('review_assignments').insert({submission_id:selected,reviewer_id:reviewer,status:'assigned'});if(error)setNotice(error.message);else{setNotice('Review assigned.');setSelected('');setReviewer('');await load()}setBusy(false)}
- async function updateReview(id:string,patch:Partial<ReviewRow>){const {data,error}=await supabase.from('review_assignments').update({...patch,updated_at:new Date().toISOString()}).eq('id',id).select('id,submission_id,reviewer_id,status,score,notes,created_at,updated_at').single();if(error)setNotice(error.message);else setReviews(x=>x.map(r=>r.id===id?data as ReviewRow:r))}
+
+ async function assign(){
+  if(!selected||!reviewer)return
+  setBusy(true);setNotice('')
+  const {error}=await supabase.from('review_assignments').insert({submission_id:selected,reviewer_id:reviewer,status:'assigned'})
+  if(error)setNotice(error.message);else{setNotice('Review assigned.');setSelected('');setReviewer('');await load()}
+  setBusy(false)
+ }
+
+ async function updateReview(id:string,patch:Partial<ReviewRow>){
+  const current=reviews.find(r=>r.id===id)
+  if(!current)return
+  const status=(patch.status||current.status) as ReviewRow['status']
+  const score=patch.score===undefined?current.score:patch.score
+  const notes=patch.notes===undefined?current.notes:patch.notes
+  const {data,error}=await supabase.rpc('update_review_assignment',{p_assignment_id:id,p_status:status,p_score:score,p_notes:notes})
+  if(error)setNotice(error.message);else setReviews(x=>x.map(r=>r.id===id?data as ReviewRow:r))
+ }
+
+ async function openHistory(review:ReviewRow){
+  setHistoryReview(review)
+  const {data,error}=await supabase.from('review_audit_logs').select('id,action,from_status,to_status,previous_score,new_score,actor_id,metadata,created_at').eq('review_assignment_id',review.id).order('created_at',{ascending:false})
+  if(error)setNotice(error.message);else setHistory(data||[])
+ }
+
+ const isAdmin=role==='owner'||role==='admin'
  return <div className="reviews-panel">
-  <div className="builder-top"><div><p className="eyebrow">Reviews</p><h2>Reviewer assignments</h2><p>Assign applications to reviewers and track their review progress.</p></div>{notice&&<span className="builder-notice">{notice}</span>}</div>
-  <div className="card review-assign-card"><div><p className="eyebrow">Assign a review</p><h3>Send an application to a reviewer</h3></div><div className="review-assign-grid"><select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Select application…</option>{submissions.map(s=><option key={s.id} value={s.id}>{s.applicants?.full_name||s.applicants?.email||'Unnamed applicant'}</option>)}</select><select value={reviewer} onChange={e=>setReviewer(e.target.value)}><option value="">Select reviewer…</option>{reviewers.map(p=><option key={p.id} value={p.id}>{p.full_name||'Reviewer'}</option>)}</select><button className="primary-button" disabled={busy||!selected||!reviewer} onClick={assign}><Plus size={14}/> Assign</button></div></div>
-  {!reviews.length?<div className="card builder-empty"><ClipboardList size={24}/><h3>No review assignments yet</h3><p>Once applications are submitted, assign them to members of your review team.</p></div>:<div className="card reviews-table"><div className="review-table-head"><span>Applicant</span><span>Reviewer</span><span>Status</span><span>Score</span><span>Notes</span></div>{reviews.map(r=>{const s=submissions.find(x=>x.id===r.submission_id),p=reviewers.find(x=>x.id===r.reviewer_id);return <div className="review-table-row" key={r.id}><span><strong>{s?.applicants?.full_name||'Unnamed'}</strong><small>{s?.applicants?.email||''}</small></span><span>{p?.full_name||'Reviewer'}</span><select value={r.status} onChange={e=>updateReview(r.id,{status:e.target.value as ReviewRow['status']})}><option value="assigned">Assigned</option><option value="in_progress">In progress</option><option value="completed">Completed</option></select><input className="review-score-input" type="number" min="0" step="0.1" value={r.score??''} placeholder="—" onChange={e=>updateReview(r.id,{score:e.target.value===''?null:Number(e.target.value)})}/><input value={r.notes||''} placeholder="Reviewer notes" onChange={e=>updateReview(r.id,{notes:e.target.value||null})}/></div>})}</div>}
+  <div className="builder-top"><div><p className="eyebrow">Reviews</p><h2>{isAdmin?'Reviewer assignments':'My review queue'}</h2><p>{isAdmin?'Assign applications to reviewers and track their review progress.':'Review the applications assigned to you. Your updates are recorded in the review history.'}</p></div>{notice&&<span className="builder-notice">{notice}</span>}</div>
+  {isAdmin&&<div className="card review-assign-card"><div><p className="eyebrow">Assign a review</p><h3>Send an application to a reviewer</h3></div><div className="review-assign-grid"><select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Select application…</option>{submissions.map(s=><option key={s.id} value={s.id}>{s.applicants?.full_name||s.applicants?.email||'Unnamed applicant'}</option>)}</select><select value={reviewer} onChange={e=>setReviewer(e.target.value)}><option value="">Select reviewer…</option>{reviewers.map(p=><option key={p.id} value={p.id}>{p.full_name||'Reviewer'}</option>)}</select><button className="primary-button" disabled={busy||!selected||!reviewer} onClick={assign}><Plus size={14}/> Assign</button></div></div>}
+  {!reviews.length?<div className="card builder-empty"><ClipboardList size={24}/><h3>{isAdmin?'No review assignments yet':'No reviews assigned to you'}</h3><p>{isAdmin?'Once applications are submitted, assign them to members of your review team.':'When an admin assigns an application to you, it will appear here.'}</p></div>:<div className="card reviews-table"><div className="review-table-head"><span>Applicant</span><span>Reviewer</span><span>Status</span><span>Score</span><span>Notes</span></div>{reviews.map(r=>{const s=submissions.find(x=>x.id===r.submission_id),p=reviewers.find(x=>x.id===r.reviewer_id);return <div className="review-table-row" key={r.id}><span><strong>{s?.applicants?.full_name||'Unnamed'}</strong><small>{s?.applicants?.email||''}</small></span><span>{p?.full_name||'Reviewer'}</span><select value={r.status} onChange={e=>updateReview(r.id,{status:e.target.value as ReviewRow['status']})}><option value="assigned">Assigned</option><option value="in_progress">In progress</option><option value="completed">Completed</option></select><input className="review-score-input" type="number" min="0" step="0.1" value={r.score??''} placeholder="—" onChange={e=>updateReview(r.id,{score:e.target.value===''?null:Number(e.target.value)})}/><div className="review-notes-cell"><input value={r.notes||''} placeholder="Reviewer notes" onChange={e=>updateReview(r.id,{notes:e.target.value||null})}/><button className="text-button" onClick={()=>openHistory(r)}>History</button></div></div>})}</div>}
+  {historyReview&&<div className="screening-drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setHistoryReview(null)}}><aside className="screening-drawer card"><div className="preview-header"><div><p className="eyebrow">Review history</p><h2>{submissions.find(x=>x.id===historyReview.submission_id)?.applicants?.full_name||'Applicant'}</h2><p>{reviewers.find(x=>x.id===historyReview.reviewer_id)?.full_name||'Reviewer'}</p></div><button className="icon-button" onClick={()=>setHistoryReview(null)}><X size={18}/></button></div>{!history.length?<div className="builder-empty"><ClipboardList size={22}/><h3>No history yet</h3><p>Changes to this review will appear here.</p></div>:<div className="screening-detail">{history.map((item:any)=><div className="connection-list" key={item.id}><div><span>Action</span><strong>{item.action}</strong></div><div><span>Status</span><strong>{item.from_status||'—'} → {item.to_status||'—'}</strong></div><div><span>Score</span><strong>{item.previous_score??'—'} → {item.new_score??'—'}</strong></div><div><span>Time</span><strong>{formatDate(item.created_at)}</strong></div></div>)}</div>}</aside></div>}
  </div>
 }
 function ScreeningPanel({applicationId}:{applicationId:string}){
