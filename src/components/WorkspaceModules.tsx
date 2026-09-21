@@ -28,7 +28,7 @@ function ModuleList({title,eyebrow,description,icon:Icon,applications,onOpen}:{t
  return <section><div className="page-heading compact"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p className="subtitle">{description}</p></div></div><div className="card table-card"><div className="card-header"><div><h2>{title} by programme</h2><p>Choose a programme to continue.</p></div></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Deadline</th><th></th></tr></thead><tbody>{applications.length?applications.map(a=><tr key={a.id}><td><strong>{a.name}</strong><span className="table-sub">{a.description||'No description yet.'}</span></td><td><span className={'status '+(a.status==='published'?'blue':'neutral')}>{a.status}</span></td><td>{a.deadline?new Date(a.deadline).toLocaleDateString():'—'}</td><td><button className="secondary-button" onClick={()=>onOpen(a)}>Open <ArrowRight size={15}/></button></td></tr>):<tr><td colSpan={4}><div className="table-empty">Create a programme first.</div></td></tr>}</tbody></table></div></div></section>
 }
 
-type VersionRecord={id:string;version_number:number;status:'draft'|'published';title:string;created_at:string;published_at:string|null}
+type VersionRecord={id:string;version_number:number;status:'draft'|'published';title:string;created_at:string;published_at:string|null;submissionCount:number}
 
 function formWorkspaceStatus(s:FormSummary):'draft'|'published'|'closed'|'none'{
  if(s.application.status==='closed'||s.application.status==='screening'||s.application.status==='completed')return 'closed'
@@ -59,8 +59,29 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
  async function openHistory(summary:FormSummary){
    setHistoryFor(summary);setHistoryLoading(true);setVersions([])
    const {data,error}=await supabase.from('form_versions').select('id,version_number,status,title,created_at,published_at').eq('application_id',summary.application.id).order('version_number',{ascending:false})
-   if(error)setError(error.message);else setVersions((data||[]) as VersionRecord[])
+   if(error){setError(error.message);setHistoryLoading(false);return}
+   const rows=(data||[]) as Omit<VersionRecord,'submissionCount'>[]
+   const ids=rows.map(v=>v.id)
+   const counts=new Map<string,number>()
+   if(ids.length){
+     const {data:subs,error:subError}=await supabase.from('submissions').select('form_version_id').in('form_version_id',ids)
+     if(subError){setError(subError.message);setHistoryLoading(false);return}
+     for(const sub of subs||[])counts.set(sub.form_version_id,(counts.get(sub.form_version_id)||0)+1)
+   }
+   setVersions(rows.map(v=>({...v,submissionCount:counts.get(v.id)||0})))
    setHistoryLoading(false)
+ }
+
+ async function duplicateVersion(versionId:string, summary:FormSummary){
+   setBusyId(summary.application.id);setError('')
+   try{
+     const {data,error}=await supabase.rpc('duplicate_form_version',{p_form_version_id:versionId})
+     if(error)throw error
+     await openHistory(summary)
+     await load()
+     setError('') 
+     return data as string
+   }catch(e){setError(e instanceof Error?e.message:'Could not duplicate this version.')}finally{setBusyId('')}
  }
 
  function preview(s:FormSummary){if(!s.publicSlug){setError('This programme does not have a public application link yet.');return}window.open('/apply/'+s.publicSlug,'_blank','noopener,noreferrer')}
@@ -100,7 +121,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
   {historyFor&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setHistoryFor(null)}}>
    <div className="modal card" style={{maxWidth:720}}>
     <div className="modal-header"><div><p className="eyebrow">Version history</p><h2>{historyFor.application.name}</h2><p>Published versions stay tied to the submissions that used them.</p></div><button type="button" className="icon-button" onClick={()=>setHistoryFor(null)} aria-label="Close"><MoreHorizontal size={18}/></button></div>
-    {historyLoading?<div className="loading-card">Loading version history…</div>:versions.length?<div style={{display:'grid',gap:10,maxHeight:'55vh',overflowY:'auto'}}>{versions.map(v=><div key={v.id} className="card" style={{padding:16,display:'flex',alignItems:'center',justifyContent:'space-between',gap:16}}><div><div style={{display:'flex',alignItems:'center',gap:8}}><strong>Version {v.version_number}</strong><span className={'status '+(v.status==='published'?'blue':'amber')}>{v.status}</span></div><div className="muted" style={{marginTop:5}}>{v.title||'Application form'} · Created {new Date(v.created_at).toLocaleDateString()}</div></div><div style={{textAlign:'right'}}>{v.published_at?<><strong>Published</strong><div className="muted">{new Date(v.published_at).toLocaleDateString()}</div></>:<span className="muted">Draft</span>}</div></div>)}</div>:<div className="table-empty">No form versions yet.</div>}
+    {historyLoading?<div className="loading-card">Loading version history…</div>:versions.length?<div style={{display:'grid',gap:10,maxHeight:'55vh',overflowY:'auto'}}>{versions.map(v=><div key={v.id} className="card" style={{padding:16,display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}><div><div style={{display:'flex',alignItems:'center',gap:8}}><strong>Version {v.version_number}</strong><span className={'status '+(v.status==='published'?'blue':'amber')}>{v.status}</span></div><div className="muted" style={{marginTop:5}}>{v.title||'Application form'} · Created {new Date(v.created_at).toLocaleDateString()} · {v.submissionCount} submission{v.submissionCount===1?'':'s'}</div></div><div style={{display:'flex',alignItems:'center',gap:12}}><div style={{textAlign:'right'}}>{v.published_at?<><strong>Published</strong><div className="muted">{new Date(v.published_at).toLocaleDateString()}</div></>:<span className="muted">Draft</span>}</div><button className="secondary-button" disabled={busyId===historyFor.application.id} onClick={()=>duplicateVersion(v.id,historyFor)}>{v.status==='draft'?'Continue draft':'Duplicate as draft'} <ArrowRight size={15}/></button></div></div>)}</div>:<div className="table-empty">No form versions yet.</div>}
     <div className="modal-footer"><button className="secondary-button" onClick={()=>setHistoryFor(null)}>Close</button><button className="primary-button" onClick={()=>{setHistoryFor(null);onOpen(historyFor.application)}}>Open form builder <ArrowRight size={15}/></button></div>
    </div>
   </div>}
