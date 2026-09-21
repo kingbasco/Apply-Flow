@@ -166,7 +166,20 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
   </div>}
  </section>
 }
-type ScreeningRow=any
+type ScreeningDecision='pending'|'approved'|'rejected'
+type ScreeningRow={
+ submissionId:string
+ applicationId:string
+ uniqueId:string
+ applicantName:string
+ email:string|null
+ submittedAt:string|null
+ eligibility:'eligible'|'ineligible'|'pending'
+ score:number|null
+ aiStatus:string
+ aiRecommendation:string
+ decision:ScreeningDecision
+}
 
 function screeningRecommendation(ai:any):string{
  if(!ai)return 'Not screened'
