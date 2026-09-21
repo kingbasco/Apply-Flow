@@ -28,10 +28,10 @@ drop policy if exists "applicant public upload metadata" on storage.objects;
 drop policy if exists "applicant public upload application files" on storage.objects;
 create policy "applicant public upload application files" on storage.objects for insert to anon with check (
  bucket_id='application-files'
- and (storage.foldername(name))[1]='public-submissions'
+ and (storage.foldername(storage.objects.name))[1]='public-submissions'
  and exists (
    select 1 from public.applications a
-   where a.id=((storage.foldername(name))[2])::uuid and a.status='published'
+   where a.id=((storage.foldername(storage.objects.name))[2])::uuid and a.status='published'
  )
 );
 
