@@ -27,7 +27,7 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(new Date(value))
 }
 
-function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
+function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) {
   const [mode, setMode] = useState<'signin'|'signup'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -238,7 +238,7 @@ function App() {
 
   useEffect(() => {
     const path = window.location.pathname
-    const isPublicRoute = path === '/' || path.startsWith('/apply/')
+    const isPublicRoute = path === '/' || path === '/login' || path.startsWith('/apply/')
     if (isPublicRoute) {
       setSessionReady(true)
       return
@@ -266,10 +266,13 @@ function App() {
   const firstName = profileName.split(' ')[0]
 
   if (window.location.pathname.startsWith('/apply/')) return <PublicApplication slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
-  if (window.location.pathname === '/login') {
-    if (!sessionReady) return <div className="loading-screen"><div className="brand-mark">A</div><span>Loading ApplyFlow…</span></div>
-    if (!session) return <AuthScreen onSignedIn={()=>{ window.history.replaceState({}, '', '/'); setSessionReady(true) }} />
-  }
+  if (window.location.pathname === '/login' && !session) return <AuthScreen onSignedIn={async () => {
+    const { data } = await supabase.auth.getSession()
+    setSession(data.session)
+    window.history.replaceState({}, '', '/')
+    if (data.session) await loadWorkspace(data.session)
+    setSessionReady(true)
+  }} />
   if (!sessionReady) return <div className="loading-screen"><div className="brand-mark">A</div><span>Loading ApplyFlow…</span></div>
   if (!session) return <LandingPage />
 
