@@ -1,0 +1,40 @@
+import type { Application } from './types'
+
+export const applications: Application[] = [
+  {
+    id: 'hertisan-cohort-3',
+    name: 'Hertisan Women Artisans — Cohort 3',
+    description: 'Skills, grants and business support for women artisans.',
+    status: 'Screening',
+    deadline: 'Oct 18, 2026',
+    target: 150,
+    submitted: 450,
+    eligible: 382,
+    shortlisted: 210,
+    selected: 120,
+  },
+  {
+    id: 'skillsbuild-phase-2',
+    name: 'IBM SkillsBuild — Phase 2',
+    description: 'Digital skills programme for young people in Kaduna and Lagos.',
+    status: 'Published',
+    deadline: 'Nov 02, 2026',
+    target: 3000,
+    submitted: 1248,
+    eligible: 1104,
+    shortlisted: 0,
+    selected: 0,
+  },
+  {
+    id: 'community-leaders',
+    name: 'Community Leaders Fellowship',
+    description: 'A fellowship for emerging community builders.',
+    status: 'Draft',
+    deadline: 'Dec 12, 2026',
+    target: 40,
+    submitted: 0,
+    eligible: 0,
+    shortlisted: 0,
+    selected: 0,
+  },
+]
