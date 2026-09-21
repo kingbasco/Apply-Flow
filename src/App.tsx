@@ -257,52 +257,52 @@ function ApplicationDetails({ application, settings, tab, setTab, loading, savin
   settings: {public_slug:string; confirmation_message:string} | null
   tab: 'Overview'|'Form'|'Eligibility'|'Scoring'|'Screening'|'Applicants'
   setTab: (tab:'Overview'|'Form'|'Eligibility'|'Scoring'|'Screening'|'Applicants') => void
-  loading: boolean
-  saving: boolean
-  error: string
-  onBack: () => void
-  onSave: (patch: Partial<Application>, settingsPatch?: Partial<{public_slug:string;confirmation_message:string}>) => Promise<void>
+  loading: boolean; saving: boolean; error: string; onBack:()=>void
+  onSave:(patch:Partial<Application>, settingsPatch?:Partial<{public_slug:string;confirmation_message:string}>)=>Promise<void>
 }) {
-  const [name,setName]=useState(application.name)
-  const [description,setDescription]=useState(application.description || '')
-  const [deadline,setDeadline]=useState(application.deadline || '')
-  const [target,setTarget]=useState(application.target_count?.toString() || '')
-  const [slug,setSlug]=useState(settings?.public_slug || '')
-  const [message,setMessage]=useState(settings?.confirmation_message || '')
+  const [name,setName]=useState(application.name), [description,setDescription]=useState(application.description||'')
+  const [deadline,setDeadline]=useState(application.deadline||''), [target,setTarget]=useState(application.target_count?.toString()||'')
+  const [slug,setSlug]=useState(settings?.public_slug||''), [message,setMessage]=useState(settings?.confirmation_message||'')
   useEffect(()=>{setName(application.name);setDescription(application.description||'');setDeadline(application.deadline||'');setTarget(application.target_count?.toString()||'')},[application])
   useEffect(()=>{setSlug(settings?.public_slug||'');setMessage(settings?.confirmation_message||'')},[settings])
   const tabs=['Overview','Form','Eligibility','Scoring','Screening','Applicants'] as const
-  const statusClass=application.status==='published'?'blue':application.status==='screening'?'amber':application.status==='closed'?'neutral':'neutral'
   return <section className="application-detail">
     <button className="back-link" onClick={onBack}>← Back to applications</button>
-    <div className="detail-header">
-      <div><p className="eyebrow">Application programme</p><div className="detail-title-row"><h1>{application.name}</h1><span className={'status '+statusClass}>{statusLabel(application.status)}</span></div><p className="subtitle">{application.description || 'No description yet.'}</p></div>
-      <div className="detail-actions">
-        {application.status==='draft' && <button className="primary-button" disabled={saving} onClick={()=>onSave({status:'published'})}>Publish</button>}
-        {application.status==='published' && <button className="secondary-button" disabled={saving} onClick={()=>onSave({status:'closed'})}>Close applications</button>}
-        {application.status==='closed' && <button className="secondary-button" disabled={saving} onClick={()=>onSave({status:'draft'})}>Reopen as draft</button>}
-      </div>
-    </div>
-    <div className="detail-meta">
-      <div><span>Deadline</span><strong>{formatDate(application.deadline)}</strong></div>
-      <div><span>Target</span><strong>{application.target_count?.toLocaleString() || 'Not set'}</strong></div>
-      <div><span>Public URL</span><strong>{settings?.public_slug ? '/apply/'+settings.public_slug : 'Not configured'}</strong></div>
-    </div>
-    <div className="detail-tabs">{tabs.map(item=><button key={item} className={tab===item?'detail-tab active':'detail-tab'} onClick={()=>setTab(item)}>{item}</button>)}</div>
-    {loading ? <div className="loading-card card">Loading programme settings…</div> : error ? <div className="form-error page-error">{error}</div> : tab==='Overview' ? <div className="detail-grid">
-      <div className="card detail-card"><div className="card-header"><div><h2>Programme details</h2><p>Update the basic information for this programme.</p></div></div><div className="detail-form">
-        <label>Programme name<input value={name} onChange={e=>setName(e.target.value)}/></label>
-        <label>Description<textarea rows={5} value={description} onChange={e=>setDescription(e.target.value)} placeholder="Describe the programme."/></label>
-        <div className="form-grid"><label>Application deadline<input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)}/></label><label>Target number<input type="number" min="0" value={target} onChange={e=>setTarget(e.target.value)} placeholder="150"/></label></div>
-        <div className="detail-form-footer"><button className="primary-button" disabled={saving} onClick={()=>onSave({name:name.trim(),description:description.trim()||null,deadline:deadline||null,target_count:target?Number(target):null})}>{saving?'Saving…':'Save changes'}</button></div>
-      </div></div>
-      <div className="card detail-card"><div className="card-header"><div><h2>Public application</h2><p>Settings applicants will see when they submit.</p></div></div><div className="detail-form">
-        <label>Public slug<input value={slug} onChange={e=>setSlug(e.target.value)} /></label>
-        <label>Confirmation message<textarea rows={5} value={message} onChange={e=>setMessage(e.target.value)}/></label>
-        <div className="detail-form-footer"><button className="secondary-button" disabled={saving} onClick={()=>onSave({}, {public_slug:slug.trim(),confirmation_message:message.trim()||'Thank you. Your application has been received.'})}>Save public settings</button></div>
-      </div></div>
-    </div> : <div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{tab} is the next build</h2><p>The programme shell is ready. This section will connect to the live {tab.toLowerCase()} data next.</p></div>}
+    <div className="detail-header"><div><p className="eyebrow">Application programme</p><div className="detail-title-row"><h1>{application.name}</h1><span className={'status '+(application.status==='published'?'blue':application.status==='screening'?'amber':'neutral')}>{statusLabel(application.status)}</span></div><p className="subtitle">{application.description||'No description yet.'}</p></div><div className="detail-actions">{application.status==='draft'&&<button className="primary-button" disabled={saving} onClick={()=>onSave({status:'published'})}>Publish</button>}{application.status==='published'&&<button className="secondary-button" disabled={saving} onClick={()=>onSave({status:'closed'})}>Close applications</button>}</div></div>
+    <div className="detail-meta"><div><span>Deadline</span><strong>{formatDate(application.deadline)}</strong></div><div><span>Target</span><strong>{application.target_count?.toLocaleString()||'Not set'}</strong></div><div><span>Public URL</span><strong>/apply/{settings?.public_slug||'not-configured'}</strong></div></div>
+    <div className="detail-tabs">{tabs.map(t=><button key={t} className={tab===t?'detail-tab active':'detail-tab'} onClick={()=>setTab(t)}>{t}</button>)}</div>
+    {loading?<div className="loading-card card">Loading programme settings…</div>:error?<div className="form-error page-error">{error}</div>:tab==='Overview'?<div className="detail-grid">
+      <div className="card detail-card"><div className="card-header"><div><h2>Programme details</h2><p>Update the basic information for this programme.</p></div></div><div className="detail-form"><label>Programme name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Description<textarea rows={5} value={description} onChange={e=>setDescription(e.target.value)}/></label><div className="form-grid"><label>Application deadline<input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)}/></label><label>Target number<input type="number" min="0" value={target} onChange={e=>setTarget(e.target.value)}/></label></div><div className="detail-form-footer"><button className="primary-button" disabled={saving} onClick={()=>onSave({name:name.trim(),description:description.trim()||null,deadline:deadline||null,target_count:target?Number(target):null})}>{saving?'Saving…':'Save changes'}</button></div></div></div>
+      <div className="card detail-card"><div className="card-header"><div><h2>Public application</h2><p>Settings applicants will see.</p></div></div><div className="detail-form"><label>Public slug<input value={slug} onChange={e=>setSlug(e.target.value)}/></label><label>Confirmation message<textarea rows={5} value={message} onChange={e=>setMessage(e.target.value)}/></label><div className="detail-form-footer"><button className="secondary-button" disabled={saving} onClick={()=>onSave({}, {public_slug:slug.trim(),confirmation_message:message.trim()||'Thank you. Your application has been received.'})}>Save public settings</button></div></div></div>
+    </div>:tab==='Form'?<FormBuilder applicationId={application.id}/>:<div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{tab} is next</h2><p>This section is connected to the programme workspace and will be built on the live data model.</p></div>}
   </section>
+}
+
+type QuestionType='short_text'|'long_text'|'email'|'phone'|'number'|'date'|'dropdown'|'single_choice'|'multiple_choice'|'yes_no'|'file'|'image'|'rating'
+type BuilderQuestion={id:string;type:QuestionType;label:string;description:string|null;required:boolean;placeholder:string|null;position:number;config:Record<string,unknown>}
+const questionTypes:{type:QuestionType;label:string;icon:string}[]=[
+ {type:'short_text',label:'Short text',icon:'Aa'},{type:'long_text',label:'Long text',icon:'¶'},{type:'email',label:'Email',icon:'@'},{type:'phone',label:'Phone',icon:'☎'},
+ {type:'number',label:'Number',icon:'#'},{type:'date',label:'Date',icon:'◫'},{type:'dropdown',label:'Dropdown',icon:'⌄'},{type:'single_choice',label:'Single choice',icon:'○'},
+ {type:'multiple_choice',label:'Multiple choice',icon:'☑'},{type:'yes_no',label:'Yes / No',icon:'Y/N'},{type:'file',label:'File upload',icon:'↑'},{type:'image',label:'Image upload',icon:'▧'},{type:'rating',label:'Rating',icon:'★'}
+]
+
+function FormBuilder({applicationId}:{applicationId:string}) {
+  const [versionId,setVersionId]=useState<string|null>(null), [version,setVersion]=useState(1), [questions,setQuestions]=useState<BuilderQuestion[]>([])
+  const [selectedId,setSelectedId]=useState<string|null>(null), [busy,setBusy]=useState(false), [notice,setNotice]=useState('')
+  const selected=questions.find(q=>q.id===selectedId)||null
+  useEffect(()=>{(async()=>{const {data}=await supabase.from('form_versions').select('id,version_number').eq('application_id',applicationId).eq('status','draft').order('version_number',{ascending:false}).limit(1).maybeSingle(); if(data){setVersionId(data.id);setVersion(data.version_number);const {data:qs}=await supabase.from('questions').select('id,type,label,description,required,placeholder,position,config').eq('form_version_id',data.id).order('position');setQuestions((qs||[]) as BuilderQuestion[]);if(qs?.[0])setSelectedId(qs[0].id)}})()},[applicationId])
+  async function ensureVersion(){if(versionId)return versionId;const {data:latest}=await supabase.from('form_versions').select('version_number').eq('application_id',applicationId).order('version_number',{ascending:false}).limit(1).maybeSingle();const next=(latest?.version_number||0)+1;const {data,error}=await supabase.from('form_versions').insert({application_id:applicationId,version_number:next,created_by:(await supabase.auth.getUser()).data.user?.id,title:'Application form',status:'draft'}).select('id').single();if(error)throw error;setVersionId(data.id);setVersion(next);return data.id}
+  async function addQuestion(type:QuestionType){setBusy(true);setNotice('');try{const v=await ensureVersion();const q={form_version_id:v,type,label:questionTypes.find(x=>x.type===type)?.label||'Question',required:false,position:questions.length,config:{}};const {data,error}=await supabase.from('questions').insert(q).select('id,type,label,description,required,placeholder,position,config').single();if(error)throw error;const item=data as BuilderQuestion;setQuestions(x=>[...x,item]);setSelectedId(item.id)}catch(e){setNotice(e instanceof Error?e.message:'Could not add question.')}finally{setBusy(false)}}
+  async function updateQuestion(patch:Partial<BuilderQuestion>){if(!selected)return;setBusy(true);const {data,error}=await supabase.from('questions').update({...patch,updated_at:new Date().toISOString()}).eq('id',selected.id).select('id,type,label,description,required,placeholder,position,config').single();if(!error&&data)setQuestions(x=>x.map(q=>q.id===selected.id?data as BuilderQuestion:q));if(error)setNotice(error.message);setBusy(false)}
+  async function removeQuestion(){if(!selected)return;setBusy(true);const {error}=await supabase.from('questions').delete().eq('id',selected.id);if(!error){const left=questions.filter(q=>q.id!==selected.id).map((q,i)=>({...q,position:i}));setQuestions(left);setSelectedId(left[0]?.id||null)}else setNotice(error.message);setBusy(false)}
+  async function publish(){if(!versionId)return;setBusy(true);setNotice('');const {error}=await supabase.from('form_versions').update({status:'published',published_at:new Date().toISOString()}).eq('id',versionId);if(error)setNotice(error.message);else {setNotice('Form published successfully.');setVersionId(null);setQuestions([]);setSelectedId(null)}setBusy(false)}
+  return <div className="form-builder">
+    <div className="builder-top"><div><p className="eyebrow">Form builder · Version {version}</p><h2>Application form</h2><p>Build the questions applicants will answer.</p></div><div className="builder-actions">{notice&&<span className="builder-notice">{notice}</span>}<button className="secondary-button" disabled={busy||!questions.length} onClick={async()=>{setBusy(true);setNotice('Draft saved.');setBusy(false)}}>Save draft</button><button className="primary-button" disabled={busy||!questions.length} onClick={publish}>Publish form</button></div></div>
+    <div className="builder-layout"><aside className="builder-palette card"><div className="builder-section-title">Question types</div>{questionTypes.map(q=><button key={q.type} className="question-type" disabled={busy} onClick={()=>addQuestion(q.type)}><span className="type-icon">{q.icon}</span><span>{q.label}</span></button>)}</aside>
+      <main className="builder-canvas"><div className="canvas-label">FORM CANVAS</div>{!questions.length?<div className="builder-empty card"><FileText size={24}/><h3>Start building your form</h3><p>Select a question type from the left to add your first question.</p></div>:questions.map((q,i)=><div key={q.id} className={selectedId===q.id?'question-card card selected':'question-card card'} onClick={()=>setSelectedId(q.id)}><div className="question-card-top"><span className="drag-handle">⋮⋮</span><span className="question-number">{i+1}</span><span className="question-kind">{questionTypes.find(x=>x.type===q.type)?.label}</span><button className="icon-button question-delete" onClick={e=>{e.stopPropagation();setSelectedId(q.id);removeQuestion()}}><X size={15}/></button></div><h3>{q.label}{q.required&&<span className="required-star">*</span>}</h3>{q.description&&<p>{q.description}</p>}<div className="fake-input">{q.type==='long_text'?'Applicant response…':q.type==='dropdown'?'Select an option…':q.type==='rating'?'☆ ☆ ☆ ☆ ☆':'Applicant response…'}</div></div>)}</main>
+      <aside className="builder-settings card">{selected?<><div className="builder-section-title">Question settings</div><label>Question<input value={selected.label} onChange={e=>updateQuestion({label:e.target.value})}/></label><label>Description<textarea rows={3} value={selected.description||''} onChange={e=>updateQuestion({description:e.target.value||null})}/></label><label>Placeholder<input value={selected.placeholder||''} onChange={e=>updateQuestion({placeholder:e.target.value||null})}/></label><label className="toggle-row"><span>Required</span><input type="checkbox" checked={selected.required} onChange={e=>updateQuestion({required:e.target.checked})}/></label><button className="delete-question" onClick={removeQuestion}>Delete question</button></>:<div className="settings-empty"><Settings size={20}/><p>Select a question to edit its settings.</p></div>}</aside>
+    </div>
+  </div>
 }
 
 function StatCard({label,value,note,icon:Icon}:{label:string;value:string;note:string;icon:typeof Users}){return <div className="card stat-card"><div className="stat-icon"><Icon size={18}/></div><div><p className="eyebrow">{label}</p><div className="stat-value">{value}</div><p className="muted">{note}</p></div></div>}
