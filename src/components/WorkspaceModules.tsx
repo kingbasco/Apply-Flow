@@ -354,7 +354,50 @@ function ScreeningReviewModal({row,onClose}:{row:ScreeningRow;onClose:()=>void})
   </div>}
  </div></div>
 }
-export function ReviewsWorkspace({applications,onOpen}:{applications:Application[];onOpen:(a:Application)=>void}){return <ModuleList title="Reviews" eyebrow="Human review" description="Assign reviewers and manage structured application reviews." icon={ClipboardList} applications={applications} onOpen={onOpen}/>}
+export function ReviewsWorkspace({applications,onOpen}:{applications:Application[];onOpen:(a:Application)=>void}){
+ const [rows,setRows]=useState<any[]>([]),[reviewers,setReviewers]=useState<Profile[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[status,setStatus]=useState('all')
+ async function load(){
+  setLoading(true);setError('')
+  try{
+   const ids=applications.map(a=>a.id)
+   if(!ids.length){setRows([]);setLoading(false);return}
+   const {data:subs,error:se}=await supabase.from('submissions').select('id,application_id,applicant_id,created_at').in('application_id',ids).order('created_at',{ascending:false})
+   if(se)throw se
+   const submissionIds=(subs||[]).map(s=>s.id)
+   if(!submissionIds.length){setRows([]);setLoading(false);return}
+   const [{data:assignments,error:ae},{data:people,error:pe},{data:applicants,error:apE}]=await Promise.all([
+    supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,decision,updated_at').in('submission_id',submissionIds),
+    supabase.from('profiles').select('id,full_name,role').in('role',['reviewer','admin','owner']).order('full_name'),
+    supabase.from('applicants').select('id,full_name,email').in('id',(subs||[]).map(s=>s.applicant_id).filter(Boolean))
+   ])
+   if(ae)throw ae;if(pe)throw pe;if(apE)throw apE
+   setReviewers(people||[])
+   const applicantMap=new Map((applicants||[]).map(a=>[a.id,a]))
+   const appMap=new Map(applications.map(a=>[a.id,a]))
+   const reviewerMap=new Map((people||[]).map(p=>[p.id,p]))
+   setRows((subs||[]).map(s=>{const a=assignments?.find(x=>x.submission_id===s.id);const applicant=applicantMap.get(s.applicant_id);const programme=appMap.get(s.application_id);const reviewer=a?reviewerMap.get(a.reviewer_id):null;return {submissionId:s.id,applicationId:s.application_id,applicantName:applicant?.full_name||'Unnamed applicant',email:applicant?.email||null,programmeName:programme?.name||'Programme',reviewerName:reviewer?.full_name||null,status:a?.status||'unassigned',decision:a?.decision||null,score:a?.score??null,updatedAt:a?.updated_at||s.created_at}}))
+  }catch(e:any){setError(e.message||'Unable to load review operations.')}finally{setLoading(false)}
+ }
+ useEffect(()=>{load()},[applications.map(a=>a.id).join(',')])
+ const filtered=useMemo(()=>rows.filter(r=>(status==='all'||r.status===status)&&(!query||r.applicantName.toLowerCase().includes(query.toLowerCase())||r.email?.toLowerCase().includes(query.toLowerCase())||r.programmeName.toLowerCase().includes(query.toLowerCase()))),[rows,status,query])
+ const stats=useMemo(()=>({total:rows.length,unassigned:rows.filter(r=>r.status==='unassigned').length,assigned:rows.filter(r=>r.status==='assigned').length,inProgress:rows.filter(r=>r.status==='in_progress').length,completed:rows.filter(r=>r.status==='completed').length}),[rows])
+ const reviewerCounts=useMemo(()=>reviewers.map(p=>({name:p.full_name||'Unnamed reviewer',count:rows.filter(r=>r.reviewerName===(p.full_name||'Unnamed reviewer')).length})).filter(x=>x.count>0),[reviewers,rows])
+ return <section>
+  <div className="page-heading compact"><div><p className="eyebrow">Human review</p><h1>Reviews</h1><p className="subtitle">Track reviewer workload, assignments and screening decisions.</p></div><button className="secondary-button" onClick={load}>Refresh</button></div>
+  {error&&<div className="form-error page-error">{error}</div>}
+  <div className="stats-grid">
+   <div className="stat-card"><span>Total reviews</span><strong>{stats.total}</strong></div>
+   <div className="stat-card"><span>Unassigned</span><strong>{stats.unassigned}</strong></div>
+   <div className="stat-card"><span>Assigned</span><strong>{stats.assigned}</strong></div>
+   <div className="stat-card"><span>In progress</span><strong>{stats.inProgress}</strong></div>
+   <div className="stat-card"><span>Completed</span><strong>{stats.completed}</strong></div>
+  </div>
+  {reviewerCounts.length>0&&<div className="card table-card"><div className="card-header"><div><h2>Reviewer workload</h2><p>Current review assignments by reviewer.</p></div><Users size={20}/></div><div className="table-wrap"><table><thead><tr><th>Reviewer</th><th>Assigned</th></tr></thead><tbody>{reviewerCounts.map(r=><tr key={r.name}><td><strong>{r.name}</strong></td><td>{r.count}</td></tr>)}</tbody></table></div></div>}
+  <div className="card table-card"><div className="toolbar"><div className="search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applicant or programme…"/></div><select aria-label="Filter reviews by status" value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses</option><option value="unassigned">Unassigned</option><option value="assigned">Assigned</option><option value="in_progress">In progress</option><option value="completed">Completed</option></select></div>
+   <div className="table-wrap"><table><thead><tr><th>Applicant</th><th>Programme</th><th>Reviewer</th><th>Status</th><th>Decision</th><th>Score</th><th>Updated</th><th></th></tr></thead><tbody>{loading?<tr><td colSpan={8}><div className="loading-card">Loading review operations…</div></td></tr>:filtered.length===0?<tr><td colSpan={8}><div className="table-empty">No review records match your filters.</div></td></tr>:filtered.map(r=><tr key={r.submissionId}><td><strong>{r.applicantName}</strong><span className="table-sub">{r.email||'No email'}</span></td><td>{r.programmeName}</td><td>{r.reviewerName||'Unassigned'}</td><td><span className={'status '+(r.status==='completed'?'green':r.status==='in_progress'?'amber':r.status==='assigned'?'blue':'neutral')}>{r.status.replace('_',' ')}</span></td><td>{r.decision||'—'}</td><td>{r.score==null?'—':r.score}</td><td>{formatDate(r.updatedAt)}</td><td><button className="text-button" onClick={()=>{const a=applications.find(x=>x.id===r.applicationId);if(a)onOpen(a)}}>Review</button></td></tr>)}</tbody></table></div>
+  </div>
+ </section>
+}
 
 export function TeamWorkspace({organizationId}:{organizationId:string}){
  const [people,setPeople]=useState<Profile[]>([]); const [loading,setLoading]=useState(true); const [error,setError]=useState('')
