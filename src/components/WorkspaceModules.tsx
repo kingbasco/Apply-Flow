@@ -212,7 +212,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
     supabase.from('submission_scores').select('submission_id,overall_score,status').in('submission_id',[]),
     supabase.from('ai_screenings').select('submission_id,status,overall_assessment').in('submission_id',[]),
     supabase.from('applicants').select('id,full_name,email').in('application_id',ids),
-   supabase.from('profiles').select('id,full_name,role,organization_id').eq('organization_id',organizationId).in('role',['reviewer','admin','owner']).order('full_name')
+   supabase.from('profiles').select('id,full_name,role,organization_id').in('role',['reviewer','admin','owner']).order('full_name')
    ])
    if(subsError)throw subsError
    if(applicantError)throw applicantError
