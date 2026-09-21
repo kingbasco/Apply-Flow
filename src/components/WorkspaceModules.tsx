@@ -169,6 +169,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
 type ScreeningRow={
  submissionId:string
  applicationId:string
+ uniqueId:string
  applicantName:string
  email:string|null
  submittedAt:string|null
@@ -176,14 +177,13 @@ type ScreeningRow={
  score:number|null
  aiStatus:string
  aiRecommendation:string
-  reviewerId:string|null
-  reviewStatus:string|null
+ decision:'pending'|'approved'|'rejected'
 }
 function screeningRecommendation(ai:any):string{
  if(!ai)return 'Not screened'
  const value=String(ai.overall_assessment||'').toLowerCase()
- if(value.includes('strong match')||value.includes('recommended'))return 'Recommended'
  if(value.includes('not recommended')||value.includes('poor match'))return 'Not recommended'
+ if(value.includes('strong match')||value.includes('recommended'))return 'Recommended'
  if(ai.status==='completed')return 'Reviewed'
  return ai.status==='failed'?'Failed':'In progress'
 }
@@ -192,66 +192,45 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
  const [loading,setLoading]=useState(true)
  const [error,setError]=useState('')
  const [query,setQuery]=useState('')
- const [filter,setFilter]=useState<'all'|'pending'|'screened'|'eligible'|'ineligible'|'recommended'|'review'>('all')
+ const [filter,setFilter]=useState<'all'|'pending'|'approved'|'rejected'|'recommended'>('all')
  const [reviewing,setReviewing]=useState<ScreeningRow|null>(null)
- const [assignments,setAssignments]=useState<any[]>([])
- const [reviewerFilter,setReviewerFilter]=useState('all')
- const [selected,setSelected]=useState<string[]>([])
- const [reviewers,setReviewers]=useState<any[]>([])
- const [bulkReviewer,setBulkReviewer]=useState('')
- const [bulkSaving,setBulkSaving]=useState(false)
+ const [aiBulkRunning,setAiBulkRunning]=useState(false)
 
  async function load(){
   setLoading(true);setError('')
   try{
    if(!applications.length){setRows([]);return}
    const ids=applications.map(a=>a.id)
-   const [{data:subs,error:subsError},{data:elig,error:eligError},{data:scores,error:scoresError},{data:ai,error:aiError},{data:applicants,error:applicantError},{data:reviewersData,error:reviewersError}]=await Promise.all([
-    supabase.from('submissions').select('id,application_id,applicant_id,submitted_at,status').in('application_id',ids).eq('status','submitted').order('submitted_at',{ascending:false}),
-    supabase.from('submission_eligibility').select('submission_id,status,overridden').in('submission_id',[]),
-    supabase.from('submission_scores').select('submission_id,overall_score,status').in('submission_id',[]),
-    supabase.from('ai_screenings').select('submission_id,status,overall_assessment').in('submission_id',[]),
-    supabase.from('applicants').select('id,full_name,email').in('application_id',ids),
-   supabase.from('profiles').select('id,full_name,role,organization_id').in('role',['reviewer','admin','owner']).order('full_name')
-   ])
+   const {data:subs,error:subsError}=await supabase.from('submissions').select('id,application_id,applicant_id,submitted_at,decision').in('application_id',ids).eq('status','submitted').order('submitted_at',{ascending:false})
    if(subsError)throw subsError
-   if(applicantError)throw applicantError
-   if(reviewersError)throw reviewersError
-   setReviewers(reviewersData||[])
    const submissionIds=(subs||[]).map(s=>s.id)
-   const [eligResult,scoreResult,aiResult]=await Promise.all([
-    submissionIds.length?supabase.from('submission_eligibility').select('submission_id,status,overridden').in('submission_id',submissionIds):Promise.resolve({data:[],error:null}),
-    submissionIds.length?supabase.from('submission_scores').select('submission_id,overall_score,status').in('submission_id',submissionIds):Promise.resolve({data:[],error:null}),
-    submissionIds.length?supabase.from('ai_screenings').select('submission_id,status,overall_assessment').in('submission_id',submissionIds):Promise.resolve({data:[],error:null})
+   if(!submissionIds.length){setRows([]);return}
+   const [eligResult,scoreResult,aiResult,applicantResult]=await Promise.all([
+    supabase.from('submission_eligibility').select('submission_id,status').in('submission_id',submissionIds),
+    supabase.from('submission_scores').select('submission_id,overall_score').in('submission_id',submissionIds),
+    supabase.from('ai_screenings').select('submission_id,status,overall_assessment').in('submission_id',submissionIds),
+    supabase.from('applicants').select('id,full_name,email,unique_id').in('id',(subs||[]).map(s=>s.applicant_id))
    ])
    if(eligResult.error)throw eligResult.error
    if(scoreResult.error)throw scoreResult.error
    if(aiResult.error)throw aiResult.error
-   const {data:assignmentData,error:assignmentError}=submissionIds.length?await supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,notes,decision').in('submission_id',submissionIds):{data:[],error:null}
-   if(assignmentError)throw assignmentError
-   setAssignments(assignmentData||[])
-   const assignmentMap=new Map((assignmentData||[]).map(a=>[a.submission_id,a]))
-   const applicantMap=new Map((applicants||[]).map(a=>[a.id,a]))
+   if(applicantResult.error)throw applicantResult.error
    const eligMap=new Map((eligResult.data||[]).map(e=>[e.submission_id,e]))
    const scoreMap=new Map((scoreResult.data||[]).map(s=>[s.submission_id,s]))
    const aiMap=new Map((aiResult.data||[]).map(a=>[a.submission_id,a]))
+   const applicantMap=new Map((applicantResult.data||[]).map(a=>[a.id,a]))
    setRows((subs||[]).map(s=>{
-    const a=applicantMap.get(s.applicant_id)
-    const e=eligMap.get(s.id)
-    const score=scoreMap.get(s.id)
+    const applicant=applicantMap.get(s.applicant_id)
     const ai=aiMap.get(s.id)
+    const score=scoreMap.get(s.id)
+    const eligibility=eligMap.get(s.id)
     return {
-     submissionId:s.id,
-     applicationId:s.application_id,
-     applicantName:a?.full_name||'Unnamed applicant',
-     email:a?.email||null,
-     submittedAt:s.submitted_at||null,
-     eligibility:e?.status==='eligible'?'eligible':e?.status==='ineligible'?'ineligible':'pending',
+     submissionId:s.id,applicationId:s.application_id,uniqueId:applicant?.unique_id||'—',
+     applicantName:applicant?.full_name||'Unnamed applicant',email:applicant?.email||null,submittedAt:s.submitted_at||null,
+     eligibility:eligibility?.status==='eligible'?'eligible':eligibility?.status==='ineligible'?'ineligible':'pending',
      score:score?.overall_score==null?null:Number(score.overall_score),
-     aiStatus:ai?.status||'pending',
-     aiRecommendation:screeningRecommendation(ai),
-     reviewerId:assignmentMap.get(s.id)?.reviewer_id||null,
-     reviewStatus:assignmentMap.get(s.id)?.status||null
+     aiStatus:ai?.status||'pending',aiRecommendation:screeningRecommendation(ai),
+     decision:s.decision==='approved'||s.decision==='rejected'?s.decision:'pending'
     }
    }))
   }catch(e){setError(e instanceof Error?e.message:'Could not load screening data.')}
@@ -261,99 +240,124 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
 
  const counts=useMemo(()=>({
   total:rows.length,
-  pending:rows.filter(r=>r.aiStatus==='pending'||r.aiStatus==='failed').length,
-  screened:rows.filter(r=>['completed','failed'].includes(r.aiStatus)).length,
-  eligible:rows.filter(r=>r.eligibility==='eligible').length,
+  pending:rows.filter(r=>r.decision==='pending').length,
+  approved:rows.filter(r=>r.decision==='approved').length,
+  rejected:rows.filter(r=>r.decision==='rejected').length,
   recommended:rows.filter(r=>r.aiRecommendation==='Recommended').length
  }),[rows])
+
  const filtered=useMemo(()=>{
   const q=query.trim().toLowerCase()
   return rows.filter(r=>{
-   const matchesQuery=!q||r.applicantName.toLowerCase().includes(q)||(r.email||'').toLowerCase().includes(q)
-   const assignment=assignments.find(a=>a.submission_id===r.submissionId)
-   const matchesReviewer=reviewerFilter==='all'||assignment?.reviewer_id===reviewerFilter
-   const matchesFilter=filter==='all'||(filter==='pending'?(r.aiStatus==='pending'||r.aiStatus==='processing'):filter==='screened'?['completed','failed'].includes(r.aiStatus):filter==='eligible'?r.eligibility==='eligible':filter==='ineligible'?r.eligibility==='ineligible':filter==='recommended'?r.aiRecommendation==='Recommended':r.aiStatus==='completed'&&r.eligibility==='pending')
-   return matchesQuery&&matchesFilter&&matchesReviewer
+   const matchesQuery=!q||r.applicantName.toLowerCase().includes(q)||(r.email||'').toLowerCase().includes(q)||r.uniqueId.toLowerCase().includes(q)
+   const matchesFilter=filter==='all'||filter==='pending'?(r.decision==='pending'):filter==='approved'?r.decision==='approved':filter==='rejected'?r.decision==='rejected':r.aiRecommendation==='Recommended'
+   return matchesQuery&&matchesFilter
   })
  },[rows,query,filter])
 
- const openApplicant=(row:ScreeningRow)=>setReviewing(row)
+ const setDecision=async(row:ScreeningRow,decision:'approved'|'rejected')=>{
+  setError('')
+  const {error}=await supabase.from('submissions').update({decision,updated_at:new Date().toISOString()}).eq('id',row.submissionId)
+  if(error){setError(error.message);return}
+  setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision}:r))
+  setReviewing(current=>current?.submissionId===row.submissionId?{...current,decision}:current)
+ }
+
+ const screenWithAI=async()=>{
+  if(!rows.length)return
+  setAiBulkRunning(true);setError('')
+  try{
+   const pending=rows.filter(r=>r.decision==='pending')
+   for(const row of pending){
+    const {error}=await supabase.functions.invoke('run-ai-screening',{body:{submission_id:row.submissionId}})
+    if(error)throw error
+   }
+   await load()
+  }catch(e){setError(e instanceof Error?e.message:'AI screening failed.')}
+  finally{setAiBulkRunning(false)}
+ }
 
  return <>
   <section>
-  <div className="page-heading compact">
-   <div><p className="eyebrow">Application screening</p><h1>Screening</h1><p className="subtitle">Review submitted applications, eligibility, scores and AI-assisted screening.</p></div>
-  </div>
-  {error&&<div className="form-error page-error">{error}</div>}
-  <div className="stats-grid screening-stats">
-   <div className="card stat-card"><div className="stat-icon"><ClipboardList size={18}/></div><div><p className="eyebrow">Total applications</p><div className="stat-value">{counts.total}</div><p className="muted">Submitted applications</p></div></div>
-   <div className="card stat-card"><div className="stat-icon"><ShieldCheck size={18}/></div><div><p className="eyebrow">Pending screening</p><div className="stat-value">{counts.pending}</div><p className="muted">Need screening attention</p></div></div>
-   <div className="card stat-card"><div className="stat-icon"><FileText size={18}/></div><div><p className="eyebrow">Screened</p><div className="stat-value">{counts.screened}</div><p className="muted">AI assessment completed</p></div></div>
-   <div className="card stat-card"><div className="stat-icon"><ShieldCheck size={18}/></div><div><p className="eyebrow">Eligible</p><div className="stat-value">{counts.eligible}</div><p className="muted">Passed eligibility</p></div></div>
-   <div className="card stat-card"><div className="stat-icon"><ArrowRight size={18}/></div><div><p className="eyebrow">AI recommended</p><div className="stat-value">{counts.recommended}</div><p className="muted">Recommended for review</p></div></div>
-  </div>
-  <div className="card table-card">
-   <div className="card-header"><div><h2>Screening queue</h2><p>Assign reviewers in bulk or open an application for full screening.</p></div><button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
-   <div className="forms-toolbar">
-    <div className="forms-search"><Search size={16}/><input aria-label="Search applications" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applicants or email…" /></div>
-    <div className="forms-filters" role="group" aria-label="Filter screening applications">
-     {(['all','pending','screened','eligible','ineligible','recommended','review'] as const).map(f=><button key={f} className={filter===f?'filter-button active':'filter-button'} onClick={()=>setFilter(f)}>{f==='all'?'All':f==='pending'?'Pending':f==='screened'?'Screened':f==='eligible'?'Eligible':f==='ineligible'?'Ineligible':f==='recommended'?'AI recommended':'Needs review'}<span>{f==='all'?counts.total:f==='pending'?counts.pending:f==='screened'?counts.screened:f==='eligible'?counts.eligible:f==='ineligible'?rows.filter(r=>r.eligibility==='ineligible').length:f==='recommended'?counts.recommended:rows.filter(r=>r.aiStatus==='completed'&&r.eligibility==='pending').length}</span></button>)}
-    </div>
+   <div className="page-heading compact">
+    <div><p className="eyebrow">Application screening</p><h1>Screening</h1><p className="subtitle">Review applications and approve or reject them.</p></div>
+    <div className="detail-actions"><button className="primary-button" onClick={screenWithAI} disabled={aiBulkRunning||loading||!rows.length}>{aiBulkRunning?'Screening with AI…':'Screen with AI'}</button><button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
    </div>
-   {selected.length>0&&<div className="forms-toolbar"><div className="forms-search"><strong>{selected.length} selected</strong></div><div className="detail-actions"><select value={bulkReviewer} onChange={e=>setBulkReviewer(e.target.value)}><option value="">Assign reviewer…</option>{reviewers.map(p=><option key={p.id} value={p.id}>{p.full_name||'Unnamed reviewer'}</option>)}</select><button className="primary-button" disabled={!bulkReviewer||bulkSaving} onClick={async()=>{setBulkSaving(true);for(const id of selected){await supabase.rpc('assign_review_submission',{p_submission_id:id,p_reviewer_id:bulkReviewer})}setSelected([]);setBulkReviewer('');setBulkSaving(false);await load()}}>{bulkSaving?'Assigning…':'Assign selected'}</button></div></div>
-}
-   <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label="Select all visible applications" checked={filtered.length>0&&filtered.every(r=>selected.includes(r.submissionId))} onChange={e=>setSelected(e.target.checked?Array.from(new Set([...selected,...filtered.map(r=>r.submissionId)])):selected.filter(id=>!filtered.some(r=>r.submissionId===id)))} /></th><th>Applicant</th><th>Eligibility</th><th>Score</th><th>AI assessment</th><th>Reviewer</th><th>Submitted</th><th></th></tr></thead><tbody>
-    {loading?<tr><td colSpan={8}><div className="loading-card">Loading screening queue…</div></td></tr>:!filtered.length?<tr><td colSpan={7}><div className="table-empty"><div className="empty-icon"><ShieldCheck size={20}/></div><h3>{rows.length?'No applications match your filters':'No submitted applications yet'}</h3><p>{rows.length?'Try another search or filter.':'Applications will appear here after applicants submit a form.'}</p></div></td></tr>:
-    filtered.map(row=><tr key={row.submissionId}>
-     <td><input type="checkbox" aria-label={`Select ${row.applicantName}`} checked={selected.includes(row.submissionId)} onChange={e=>setSelected(e.target.checked?[...selected,row.submissionId]:selected.filter(id=>id!==row.submissionId))}/></td><td><strong>{row.applicantName}</strong><span className="table-sub">{row.email||'No email provided'}</span></td>
-     <td><span className={'status '+(row.eligibility==='eligible'?'blue':row.eligibility==='ineligible'?'neutral':'amber')}>{row.eligibility}</span></td>
-     <td>{row.score==null?'—':row.score.toFixed(1)}</td>
-     <td><span className={'status '+(row.aiRecommendation==='Recommended'?'blue':row.aiRecommendation==='Not recommended'?'neutral':'amber')}>{row.aiRecommendation}</span></td>
-     <td>{reviewers.find(p=>p.id===row.reviewerId)?.full_name||'Unassigned'}</td><td>{row.submittedAt?new Date(row.submittedAt).toLocaleDateString():'—'}</td>
-     <td><button className="secondary-button" onClick={()=>openApplicant(row)}>Review <ArrowRight size={15}/></button></td>
-    </tr>)}
-   </tbody></table></div>
-  </div>
- </section>
- {reviewing&&<ScreeningReviewModal row={reviewing} onClose={()=>setReviewing(null)}/>} 
+   {error&&<div className="form-error page-error">{error}</div>}
+   <div className="stats-grid screening-stats">
+    <div className="card stat-card"><div className="stat-icon"><ClipboardList size={18}/></div><div><p className="eyebrow">Total applicants</p><div className="stat-value">{counts.total}</div><p className="muted">Submitted applications</p></div></div>
+    <div className="card stat-card"><div className="stat-icon"><ClipboardList size={18}/></div><div><p className="eyebrow">Pending</p><div className="stat-value">{counts.pending}</div><p className="muted">Awaiting a decision</p></div></div>
+    <div className="card stat-card"><div className="stat-icon"><ShieldCheck size={18}/></div><div><p className="eyebrow">Approved</p><div className="stat-value">{counts.approved}</div></div></div>
+    <div className="card stat-card"><div className="stat-icon"><FileText size={18}/></div><div><p className="eyebrow">Rejected</p><div className="stat-value">{counts.rejected}</div></div></div>
+    <div className="card stat-card"><div className="stat-icon"><ArrowRight size={18}/></div><div><p className="eyebrow">AI recommended</p><div className="stat-value">{counts.recommended}</div></div></div>
+   </div>
+   <div className="card table-card">
+    <div className="card-header"><div><h2>Applicants</h2><p>Review the application, then approve or reject.</p></div></div>
+    <div className="forms-toolbar">
+     <div className="forms-search"><Search size={16}/><input aria-label="Search applicants" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search name, email or unique ID…"/></div>
+     <div className="forms-filters" role="group" aria-label="Filter applicants">{(['all','pending','approved','rejected','recommended'] as const).map(f=><button key={f} className={filter===f?'filter-button active':'filter-button'} onClick={()=>setFilter(f)}>{f==='all'?'All':f==='pending'?'Pending':f==='approved'?'Approved':f==='rejected'?'Rejected':'AI recommended'}<span>{f==='all'?counts.total:f==='pending'?counts.pending:f==='approved'?counts.approved:f==='rejected'?counts.rejected:counts.recommended}</span></button>)}</div>
+    </div>
+    <div className="table-wrap"><table><thead><tr><th>Applicant</th><th>Unique ID</th><th>Score</th><th>Eligibility</th><th>AI</th><th>Status</th><th></th></tr></thead><tbody>
+     {loading?<tr><td colSpan={7}><div className="loading-card">Loading applicants…</div></td></tr>:!filtered.length?<tr><td colSpan={7}><div className="table-empty"><h3>{rows.length?'No applicants match your filters':'No submitted applications yet'}</h3><p>{rows.length?'Try another filter or search.':'Applications will appear here after applicants submit a form.'}</p></div></td></tr>:
+     filtered.map(row=><tr key={row.submissionId}>
+      <td><strong>{row.applicantName}</strong><span className="table-sub">{row.email||'No email'}</span></td>
+      <td><strong>{row.uniqueId}</strong></td>
+      <td>{row.score==null?'—':row.score.toFixed(1)}</td>
+      <td><span className={'status '+(row.eligibility==='eligible'?'blue':row.eligibility==='ineligible'?'neutral':'amber')}>{row.eligibility}</span></td>
+      <td><span className={'status '+(row.aiRecommendation==='Recommended'?'blue':row.aiRecommendation==='Not recommended'?'neutral':'amber')}>{row.aiRecommendation}</span></td>
+      <td><span className={'status '+(row.decision==='approved'?'blue':row.decision==='rejected'?'neutral':'amber')}>{row.decision}</span></td>
+      <td><button className="secondary-button" onClick={()=>setReviewing(row)}>Review <ArrowRight size={15}/></button></td>
+     </tr>)}
+    </tbody></table></div>
+   </div>
+  </section>
+  {reviewing&&<ScreeningReviewModal row={reviewing} onClose={()=>setReviewing(null)} onDecision={setDecision}/>}
  </>
 }
 
 type ScreeningReviewData={submission:any;applicant:any;answers:any[];questions:any[];eligibility:any;score:any;criteria:any[];ai:any;documents:any[]}
-function ScreeningReviewModal({row,onClose}:{row:ScreeningRow;onClose:()=>void}){
- const [data,setData]=useState<ScreeningReviewData|null>(null);const [extractingId,setExtractingId]=useState('');const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [aiRunning,setAiRunning]=useState(false);const [aiError,setAiError]=useState('');const [review,setReview]=useState<any>(null);const [reviewers,setReviewers]=useState<any[]>([]);const [reviewerId,setReviewerId]=useState('');const [reviewDecision,setReviewDecision]=useState('');const [reviewStatus,setReviewStatus]=useState('assigned');const [reviewScore,setReviewScore]=useState('');const [reviewNotes,setReviewNotes]=useState('');const [reviewSaving,setReviewSaving]=useState(false);const [reviewError,setReviewError]=useState('');const [reviewNotice,setReviewNotice]=useState('');
- useEffect(()=>{(async()=>{try{const [{data:s,error:se},{data:ans,error:ane},{data:e,error:ee},{data:sc,error:sce},{data:cr,error:cre},{data:ai,error:aie},{data:documents,error:de}]=await Promise.all([
-  supabase.from('submissions').select('id,application_id,form_version_id,applicant_id,status,submitted_at').eq('id',row.submissionId).maybeSingle(),
+function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose:()=>void;onDecision:(row:ScreeningRow,decision:'approved'|'rejected')=>Promise<void>}){
+ const [data,setData]=useState<ScreeningReviewData|null>(null)
+ const [extractingId,setExtractingId]=useState('')
+ const [loading,setLoading]=useState(true)
+ const [error,setError]=useState('')
+ const [aiRunning,setAiRunning]=useState(false)
+ const [aiError,setAiError]=useState('')
+
+ useEffect(()=>{(async()=>{
+  try{
+   const [{data:s,error:se},{data:ans,error:ane},{data:e,error:ee},{data:sc,error:sce},{data:cr,error:cre},{data:ai,error:aie},{data:documents,error:de}]=await Promise.all([
+    supabase.from('submissions').select('id,application_id,form_version_id,applicant_id,status,submitted_at,decision').eq('id',row.submissionId).maybeSingle(),
     supabase.from('answers').select('id,question_id,value').eq('submission_id',row.submissionId),
-  supabase.from('submission_eligibility').select('*').eq('submission_id',row.submissionId).maybeSingle(),
-  supabase.from('submission_scores').select('*').eq('submission_id',row.submissionId).maybeSingle(),
-  supabase.from('scoring_criteria').select('id,name,description,weight,max_score,position,enabled').eq('application_id',row.applicationId).eq('enabled',true).order('position'),
-  supabase.from('ai_screenings').select('*').eq('submission_id',row.submissionId).maybeSingle(),
-  supabase.from('uploaded_documents').select('id,question_id,storage_bucket,storage_path,original_name,mime_type,file_size,status,extraction_status,extracted_text,created_at').eq('submission_id',row.submissionId).order('created_at')
- ]);if(se)throw se;if(ane)throw ane;if(ee)throw ee;if(sce)throw sce;if(cre)throw cre;if(aie)throw aie;if(de)throw de;
-  const {data:applicant,error:appErr}=await supabase.from('applicants').select('id,full_name,email').eq('id',s?.applicant_id||'').maybeSingle();if(appErr)throw appErr;
-  const {data:questions,error:qErr}=await supabase.from('questions').select('id,label,description,type,position').eq('form_version_id',s?.form_version_id||'').order('position');if(qErr)throw qErr;
-  setData({submission:s,applicant,answers:ans||[],questions:questions||[],eligibility:e,score:sc,criteria:cr||[],ai,documents:documents||[]});
- }catch(e){setError(e instanceof Error?e.message:'Could not load this application.')}finally{setLoading(false)}})()},[row.submissionId,row.applicationId]);
- const loadReview=async()=>{const {data:r,error:re}=await supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,notes,decision,created_at,updated_at').eq('submission_id',row.submissionId).order('created_at',{ascending:false}).limit(1).maybeSingle();if(re)setReviewError(re.message);setReview(r||null);if(r){setReviewerId(r.reviewer_id);setReviewStatus(r.status);setReviewDecision(r.decision||'');setReviewScore(r.score==null?'':String(r.score));setReviewNotes(r.notes||'')}};
- useEffect(()=>{(async()=>{const {data:ps}=await supabase.from('profiles').select('id,full_name,role').order('full_name');setReviewers(ps||[]);loadReview()})()},[row.submissionId]);
- const assignReviewer=async()=>{if(!reviewerId){setReviewError('Select a reviewer first.');return}setReviewSaving(true);setReviewError('');setReviewNotice('');const {data:r,error:e}=await supabase.rpc('assign_review_submission',{p_submission_id:row.submissionId,p_reviewer_id:reviewerId});if(e)setReviewError(e.message);else{setReview(r);setReviewStatus(r.status);setReviewNotice('Reviewer assigned.')}setReviewSaving(false)};
- const saveReview=async()=>{if(!review){setReviewError('Assign a reviewer before saving the screening decision.');return}if(!reviewDecision){setReviewError('Choose eligible or ineligible.');return}setReviewSaving(true);setReviewError('');setReviewNotice('');const {data:r,error:e}=await supabase.rpc('update_review_assignment',{p_assignment_id:review.id,p_status:'completed',p_score:reviewScore===''?null:Number(reviewScore),p_notes:reviewNotes||null,p_decision:reviewDecision});if(e)setReviewError(e.message);else{setReview(r);setReviewStatus(r.status);setReviewNotice('Screening decision saved.')}setReviewSaving(false)};
- const answerMap=new Map((data?.answers||[]).map(a=>[a.question_id,a.value]));
- const extractDocument=async(documentId:string)=>{setExtractingId(documentId);setAiError('');try{const {data:result,error:invokeError}=await supabase.functions.invoke('extract-application-document',{body:{document_id:documentId}});if(invokeError)throw invokeError;if(result?.error)throw new Error(result.error);const {data:docs,error:docsError}=await supabase.from('uploaded_documents').select('id,question_id,storage_bucket,storage_path,original_name,mime_type,file_size,status,extraction_status,extracted_text,created_at').eq('submission_id',row.submissionId).order('created_at');if(docsError)throw docsError;setData(prev=>prev?{...prev,documents:docs||[]}:prev)}catch(e){setAiError(e instanceof Error?e.message:'Document extraction failed.')}finally{setExtractingId('')}};
- const runAiScreening=async()=>{
-  setAiRunning(true);setAiError('');
-  try{const {data:result,error:invokeError}=await supabase.functions.invoke('run-ai-screening',{body:{submission_id:row.submissionId}});if(invokeError)throw invokeError;if(result?.error)throw new Error(result.error);const {data:ai,error:aiError}=await supabase.from('ai_screenings').select('*').eq('submission_id',row.submissionId).maybeSingle();if(aiError)throw aiError;setData(prev=>prev?{...prev,ai}:prev)}catch(e){setAiError(e instanceof Error?e.message:'AI screening failed.')}finally{setAiRunning(false)}};
- const formatValue=(v:any)=>{if(v===null||v===undefined||v==='')return 'Not provided';if(Array.isArray(v))return v.join(', ');if(typeof v==='object')return Object.values(v).join(', ');return String(v)};
- return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Screen application"><div className="modal-card screening-review-modal">
-  <div className="modal-header"><div><p className="eyebrow">Screening review</p><h2>{row.applicantName}</h2><p className="muted">{row.email||'No email provided'} · Submitted {row.submittedAt?new Date(row.submittedAt).toLocaleString():'—'}</p></div><button className="icon-button" onClick={onClose} aria-label="Close review">×</button></div>
+    supabase.from('submission_eligibility').select('*').eq('submission_id',row.submissionId).maybeSingle(),
+    supabase.from('submission_scores').select('*').eq('submission_id',row.submissionId).maybeSingle(),
+    supabase.from('scoring_criteria').select('id,name,description,weight,max_score,position,enabled').eq('application_id',row.applicationId).eq('enabled',true).order('position'),
+    supabase.from('ai_screenings').select('*').eq('submission_id',row.submissionId).maybeSingle(),
+    supabase.from('uploaded_documents').select('id,question_id,storage_bucket,storage_path,original_name,mime_type,file_size,status,extraction_status,extracted_text,created_at').eq('submission_id',row.submissionId).order('created_at')
+   ])
+   if(se)throw se;if(ane)throw ane;if(ee)throw ee;if(sce)throw sce;if(cre)throw cre;if(aie)throw aie;if(de)throw de
+   const {data:applicant,error:appErr}=await supabase.from('applicants').select('id,full_name,email,unique_id').eq('id',s?.applicant_id||'').maybeSingle();if(appErr)throw appErr
+   const {data:questions,error:qErr}=await supabase.from('questions').select('id,label,description,type,position').eq('form_version_id',s?.form_version_id||'').order('position');if(qErr)throw qErr
+   setData({submission:s,applicant,answers:ans||[],questions:questions||[],eligibility:e,score:sc,criteria:cr||[],ai,documents:documents||[]})
+  }catch(e){setError(e instanceof Error?e.message:'Could not load this application.')}finally{setLoading(false)}
+ })()},[row.submissionId,row.applicationId])
+
+ const extractDocument=async(documentId:string)=>{setExtractingId(documentId);setAiError('');try{const {data:result,error:invokeError}=await supabase.functions.invoke('extract-application-document',{body:{document_id:documentId}});if(invokeError)throw invokeError;if(result?.error)throw new Error(result.error);const {data:docs,error:docsError}=await supabase.from('uploaded_documents').select('id,question_id,storage_bucket,storage_path,original_name,mime_type,file_size,status,extraction_status,extracted_text,created_at').eq('submission_id',row.submissionId).order('created_at');if(docsError)throw docsError;setData(prev=>prev?{...prev,documents:docs||[]}:prev)}catch(e){setAiError(e instanceof Error?e.message:'Document extraction failed.')}finally{setExtractingId('')}}
+ const runAiScreening=async()=>{setAiRunning(true);setAiError('');try{const {data:result,error:invokeError}=await supabase.functions.invoke('run-ai-screening',{body:{submission_id:row.submissionId}});if(invokeError)throw invokeError;if(result?.error)throw new Error(result.error);const {data:ai,error:aiError}=await supabase.from('ai_screenings').select('*').eq('submission_id',row.submissionId).maybeSingle();if(aiError)throw aiError;setData(prev=>prev?{...prev,ai}:prev)}catch(e){setAiError(e instanceof Error?e.message:'AI screening failed.')}finally{setAiRunning(false)}}
+ const formatValue=(v:any)=>{if(v===null||v===undefined||v==='')return 'Not provided';if(Array.isArray(v))return v.join(', ');if(typeof v==='object')return Object.values(v).join(', ');return String(v)}
+ const answerMap=new Map((data?.answers||[]).map(a=>[a.question_id,a.value]))
+
+ return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Review application"><div className="modal-card screening-review-modal">
+  <div className="modal-header"><div><p className="eyebrow">Application review</p><h2>{row.applicantName}</h2><p className="muted">{data?.applicant?.unique_id||row.uniqueId} · {row.email||'No email provided'} · Submitted {row.submittedAt?new Date(row.submittedAt).toLocaleString():'—'}</p></div><button className="icon-button" onClick={onClose} aria-label="Close review">×</button></div>
   {loading?<div className="loading-card">Loading full application…</div>:error?<div className="form-error">{error}</div>:data&&<div className="screening-review-body">
-   <div className="screening-review-grid"><div className="card screening-section"><div className="card-header"><div><h3>Eligibility</h3><p>Deterministic eligibility result.</p></div><span className={'status '+(data.eligibility?.status==='eligible'?'blue':data.eligibility?.status==='ineligible'?'neutral':'amber')}>{data.eligibility?.status||'pending'}</span></div>{data.eligibility?.reasons?.length?<ul className="screening-list">{data.eligibility.reasons.map((r:any,i:number)=><li key={i}>{typeof r==='string'?r:JSON.stringify(r)}</li>)}</ul>:<p className="muted">No eligibility reasons recorded.</p>}</div>
-   <div className="card screening-section"><div className="card-header"><div><h3>Score</h3><p>Current recorded score.</p></div><strong className="screening-score">{data.score?.overall_score==null?'—':Number(data.score.overall_score).toFixed(1)}</strong></div>{data.criteria.length?<div className="screening-criteria">{data.criteria.map((c:any)=><div key={c.id}><div><strong>{c.name}</strong><span>{c.weight}%</span></div><p>{c.description||'No description.'}</p></div>)}</div>:<p className="muted">No scoring criteria configured.</p>}</div></div>
-   <div className="card screening-section"><div className="card-header"><div><h3>Application responses</h3><p>The complete submitted form, in the applicant's original structure.</p></div></div><div className="screening-answers">{data.questions.map(q=><div className="answer-item" key={q.id}><div className="eyebrow">{q.label}</div><div className="answer-value">{formatValue(answerMap.get(q.id))}</div>{q.description&&<p className="muted">{q.description}</p>}</div>)}</div></div>
-   <div className="card screening-section"><div className="card-header"><div><h3>Uploaded documents</h3><p>Files submitted with the application. Extraction is tracked separately and is not assumed to be available.</p></div></div>{data.documents.length?<div className="screening-list">{data.documents.map((doc:any)=><div key={doc.id} style={{padding:'12px 0',borderBottom:'1px solid var(--border-color,#e5e7eb)'}}><div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center'}}><div><strong>{doc.original_name}</strong><div className="muted">{doc.mime_type||'File'} · {doc.file_size?Math.round(doc.file_size/1024)+' KB':'Size unavailable'}</div></div><div className="detail-actions"><span className={'status '+(doc.status==='uploaded'?'blue':doc.status==='failed'?'neutral':'amber')}>{doc.status}</span><button className="secondary-button" onClick={()=>extractDocument(doc.id)} disabled={extractingId===doc.id||doc.extraction_status==='processing'}>{extractingId===doc.id?'Extracting…':doc.extraction_status==='completed'?'Re-extract':'Extract text'}</button></div></div>{doc.extraction_status&&<div className="muted" style={{marginTop:5}}>Extraction: {doc.extraction_status}</div>}{doc.extracted_text&&<p style={{marginTop:8,whiteSpace:'pre-wrap'}}>{doc.extracted_text}</p>}</div>)}</div>:<p className="muted">No uploaded documents for this application.</p>}</div>
-   <div className="card screening-section"><div className="card-header"><div><h3>AI assessment</h3><p>AI reviews the complete application against the configured criteria. Advisory only.</p></div><div className="detail-actions"><span className={'status '+(data.ai?.status==='completed'?'blue':data.ai?.status==='failed'?'neutral':'amber')}>{data.ai?.status||'Not screened'}</span><button className="primary-button" onClick={runAiScreening} disabled={aiRunning}>{aiRunning?'Running AI…':data.ai?.status==='completed'?'Run again':'Run AI screening'}</button></div></div>{aiError&&<div className="form-error">{aiError}</div>}{data.ai?<><p>{data.ai.overall_assessment||'No overall assessment yet.'}</p>{data.ai.strengths?.length>0&&<><h4>Strengths</h4><ul className="screening-list">{data.ai.strengths.map((x:any,i:number)=><li key={i}>{typeof x==='string'?x:JSON.stringify(x)}</li>)}</ul></>}{data.ai.concerns?.length>0&&<><h4>Concerns</h4><ul className="screening-list">{data.ai.concerns.map((x:any,i:number)=><li key={i}>{typeof x==='string'?x:JSON.stringify(x)}</li>)}</ul></>} </>:<p className="muted">AI screening has not been run for this application yet.</p>}</div>
-   <div className="card screening-section"><div className="card-header"><div><h3>Human screening</h3><p>Assign a reviewer, record the human decision, score and notes. Human review remains final.</p></div>{review&&<span className={'status '+(review.status==='completed'?'blue':'amber')}>{review.status}</span>}</div>{reviewError&&<div className="form-error">{reviewError}</div>}{reviewNotice&&<div className="form-message">{reviewNotice}</div>}<div className="detail-form"><label>Reviewer<select value={reviewerId} onChange={e=>setReviewerId(e.target.value)}><option value="">Select reviewer</option>{reviewers.map(p=><option key={p.id} value={p.id}>{p.full_name||'Unnamed member'} · {p.role}</option>)}</select></label><div className="detail-actions"><button className="secondary-button" onClick={assignReviewer} disabled={reviewSaving||!reviewerId}>{reviewSaving?'Saving…':review?'Reassign reviewer':'Assign reviewer'}</button></div><label>Decision<select value={reviewDecision} onChange={e=>setReviewDecision(e.target.value)}><option value="">Select decision</option><option value="eligible">Eligible</option><option value="ineligible">Ineligible</option></select></label><label>Reviewer score<input type="number" min="0" max="100" step="0.1" value={reviewScore} onChange={e=>setReviewScore(e.target.value)} placeholder="Optional score"/></label><label>Notes<textarea value={reviewNotes} onChange={e=>setReviewNotes(e.target.value)} placeholder="Add your screening notes…" rows={4}/></label><div className="detail-form-footer"><button className="primary-button" onClick={saveReview} disabled={reviewSaving||!review}>{reviewSaving?'Saving…':'Save screening decision'}</button></div></div></div>
+   <div className="screening-review-grid">
+    <div className="card screening-section"><div className="card-header"><div><h3>Eligibility</h3><p>Result from the configured eligibility rules.</p></div><span className={'status '+(data.eligibility?.status==='eligible'?'blue':data.eligibility?.status==='ineligible'?'neutral':'amber')}>{data.eligibility?.status||'pending'}</span></div>{data.eligibility?.reasons?.length?<ul className="screening-list">{data.eligibility.reasons.map((r:any,i:number)=><li key={i}>{typeof r==='string'?r:JSON.stringify(r)}</li>)}</ul>:<p className="muted">No eligibility details recorded.</p>}</div>
+    <div className="card screening-section"><div className="card-header"><div><h3>Score</h3><p>Current recorded score.</p></div><strong className="screening-score">{data.score?.overall_score==null?'—':Number(data.score.overall_score).toFixed(1)}</strong></div>{data.criteria.length?<div className="screening-criteria">{data.criteria.map((c:any)=><div key={c.id}><div><strong>{c.name}</strong><span>{c.weight}%</span></div><p>{c.description||'No description.'}</p></div>)}</div>:<p className="muted">No scoring criteria configured.</p>}</div>
+   </div>
+   <div className="card screening-section"><div className="card-header"><div><h3>Application form</h3><p>Every question and answer exactly as submitted.</p></div></div><div className="screening-answers">{data.questions.map(q=><div className="answer-item" key={q.id}><div className="eyebrow">{q.label}</div><div className="answer-value">{formatValue(answerMap.get(q.id))}</div>{q.description&&<p className="muted">{q.description}</p>}</div>)}</div></div>
+   <div className="card screening-section"><div className="card-header"><div><h3>Uploaded documents</h3><p>Documents submitted with this application.</p></div></div>{data.documents.length?<div className="screening-list">{data.documents.map((doc:any)=><div key={doc.id} style={{padding:'12px 0',borderBottom:'1px solid var(--border-color,#e5e7eb)'}}><div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center'}}><div><strong>{doc.original_name}</strong><div className="muted">{doc.mime_type||'File'} · {doc.file_size?Math.round(doc.file_size/1024)+' KB':'Size unavailable'}</div></div><div className="detail-actions"><span className={'status '+(doc.status==='uploaded'?'blue':doc.status==='failed'?'neutral':'amber')}>{doc.status}</span><button className="secondary-button" onClick={()=>extractDocument(doc.id)} disabled={extractingId===doc.id||doc.extraction_status==='processing'}>{extractingId===doc.id?'Extracting…':doc.extraction_status==='completed'?'Re-extract':'Extract text'}</button></div></div>{doc.extraction_status&&<div className="muted" style={{marginTop:5}}>Extraction: {doc.extraction_status}</div>}{doc.extracted_text&&<p style={{marginTop:8,whiteSpace:'pre-wrap'}}>{doc.extracted_text}</p>}</div>)}</div>:<p className="muted">No uploaded documents for this application.</p>}</div>
+   <div className="card screening-section"><div className="card-header"><div><h3>AI screening</h3><p>AI reviews the complete application and recommends whether it should move forward.</p></div><div className="detail-actions"><span className={'status '+(data.ai?.status==='completed'?'blue':data.ai?.status==='failed'?'neutral':'amber')}>{data.ai?.status||'Not screened'}</span><button className="secondary-button" onClick={runAiScreening} disabled={aiRunning}>{aiRunning?'Screening…':data.ai?.status==='completed'?'Run again':'Screen with AI'}</button></div></div>{aiError&&<div className="form-error">{aiError}</div>}{data.ai?<><p>{data.ai.overall_assessment||'No overall assessment yet.'}</p>{data.ai.strengths?.length>0&&<><h4>Strengths</h4><ul className="screening-list">{data.ai.strengths.map((x:any,i:number)=><li key={i}>{typeof x==='string'?x:JSON.stringify(x)}</li>)}</ul></>}{data.ai.concerns?.length>0&&<><h4>Concerns</h4><ul className="screening-list">{data.ai.concerns.map((x:any,i:number)=><li key={i}>{typeof x==='string'?x:JSON.stringify(x)}</li></ul></>} </>:<p className="muted">AI screening has not been run for this application yet.</p>}</div>
+   <div className="card screening-section"><div className="card-header"><div><div><h3>Final decision</h3><p>Choose the final screening result.</p></div><span className={'status '+(row.decision==='approved'?'blue':row.decision==='rejected'?'neutral':'amber')}>{row.decision}</span></div></div><div className="detail-actions" style={{justifyContent:'flex-end',gap:10}}><button className="secondary-button" onClick={()=>onDecision(row,'rejected')} disabled={row.decision==='rejected'}>Reject</button><button className="primary-button" onClick={()=>onDecision(row,'approved')} disabled={row.decision==='approved'}>Approve</button></div></div>
   </div>}
  </div></div>
 }
