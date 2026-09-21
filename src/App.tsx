@@ -830,7 +830,48 @@ function FormBuilder({applicationId}:{applicationId:string}) {
     try{for(let i=0;i<copy.length;i++){const {error}=await supabase.from('questions').update({position:i}).eq('id',copy[i].id);if(error)throw error}setQuestions(copy.map((q,i)=>({...q,position:i})))}catch(e){showNotice(e instanceof Error?e.message:'Could not reorder questions.')}finally{setBusy(false)}
   }
   async function removeQuestion(){if(!selected)return;setBusy(true);const {error}=await supabase.from('questions').delete().eq('id',selected.id);if(!error){const left=questions.filter(q=>q.id!==selected.id).map((q,i)=>({...q,position:i}));for(const q of left)await supabase.from('questions').update({position:q.position}).eq('id',q.id);setQuestions(left);setSelectedId(left[0]?.id||null)}else showNotice(error.message);setBusy(false)}
-  async function publish(){if(!versionId)return;setBusy(true);setNotice('');const {error}=await supabase.from('form_versions').update({status:'published',published_at:new Date().toISOString()}).eq('id',versionId);if(error){showNotice(error.message)}else{showNotice('Form published successfully.','success');setQuestions([]);setSelectedId(null);setVersionId(null)}setBusy(false)}
+  async function publish(){
+    if(!versionId)return
+    setBusy(true);setNotice('')
+    try{
+      const publishedVersionId=versionId
+      const {error}=await supabase.from('form_versions').update({status:'published',published_at:new Date().toISOString()}).eq('id',publishedVersionId)
+      if(error)throw error
+
+      // Keep the published version immutable, but immediately create the next draft
+      // from it so the just-published questions remain visible on the canvas and can
+      // be edited without leaving or refreshing the form builder.
+      const {data:published}=await supabase.from('form_versions').select('version_number,title').eq('id',publishedVersionId).single()
+      if(!published)throw new Error('Published form could not be loaded.')
+      const userId=(await supabase.auth.getUser()).data.user?.id
+      const {data:newVersion,error:versionError}=await supabase.from('form_versions').insert({
+        application_id:applicationId,
+        version_number:published.version_number+1,
+        created_by:userId,
+        title:published.title||'Application form',
+        status:'draft'
+      }).select('id,version_number').single()
+      if(versionError)throw versionError
+
+      const {data:sourceQuestions,error:questionsError}=await supabase.from('questions').select('id,type,label,description,required,placeholder,position,config,conditional_rules').eq('form_version_id',publishedVersionId).order('position')
+      if(questionsError)throw questionsError
+      for(const source of sourceQuestions||[]){
+        const {data:cloned,error:cloneError}=await supabase.from('questions').insert({
+          form_version_id:newVersion.id,type:source.type,label:source.label,description:source.description,required:source.required,
+          placeholder:source.placeholder,position:source.position,config:source.config,conditional_rules:source.conditional_rules
+        }).select('id').single()
+        if(cloneError)throw cloneError
+        const {data:opts,error:optionsError}=await supabase.from('question_options').select('label,value,position').eq('question_id',source.id).order('position')
+        if(optionsError)throw optionsError
+        if(opts?.length){const {error}=await supabase.from('question_options').insert(opts.map(o=>({question_id:cloned.id,label:o.label,value:o.value,position:o.position})));if(error)throw error}
+      }
+
+      setVersionId(newVersion.id)
+      setVersion(newVersion.version_number)
+      await loadQuestions(newVersion.id)
+      showNotice('Form published successfully.','success')
+    }catch(e){showNotice(e instanceof Error?e.message:'Could not publish form.')}finally{setBusy(false)}
+  }
 
   return <div className="form-builder">
     <div className="builder-top"><div><p className="eyebrow">Form builder · Version {version}</p><h2>Application form</h2><p>Build the questions applicants will answer.</p></div><div className="builder-actions">{notice&&<div className={`toast-notification ${noticeType}`} role="status" aria-live="polite"><span className="toast-icon">{noticeType==='success'?<CheckCircle2 size={17}/>:<X size={17}/>}</span><span>{notice}</span><button className="toast-close" onClick={()=>setNotice('')} aria-label="Dismiss notification"><X size={14}/></button></div>}<button className="secondary-button" disabled={busy||!questions.length} onClick={()=>showNotice('Draft saved.','success')}>Save draft</button><button className="secondary-button" disabled={!questions.length} onClick={()=>setPreview(true)}>Preview</button><button className="primary-button" disabled={busy||!questions.length} onClick={publish}>Publish form</button></div></div>
