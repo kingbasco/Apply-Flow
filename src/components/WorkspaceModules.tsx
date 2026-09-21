@@ -323,7 +323,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
 }
 
 type ScreeningReviewData={submission:any;applicant:any;answers:any[];questions:any[];eligibility:any;score:any;criteria:any[];ai:any;documents:any[]}
-function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose:()=>void;onDecision:(row:ScreeningRow,decision:'approved'|'rejected')=>Promise<void>}){
+function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose:()=>void;onDecision:(row:ScreeningRow,decision:'approved'|'rejected')=>Promise<void>}) {
  const [data,setData]=useState<ScreeningReviewData|null>(null)
  const [extractingId,setExtractingId]=useState('')
  const [loading,setLoading]=useState(true)
@@ -331,40 +331,81 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
  const [aiRunning,setAiRunning]=useState(false)
  const [aiError,setAiError]=useState('')
 
- useEffect(()=>{(async()=>{
-  try{
-   const [{data:s,error:se},{data:ans,error:ane},{data:e,error:ee},{data:sc,error:sce},{data:cr,error:cre},{data:ai,error:aie},{data:documents,error:de}]=await Promise.all([
-    supabase.from('submissions').select('id,application_id,form_version_id,applicant_id,status,submitted_at,decision').eq('id',row.submissionId).maybeSingle(),
-    supabase.from('answers').select('id,question_id,value').eq('submission_id',row.submissionId),
-    supabase.from('submission_eligibility').select('*').eq('submission_id',row.submissionId).maybeSingle(),
-    supabase.from('submission_scores').select('*').eq('submission_id',row.submissionId).maybeSingle(),
-    supabase.from('scoring_criteria').select('id,name,description,weight,max_score,position,enabled').eq('application_id',row.applicationId).eq('enabled',true).order('position'),
-    supabase.from('ai_screenings').select('*').eq('submission_id',row.submissionId).maybeSingle(),
-    supabase.from('uploaded_documents').select('id,question_id,storage_bucket,storage_path,original_name,mime_type,file_size,status,extraction_status,extracted_text,created_at').eq('submission_id',row.submissionId).order('created_at')
-   ])
-   if(se)throw se;if(ane)throw ane;if(ee)throw ee;if(sce)throw sce;if(cre)throw cre;if(aie)throw aie;if(de)throw de
-   const {data:applicant,error:appErr}=await supabase.from('applicants').select('id,full_name,email,unique_id').eq('id',s?.applicant_id||'').maybeSingle()
-   if(appErr)throw appErr
-   const {data:questions,error:qErr}=await supabase.from('questions').select('id,label,description,type,position').eq('form_version_id',s?.form_version_id||'').order('position')
-   if(qErr)throw qErr
-   setData({submission:s,applicant,answers:ans||[],questions:questions||[],eligibility:e,score:sc,criteria:cr||[],ai,documents:documents||[]})
-  }catch(e){setError(e instanceof Error?e.message:'Could not load this application.')}finally{setLoading(false)}
- })()},[row.submissionId,row.applicationId])
+ useEffect(()=>{
+  let active=true
+  ;(async()=>{
+   try{
+    const [
+     {data:s,error:se},
+     {data:ans,error:ane},
+     {data:e,error:ee},
+     {data:sc,error:sce},
+     {data:cr,error:cre},
+     {data:ai,error:aie},
+     {data:documents,error:de}
+    ]=await Promise.all([
+     supabase.from('submissions').select('id,application_id,form_version_id,applicant_id,status,submitted_at,decision').eq('id',row.submissionId).maybeSingle(),
+     supabase.from('answers').select('id,question_id,value').eq('submission_id',row.submissionId),
+     supabase.from('submission_eligibility').select('*').eq('submission_id',row.submissionId).maybeSingle(),
+     supabase.from('submission_scores').select('*').eq('submission_id',row.submissionId).maybeSingle(),
+     supabase.from('scoring_criteria').select('id,name,description,weight,max_score,position,enabled').eq('application_id',row.applicationId).eq('enabled',true).order('position'),
+     supabase.from('ai_screenings').select('*').eq('submission_id',row.submissionId).maybeSingle(),
+     supabase.from('uploaded_documents').select('id,question_id,storage_bucket,storage_path,original_name,mime_type,file_size,status,extraction_status,extracted_text,created_at').eq('submission_id',row.submissionId).order('created_at')
+    ])
+    if(se)throw se
+    if(ane)throw ane
+    if(ee)throw ee
+    if(sce)throw sce
+    if(cre)throw cre
+    if(aie)throw aie
+    if(de)throw de
+
+    const {data:applicant,error:appErr}=await supabase.from('applicants').select('id,full_name,email,unique_id').eq('id',s?.applicant_id||'').maybeSingle()
+    if(appErr)throw appErr
+
+    const {data:questions,error:qErr}=await supabase.from('questions').select('id,label,description,type,position').eq('form_version_id',s?.form_version_id||'').order('position')
+    if(qErr)throw qErr
+
+    if(active){
+     setData({submission:s,applicant,answers:ans||[],questions:questions||[],eligibility:e,score:sc,criteria:cr||[],ai,documents:documents||[]})
+    }
+   }catch(e){
+    if(active)setError(e instanceof Error?e.message:'Could not load this application.')
+   }finally{
+    if(active)setLoading(false)
+   }
+  })()
+  return ()=>{active=false}
+ },[row.submissionId,row.applicationId])
+
+ const refreshDocuments=async()=>{
+  const {data:documents,error}=await supabase
+   .from('uploaded_documents')
+   .select('id,question_id,storage_bucket,storage_path,original_name,mime_type,file_size,status,extraction_status,extracted_text,created_at')
+   .eq('submission_id',row.submissionId)
+   .order('created_at')
+  if(error)throw error
+  setData(prev=>prev?{...prev,documents:documents||[]}:prev)
+ }
 
  const extractDocument=async(documentId:string)=>{
-  setExtractingId(documentId);setAiError('')
+  setExtractingId(documentId)
+  setAiError('')
   try{
    const {data:result,error:invokeError}=await supabase.functions.invoke('extract-application-document',{body:{document_id:documentId}})
    if(invokeError)throw invokeError
    if(result?.error)throw new Error(result.error)
-   const {data:docs,error:docsError}=await supabase.from('uploaded_documents').select('id,question_id,storage_bucket,storage_path,original_name,mime_type,file_size,status,extraction_status,extracted_text,created_at').eq('submission_id',row.submissionId).order('created_at')
-   if(docsError)throw docsError
-   setData(prev=>prev?{...prev,documents:docs||[]}:prev)
-  }catch(e){setAiError(e instanceof Error?e.message:'Document extraction failed.')}finally{setExtractingId('')}
+   await refreshDocuments()
+  }catch(e){
+   setAiError(e instanceof Error?e.message:'Document extraction failed.')
+  }finally{
+   setExtractingId('')
+  }
  }
 
  const runAiScreening=async()=>{
-  setAiRunning(true);setAiError('')
+  setAiRunning(true)
+  setAiError('')
   try{
    const {data:result,error:invokeError}=await supabase.functions.invoke('run-ai-screening',{body:{submission_id:row.submissionId}})
    if(invokeError)throw invokeError
@@ -372,46 +413,194 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
    const {data:ai,error:aiError}=await supabase.from('ai_screenings').select('*').eq('submission_id',row.submissionId).maybeSingle()
    if(aiError)throw aiError
    setData(prev=>prev?{...prev,ai}:prev)
-  }catch(e){setAiError(e instanceof Error?e.message:'AI screening failed.')}finally{setAiRunning(false)}
+  }catch(e){
+   setAiError(e instanceof Error?e.message:'AI screening failed.')
+  }finally{
+   setAiRunning(false)
+  }
  }
 
- const formatValue=(v:any)=>{
-  if(v===null||v===undefined||v==='')return 'Not provided'
-  if(Array.isArray(v))return v.join(', ')
-  if(typeof v==='object')return Object.values(v).join(', ')
-  return String(v)
+ const formatValue=(value:any)=>{
+  if(value===null||value===undefined||value==='')return 'Not provided'
+  if(Array.isArray(value))return value.join(', ')
+  if(typeof value==='object')return Object.values(value).join(', ')
+  return String(value)
  }
 
- const answerMap=new Map((data?.answers||[]).map(a=>[a.question_id,a.value]))
+ const answerMap=new Map((data?.answers||[]).map(answer=>[answer.question_id,answer.value]))
+ const currentDecision=row.decision
+ const eligibilityStatus=data?.eligibility?.status||'pending'
+ const score=data?.score?.overall_score
+ const aiRecommendation=data?.ai?.recommendation||data?.ai?.decision||null
 
- return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Review application">
-  <div className="modal-card screening-review-modal">
-   <div className="modal-header">
-    <div><p className="eyebrow">Application review</p><h2>{row.applicantName}</h2><p className="muted">{data?.applicant?.unique_id||row.uniqueId} · {row.email||'No email provided'} · Submitted {row.submittedAt?new Date(row.submittedAt).toLocaleString():'—'}</p></div>
-    <button className="icon-button" onClick={onClose} aria-label="Close review">×</button>
-   </div>
-   {loading?<div className="loading-card">Loading full application…</div>:error?<div className="form-error">{error}</div>:data&&<div className="screening-review-body">
-    <div className="screening-review-grid">
-     <div className="card screening-section"><div className="card-header"><div><h3>Eligibility</h3><p>Result from the configured eligibility rules.</p></div><span className={'status '+(data.eligibility?.status==='eligible'?'blue':data.eligibility?.status==='ineligible'?'neutral':'amber')}>{data.eligibility?.status||'pending'}</span></div>{data.eligibility?.reasons?.length?<ul className="screening-list">{data.eligibility.reasons.map((r:any,i:number)=><li key={i}>{typeof r==='string'?r:JSON.stringify(r)}</li>)}</ul>:<p className="muted">No eligibility details recorded.</p>}</div>
-     <div className="card screening-section"><div className="card-header"><div><h3>Score</h3><p>Current recorded score.</p></div><strong className="screening-score">{data.score?.overall_score==null?'—':Number(data.score.overall_score).toFixed(1)}</strong></div>{data.criteria.length?<div className="screening-criteria">{data.criteria.map((c:any)=><div key={c.id}><div><strong>{c.name}</strong><span>{c.weight}%</span></div><p>{c.description||'No description.'}</p></div>)}</div>:<p className="muted">No scoring criteria configured.</p>}</div>
-    </div>
-    <div className="card screening-section"><div className="card-header"><div><h3>Application form</h3><p>Every question and answer exactly as submitted.</p></div></div><div className="screening-answers">{data.questions.map(q=><div className="answer-item" key={q.id}><div className="eyebrow">{q.label}</div><div className="answer-value">{formatValue(answerMap.get(q.id))}</div>{q.description&&<p className="muted">{q.description}</p>}</div>)}</div></div>
-    <div className="card screening-section"><div className="card-header"><div><h3>Uploaded documents</h3><p>Documents submitted with this application.</p></div></div>{data.documents.length?<div className="screening-list">{data.documents.map((doc:any)=><div key={doc.id} style={{padding:'12px 0',borderBottom:'1px solid var(--border-color,#e5e7eb)'}}><div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center'}}><div><strong>{doc.original_name}</strong><div className="muted">{doc.mime_type||'File'} · {doc.file_size?Math.round(doc.file_size/1024)+' KB':'Size unavailable'}</div></div><div className="detail-actions"><span className={'status '+(doc.status==='uploaded'?'blue':doc.status==='failed'?'neutral':'amber')}>{doc.status}</span><button className="secondary-button" onClick={()=>extractDocument(doc.id)} disabled={extractingId===doc.id||doc.extraction_status==='processing'}>{extractingId===doc.id?'Extracting…':doc.extraction_status==='completed'?'Re-extract':'Extract text'}</button></div></div>{doc.extraction_status&&<div className="muted" style={{marginTop:5}}>Extraction: {doc.extraction_status}</div>}{doc.extracted_text&&<p style={{marginTop:8,whiteSpace:'pre-wrap'}}>{doc.extracted_text}</p>}</div>)}</div>:<p className="muted">No uploaded documents for this application.</p>}</div>
-    <div className="card screening-section">
-     <div className="card-header"><div><h3>AI screening</h3><p>AI reviews the complete application and recommends whether it should move forward.</p></div><div className="detail-actions"><span className={'status '+(data.ai?.status==='completed'?'blue':data.ai?.status==='failed'?'neutral':'amber')}>{data.ai?.status||'Not screened'}</span><button className="secondary-button" onClick={runAiScreening} disabled={aiRunning}>{aiRunning?'Screening…':data.ai?.status==='completed'?'Run again':'Screen with AI'}</button></div></div>
-     {aiError&&<div className="form-error">{aiError}</div>}
-     {data.ai ? (
+ return (
+  <div className="modal-backdrop screening-review-backdrop" role="dialog" aria-modal="true" aria-label="Review application">
+   <div className="screening-review-modal">
+    <header className="screening-review-header">
+     <div className="screening-review-title">
       <div>
-       <p>{data.ai.overall_assessment||'No overall assessment yet.'}</p>
-       {data.ai.strengths?.length>0&&<div><h4>Strengths</h4><ul className="screening-list">{data.ai.strengths.map((x:any,i:number)=><li key={i}>{typeof x==='string'?x:JSON.stringify(x)}</li>)}</ul></div>}
-       {data.ai.concerns?.length>0&&<div><h4>Concerns</h4><ul className="screening-list">{data.ai.concerns.map((x:any,i:number)=><li key={i}>{typeof x==='string'?x:JSON.stringify(x)}</li>)}</ul></div>}
+       <p className="eyebrow">Application review</p>
+       <h2>{row.applicantName}</h2>
+       <div className="screening-review-meta">
+        <span className="screening-id">{data?.applicant?.unique_id||row.uniqueId}</span>
+        <span>{row.email||'No email provided'}</span>
+        <span>{row.submittedAt?new Date(row.submittedAt).toLocaleString():'Submitted date unavailable'}</span>
+       </div>
       </div>
-     ) : <p className="muted">AI screening has not been run for this application yet.</p>}
-    </div>
-    <div className="card screening-section"><div className="card-header"><div><h3>Final decision</h3><p>Choose the final screening result.</p></div><span className={'status '+(row.decision==='approved'?'blue':row.decision==='rejected'?'neutral':'amber')}>{row.decision}</span></div><div className="detail-actions" style={{justifyContent:'flex-end',gap:10}}><button className="secondary-button" onClick={()=>onDecision(row,'rejected')} disabled={row.decision==='rejected'}>Reject</button><button className="primary-button" onClick={()=>onDecision(row,'approved')} disabled={row.decision==='approved'}>Approve</button></div></div>
-   </div>}
+      <button className="icon-button" onClick={onClose} aria-label="Close review">×</button>
+     </div>
+    </header>
+
+    {loading ? (
+     <div className="screening-review-loading"><div className="loading-card">Loading application…</div></div>
+    ) : error ? (
+     <div className="screening-review-loading"><div className="form-error">{error}</div></div>
+    ) : data ? (
+     <>
+      <main className="screening-review-content">
+       <section className="screening-summary-grid">
+        <div className="screening-summary-card">
+         <div>
+          <span className="screening-summary-label">Eligibility</span>
+          <strong className="screening-summary-value">{eligibilityStatus}</strong>
+         </div>
+         <span className={'status '+(eligibilityStatus==='eligible'?'blue':eligibilityStatus==='ineligible'?'neutral':'amber')}>{eligibilityStatus}</span>
+        </div>
+        <div className="screening-summary-card">
+         <div>
+          <span className="screening-summary-label">Overall score</span>
+          <strong className="screening-summary-value">{score==null?'—':Number(score).toFixed(1)}</strong>
+         </div>
+         <span className="screening-summary-label">Recorded score</span>
+        </div>
+        <div className="screening-summary-card">
+         <div>
+          <span className="screening-summary-label">Current decision</span>
+          <strong className="screening-summary-value">{currentDecision}</strong>
+         </div>
+         <span className={'status '+(currentDecision==='approved'?'blue':currentDecision==='rejected'?'neutral':'amber')}>{currentDecision}</span>
+        </div>
+       </section>
+
+       <section className="screening-review-section">
+        <div className="screening-section-heading">
+         <div>
+          <h3>Application form</h3>
+          <p>All answers submitted by the applicant.</p>
+         </div>
+         <span className="screening-count">{data.questions.length} questions</span>
+        </div>
+        <div className="screening-answer-list">
+         {data.questions.length ? data.questions.map((question,index)=>(
+          <div className="screening-answer" key={question.id}>
+           <div className="screening-answer-number">{index+1}</div>
+           <div className="screening-answer-content">
+            <div className="screening-answer-question">{question.label}</div>
+            <div className="screening-answer-value">{formatValue(answerMap.get(question.id))}</div>
+            {question.description&&<div className="screening-answer-help">{question.description}</div>}
+           </div>
+          </div>
+         )) : <p className="muted">No answers were found for this submission.</p>}
+        </div>
+       </section>
+
+       <section className="screening-review-section">
+        <div className="screening-section-heading">
+         <div>
+          <h3>Eligibility & score</h3>
+          <p>Results already calculated from the programme rules.</p>
+         </div>
+        </div>
+        <div className="screening-result-grid">
+         <div className="screening-result-block">
+          <span className="screening-summary-label">Eligibility result</span>
+          <strong>{eligibilityStatus}</strong>
+          {data.eligibility?.reasons?.length ? (
+           <ul className="screening-simple-list">{data.eligibility.reasons.map((reason:any,index:number)=><li key={index}>{typeof reason==='string'?reason:JSON.stringify(reason)}</li>)}</ul>
+          ) : <p className="muted">No eligibility details recorded.</p>}
+         </div>
+         <div className="screening-result-block">
+          <span className="screening-summary-label">Score breakdown</span>
+          {data.criteria.length ? (
+           <div className="screening-score-list">
+            {data.criteria.map((criterion:any)=>(
+             <div key={criterion.id} className="screening-score-row">
+              <span>{criterion.name}</span>
+              <strong>{criterion.weight}%</strong>
+             </div>
+            ))}
+           </div>
+          ) : <p className="muted">No scoring criteria configured.</p>}
+         </div>
+        </div>
+       </section>
+
+       {data.documents.length>0&&(
+        <section className="screening-review-section">
+         <div className="screening-section-heading">
+          <div>
+           <h3>Uploaded documents</h3>
+           <p>Files submitted with the application.</p>
+          </div>
+          <span className="screening-count">{data.documents.length} files</span>
+         </div>
+         <div className="screening-document-list">
+          {data.documents.map((document:any)=>(
+           <div className="screening-document" key={document.id}>
+            <div>
+             <strong>{document.original_name}</strong>
+             <p>{document.mime_type||'File'} · {document.file_size?Math.round(document.file_size/1024)+' KB':'Size unavailable'} · {document.extraction_status||'pending'}</p>
+             {document.extracted_text&&<div className="screening-document-text">{document.extracted_text}</div>}
+            </div>
+            <button className="secondary-button" onClick={()=>extractDocument(document.id)} disabled={extractingId===document.id||document.extraction_status==='processing'}>
+             {extractingId===document.id?'Extracting…':document.extraction_status==='completed'?'Re-extract':'Extract text'}
+            </button>
+           </div>
+          ))}
+         </div>
+        </section>
+       )}
+
+       <section className="screening-review-section screening-ai-section">
+        <div className="screening-section-heading">
+         <div>
+          <h3>AI screening</h3>
+          <p>Optional recommendation based on the complete application.</p>
+         </div>
+         <button className="secondary-button" onClick={runAiScreening} disabled={aiRunning}>
+          {aiRunning?'Screening…':data.ai?'Run again':'Screen with AI'}
+         </button>
+        </div>
+        {aiError&&<div className="form-error">{aiError}</div>}
+        {data.ai ? (
+         <div className="screening-ai-result">
+          <div className="screening-ai-topline">
+           <span className="screening-summary-label">Recommendation</span>
+           <strong>{aiRecommendation||'Review recommended'}</strong>
+          </div>
+          <p>{data.ai.overall_assessment||'No overall assessment recorded.'}</p>
+          {data.ai.strengths?.length>0&&<div><span className="screening-summary-label">Strengths</span><ul className="screening-simple-list">{data.ai.strengths.map((item:any,index:number)=><li key={index}>{typeof item==='string'?item:JSON.stringify(item)}</li>)}</ul></div>}
+          {data.ai.concerns?.length>0&&<div><span className="screening-summary-label">Concerns</span><ul className="screening-simple-list">{data.ai.concerns.map((item:any,index:number)=><li key={index}>{typeof item==='string'?item:JSON.stringify(item)}</li></ul></div>}
+         </div>
+        ) : <p className="muted">AI has not screened this application yet.</p>}
+       </section>
+      </main>
+
+      <footer className="screening-review-footer">
+       <div>
+        <span className="screening-summary-label">Final decision</span>
+        <strong>{currentDecision==='pending'?'Choose an action for this applicant.':currentDecision==='approved'?'Applicant approved':'Applicant rejected'}</strong>
+       </div>
+       <div className="screening-decision-actions">
+        <button className="secondary-button screening-reject-button" onClick={()=>onDecision(row,'rejected')} disabled={currentDecision==='rejected'}>Reject</button>
+        <button className="primary-button screening-approve-button" onClick={()=>onDecision(row,'approved')} disabled={currentDecision==='approved'}>Approve</button>
+       </div>
+      </footer>
+     </>
+    ) : null}
+   </div>
   </div>
- </div>
+ )
 }
 
 export function ReviewsWorkspace({applications,organizationId,onOpen}:{applications:Application[];organizationId:string;onOpen:(a:Application)=>void}){
