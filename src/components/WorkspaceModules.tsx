@@ -155,7 +155,8 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
     </div>
     <div className="modal-footer"><button className="secondary-button" onClick={()=>setSettingsFor(null)}>Cancel</button><button className="primary-button" disabled={settingsSaving} onClick={saveSettings}>{settingsSaving?'Saving…':'Save settings'}</button></div>
    </div>
-  </div>}\n  {historyFor&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setHistoryFor(null)}}>
+  </div>}
+  {historyFor&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setHistoryFor(null)}}>
    <div className="modal card" style={{maxWidth:720}}>
     <div className="modal-header"><div><p className="eyebrow">Version history</p><h2>{historyFor.application.name}</h2><p>Published versions stay tied to the submissions that used them.</p></div><button type="button" className="icon-button" onClick={()=>setHistoryFor(null)} aria-label="Close"><MoreHorizontal size={18}/></button></div>
     {historyLoading?<div className="loading-card">Loading version history…</div>:versions.length?<div style={{display:'grid',gap:10,maxHeight:'55vh',overflowY:'auto'}}>{versions.map(v=><div key={v.id} className="card" style={{padding:16,display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}><div><div style={{display:'flex',alignItems:'center',gap:8}}><strong>Version {v.version_number}</strong><span className={'status '+(v.status==='published'?'blue':'amber')}>{v.status}</span></div><div className="muted" style={{marginTop:5}}>{v.title||'Application form'} · Created {new Date(v.created_at).toLocaleDateString()} · {v.submissionCount} submission{v.submissionCount===1?'':'s'}</div></div><div style={{display:'flex',alignItems:'center',gap:12}}><div style={{textAlign:'right'}}>{v.published_at?<><strong>Published</strong><div className="muted">{new Date(v.published_at).toLocaleDateString()}</div></>:<span className="muted">Draft</span>}</div>{v.status==='draft'?<button className="secondary-button" disabled={busyId===historyFor.application.id} onClick={()=>{setHistoryFor(null);onOpen(historyFor.application)}}>Continue draft <ArrowRight size={15}/></button>:<button className="secondary-button" disabled={busyId===historyFor.application.id} onClick={()=>duplicateVersion(v.id,historyFor)}>Duplicate as draft <ArrowRight size={15}/></button>}</div></div>)}</div>:<div className="table-empty">No form versions yet.</div>}
@@ -164,7 +165,136 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
   </div>}
  </section>
 }
-export function ScreeningWorkspace({applications,onOpen}:{applications:Application[];onOpen:(a:Application)=>void}){return <ModuleList title="Screening" eyebrow="Application screening" description="Review eligibility, scores and AI-assisted assessments." icon={ShieldCheck} applications={applications} onOpen={onOpen}/>}
+type ScreeningRow={
+ submissionId:string
+ applicationId:string
+ applicantName:string
+ email:string|null
+ submittedAt:string|null
+ eligibility:'eligible'|'ineligible'|'pending'
+ score:number|null
+ aiStatus:string
+ aiRecommendation:string
+}
+function screeningRecommendation(ai:any):string{
+ if(!ai)return 'Not screened'
+ const value=String(ai.overall_assessment||'').toLowerCase()
+ if(value.includes('strong match')||value.includes('recommended'))return 'Recommended'
+ if(value.includes('not recommended')||value.includes('poor match'))return 'Not recommended'
+ if(ai.status==='completed')return 'Reviewed'
+ return ai.status==='failed'?'Failed':'In progress'
+}
+export function ScreeningWorkspace({applications,onOpen}:{applications:Application[];onOpen:(a:Application)=>void}){
+ const [rows,setRows]=useState<ScreeningRow[]>([])
+ const [loading,setLoading]=useState(true)
+ const [error,setError]=useState('')
+ const [query,setQuery]=useState('')
+ const [filter,setFilter]=useState<'all'|'pending'|'screened'|'eligible'|'ineligible'|'recommended'|'review'>('all')
+
+ async function load(){
+  setLoading(true);setError('')
+  try{
+   if(!applications.length){setRows([]);return}
+   const ids=applications.map(a=>a.id)
+   const [{data:subs,error:subsError},{data:elig,error:eligError},{data:scores,error:scoresError},{data:ai,error:aiError},{data:applicants,error:applicantError}]=await Promise.all([
+    supabase.from('submissions').select('id,application_id,applicant_id,submitted_at,status').in('application_id',ids).eq('status','submitted').order('submitted_at',{ascending:false}),
+    supabase.from('submission_eligibility').select('submission_id,status,overridden').in('submission_id',[]),
+    supabase.from('submission_scores').select('submission_id,overall_score,status').in('submission_id',[]),
+    supabase.from('ai_screenings').select('submission_id,status,overall_assessment').in('submission_id',[]),
+    supabase.from('applicants').select('id,full_name,email').in('application_id',ids)
+   ])
+   if(subsError)throw subsError
+   if(applicantError)throw applicantError
+   const submissionIds=(subs||[]).map(s=>s.id)
+   const [eligResult,scoreResult,aiResult]=await Promise.all([
+    submissionIds.length?supabase.from('submission_eligibility').select('submission_id,status,overridden').in('submission_id',submissionIds):Promise.resolve({data:[],error:null}),
+    submissionIds.length?supabase.from('submission_scores').select('submission_id,overall_score,status').in('submission_id',submissionIds):Promise.resolve({data:[],error:null}),
+    submissionIds.length?supabase.from('ai_screenings').select('submission_id,status,overall_assessment').in('submission_id',submissionIds):Promise.resolve({data:[],error:null})
+   ])
+   if(eligResult.error)throw eligResult.error
+   if(scoreResult.error)throw scoreResult.error
+   if(aiResult.error)throw aiResult.error
+   const applicantMap=new Map((applicants||[]).map(a=>[a.id,a]))
+   const eligMap=new Map((eligResult.data||[]).map(e=>[e.submission_id,e]))
+   const scoreMap=new Map((scoreResult.data||[]).map(s=>[s.submission_id,s]))
+   const aiMap=new Map((aiResult.data||[]).map(a=>[a.submission_id,a]))
+   setRows((subs||[]).map(s=>{
+    const a=applicantMap.get(s.applicant_id)
+    const e=eligMap.get(s.id)
+    const score=scoreMap.get(s.id)
+    const ai=aiMap.get(s.id)
+    return {
+     submissionId:s.id,
+     applicationId:s.application_id,
+     applicantName:a?.full_name||'Unnamed applicant',
+     email:a?.email||null,
+     submittedAt:s.submitted_at||null,
+     eligibility:e?.status==='eligible'?'eligible':e?.status==='ineligible'?'ineligible':'pending',
+     score:score?.overall_score==null?null:Number(score.overall_score),
+     aiStatus:ai?.status||'pending',
+     aiRecommendation:screeningRecommendation(ai)
+    }
+   }))
+  }catch(e){setError(e instanceof Error?e.message:'Could not load screening data.')}
+  finally{setLoading(false)}
+ }
+ useEffect(()=>{load()},[applications])
+
+ const counts=useMemo(()=>({
+  total:rows.length,
+  pending:rows.filter(r=>r.aiStatus==='pending'||r.aiStatus==='failed').length,
+  screened:rows.filter(r=>['completed','failed'].includes(r.aiStatus)).length,
+  eligible:rows.filter(r=>r.eligibility==='eligible').length,
+  recommended:rows.filter(r=>r.aiRecommendation==='Recommended').length
+ }),[rows])
+ const filtered=useMemo(()=>{
+  const q=query.trim().toLowerCase()
+  return rows.filter(r=>{
+   const matchesQuery=!q||r.applicantName.toLowerCase().includes(q)||(r.email||'').toLowerCase().includes(q)
+   const matchesFilter=filter==='all'||(filter==='pending'?(r.aiStatus==='pending'||r.aiStatus==='processing'):filter==='screened'?['completed','failed'].includes(r.aiStatus):filter==='eligible'?r.eligibility==='eligible':filter==='ineligible'?r.eligibility==='ineligible':filter==='recommended'?r.aiRecommendation==='Recommended':r.aiStatus==='completed'&&r.eligibility==='pending')
+   return matchesQuery&&matchesFilter
+  })
+ },[rows,query,filter])
+
+ const openApplicant=(row:ScreeningRow)=>{
+  const app=applications.find(a=>a.id===row.applicationId)
+  if(app)onOpen(app)
+ }
+
+ return <section>
+  <div className="page-heading compact">
+   <div><p className="eyebrow">Application screening</p><h1>Screening</h1><p className="subtitle">Review submitted applications, eligibility, scores and AI-assisted screening.</p></div>
+  </div>
+  {error&&<div className="form-error page-error">{error}</div>}
+  <div className="stats-grid screening-stats">
+   <div className="card stat-card"><div className="stat-icon"><ClipboardList size={18}/></div><div><p className="eyebrow">Total applications</p><div className="stat-value">{counts.total}</div><p className="muted">Submitted applications</p></div></div>
+   <div className="card stat-card"><div className="stat-icon"><ShieldCheck size={18}/></div><div><p className="eyebrow">Pending screening</p><div className="stat-value">{counts.pending}</div><p className="muted">Need screening attention</p></div></div>
+   <div className="card stat-card"><div className="stat-icon"><FileText size={18}/></div><div><p className="eyebrow">Screened</p><div className="stat-value">{counts.screened}</div><p className="muted">AI assessment completed</p></div></div>
+   <div className="card stat-card"><div className="stat-icon"><ShieldCheck size={18}/></div><div><p className="eyebrow">Eligible</p><div className="stat-value">{counts.eligible}</div><p className="muted">Passed eligibility</p></div></div>
+   <div className="card stat-card"><div className="stat-icon"><ArrowRight size={18}/></div><div><p className="eyebrow">AI recommended</p><div className="stat-value">{counts.recommended}</div><p className="muted">Recommended for review</p></div></div>
+  </div>
+  <div className="card table-card">
+   <div className="card-header"><div><h2>Screening queue</h2><p>Open an application to continue screening.</p></div><button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
+   <div className="forms-toolbar">
+    <div className="forms-search"><Search size={16}/><input aria-label="Search applications" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applicants or email…" /></div>
+    <div className="forms-filters" role="group" aria-label="Filter screening applications">
+     {(['all','pending','screened','eligible','ineligible','recommended','review'] as const).map(f=><button key={f} className={filter===f?'filter-button active':'filter-button'} onClick={()=>setFilter(f)}>{f==='all'?'All':f==='pending'?'Pending':f==='screened'?'Screened':f==='eligible'?'Eligible':f==='ineligible'?'Ineligible':f==='recommended'?'AI recommended':'Needs review'}<span>{f==='all'?counts.total:f==='pending'?counts.pending:f==='screened'?counts.screened:f==='eligible'?counts.eligible:f==='ineligible'?rows.filter(r=>r.eligibility==='ineligible').length:f==='recommended'?counts.recommended:rows.filter(r=>r.aiStatus==='completed'&&r.eligibility==='pending').length}</span></button>)}
+    </div>
+   </div>
+   <div className="table-wrap"><table><thead><tr><th>Applicant</th><th>Eligibility</th><th>Score</th><th>AI assessment</th><th>Submitted</th><th></th></tr></thead><tbody>
+    {loading?<tr><td colSpan={6}><div className="loading-card">Loading screening queue…</div></td></tr>:!filtered.length?<tr><td colSpan={6}><div className="table-empty"><div className="empty-icon"><ShieldCheck size={20}/></div><h3>{rows.length?'No applications match your filters':'No submitted applications yet'}</h3><p>{rows.length?'Try another search or filter.':'Applications will appear here after applicants submit a form.'}</p></div></td></tr>:
+    filtered.map(row=><tr key={row.submissionId}>
+     <td><strong>{row.applicantName}</strong><span className="table-sub">{row.email||'No email provided'}</span></td>
+     <td><span className={'status '+(row.eligibility==='eligible'?'blue':row.eligibility==='ineligible'?'neutral':'amber')}>{row.eligibility}</span></td>
+     <td>{row.score==null?'—':row.score.toFixed(1)}</td>
+     <td><span className={'status '+(row.aiRecommendation==='Recommended'?'blue':row.aiRecommendation==='Not recommended'?'neutral':'amber')}>{row.aiRecommendation}</span></td>
+     <td>{row.submittedAt?new Date(row.submittedAt).toLocaleDateString():'—'}</td>
+     <td><button className="secondary-button" onClick={()=>openApplicant(row)}>Review <ArrowRight size={15}/></button></td>
+    </tr>)}
+   </tbody></table></div>
+  </div>
+ </section>
+}
 export function ReviewsWorkspace({applications,onOpen}:{applications:Application[];onOpen:(a:Application)=>void}){return <ModuleList title="Reviews" eyebrow="Human review" description="Assign reviewers and manage structured application reviews." icon={ClipboardList} applications={applications} onOpen={onOpen}/>}
 
 export function TeamWorkspace({organizationId}:{organizationId:string}){
