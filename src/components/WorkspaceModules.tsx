@@ -366,9 +366,7 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
     const {data:questions,error:qErr}=await supabase.from('questions').select('id,label,description,type,position').eq('form_version_id',s?.form_version_id||'').order('position')
     if(qErr)throw qErr
 
-    if(active){
-     setData({submission:s,applicant,answers:ans||[],questions:questions||[],eligibility:e,score:sc,criteria:cr||[],ai,documents:documents||[]})
-    }
+    if(active)setData({submission:s,applicant,answers:ans||[],questions:questions||[],eligibility:e,score:sc,criteria:cr||[],ai,documents:documents||[]})
    }catch(e){
     if(active)setError(e instanceof Error?e.message:'Could not load this application.')
    }finally{
@@ -410,8 +408,8 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
    const {data:result,error:invokeError}=await supabase.functions.invoke('run-ai-screening',{body:{submission_id:row.submissionId}})
    if(invokeError)throw invokeError
    if(result?.error)throw new Error(result.error)
-   const {data:ai,error:aiError}=await supabase.from('ai_screenings').select('*').eq('submission_id',row.submissionId).maybeSingle()
-   if(aiError)throw aiError
+   const {data:ai,error:aiLoadError}=await supabase.from('ai_screenings').select('*').eq('submission_id',row.submissionId).maybeSingle()
+   if(aiLoadError)throw aiLoadError
    setData(prev=>prev?{...prev,ai}:prev)
   }catch(e){
    setAiError(e instanceof Error?e.message:'AI screening failed.')
@@ -438,7 +436,7 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
    <div className="screening-review-modal">
     <header className="screening-review-header">
      <div className="screening-review-title">
-      <div>
+      <div className="screening-review-heading-copy">
        <p className="eyebrow">Application review</p>
        <h2>{row.applicantName}</h2>
        <div className="screening-review-meta">
@@ -447,7 +445,7 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
         <span>{row.submittedAt?new Date(row.submittedAt).toLocaleString():'Submitted date unavailable'}</span>
        </div>
       </div>
-      <button className="icon-button" onClick={onClose} aria-label="Close review">×</button>
+      <button className="icon-button screening-close-button" onClick={onClose} aria-label="Close review">×</button>
      </div>
     </header>
 
@@ -460,77 +458,49 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
       <main className="screening-review-content">
        <section className="screening-summary-grid">
         <div className="screening-summary-card">
-         <div>
-          <span className="screening-summary-label">Eligibility</span>
-          <strong className="screening-summary-value">{eligibilityStatus}</strong>
-         </div>
+         <div><span className="screening-summary-label">Unique ID</span><strong className="screening-summary-value">{data.applicant?.unique_id||row.uniqueId}</strong></div>
+        </div>
+        <div className="screening-summary-card">
+         <div><span className="screening-summary-label">Eligibility</span><strong className="screening-summary-value">{eligibilityStatus}</strong></div>
          <span className={'status '+(eligibilityStatus==='eligible'?'blue':eligibilityStatus==='ineligible'?'neutral':'amber')}>{eligibilityStatus}</span>
         </div>
         <div className="screening-summary-card">
-         <div>
-          <span className="screening-summary-label">Overall score</span>
-          <strong className="screening-summary-value">{score==null?'—':Number(score).toFixed(1)}</strong>
-         </div>
-         <span className="screening-summary-label">Recorded score</span>
-        </div>
-        <div className="screening-summary-card">
-         <div>
-          <span className="screening-summary-label">Current decision</span>
-          <strong className="screening-summary-value">{currentDecision}</strong>
-         </div>
-         <span className={'status '+(currentDecision==='approved'?'blue':currentDecision==='rejected'?'neutral':'amber')}>{currentDecision}</span>
+         <div><span className="screening-summary-label">Score</span><strong className="screening-summary-value">{score==null?'—':Number(score).toFixed(1)}</strong></div>
         </div>
        </section>
 
        <section className="screening-review-section">
         <div className="screening-section-heading">
-         <div>
-          <h3>Application form</h3>
-          <p>All answers submitted by the applicant.</p>
-         </div>
+         <div><h3>Application form</h3><p>Everything the applicant submitted, in the same order as the form.</p></div>
          <span className="screening-count">{data.questions.length} questions</span>
         </div>
         <div className="screening-answer-list">
          {data.questions.length ? data.questions.map((question,index)=>(
-          <div className="screening-answer" key={question.id}>
+          <article className="screening-answer" key={question.id}>
            <div className="screening-answer-number">{index+1}</div>
            <div className="screening-answer-content">
             <div className="screening-answer-question">{question.label}</div>
             <div className="screening-answer-value">{formatValue(answerMap.get(question.id))}</div>
             {question.description&&<div className="screening-answer-help">{question.description}</div>}
            </div>
-          </div>
-         )) : <p className="muted">No answers were found for this submission.</p>}
+          </article>
+         )) : <p className="muted screening-empty-answer">No answers were found for this submission.</p>}
         </div>
        </section>
 
        <section className="screening-review-section">
         <div className="screening-section-heading">
-         <div>
-          <h3>Eligibility & score</h3>
-          <p>Results already calculated from the programme rules.</p>
-         </div>
+         <div><h3>Results</h3><p>Eligibility and scoring results already calculated for this application.</p></div>
         </div>
         <div className="screening-result-grid">
          <div className="screening-result-block">
-          <span className="screening-summary-label">Eligibility result</span>
+          <span className="screening-summary-label">Eligibility</span>
           <strong>{eligibilityStatus}</strong>
-          {data.eligibility?.reasons?.length ? (
-           <ul className="screening-simple-list">{data.eligibility.reasons.map((reason:any,index:number)=><li key={index}>{typeof reason==='string'?reason:JSON.stringify(reason)}</li>)}</ul>
-          ) : <p className="muted">No eligibility details recorded.</p>}
+          {data.eligibility?.reasons?.length ? <ul className="screening-simple-list">{data.eligibility.reasons.map((reason:any,index:number)=><li key={index}>{typeof reason==='string'?reason:JSON.stringify(reason)}</li>)}</ul> : <p className="muted">No eligibility details recorded.</p>}
          </div>
          <div className="screening-result-block">
           <span className="screening-summary-label">Score breakdown</span>
-          {data.criteria.length ? (
-           <div className="screening-score-list">
-            {data.criteria.map((criterion:any)=>(
-             <div key={criterion.id} className="screening-score-row">
-              <span>{criterion.name}</span>
-              <strong>{criterion.weight}%</strong>
-             </div>
-            ))}
-           </div>
-          ) : <p className="muted">No scoring criteria configured.</p>}
+          {data.criteria.length ? <div className="screening-score-list">{data.criteria.map((criterion:any)=><div key={criterion.id} className="screening-score-row"><span>{criterion.name}</span><strong>{criterion.weight}%</strong></div>)}</div> : <p className="muted">No scoring criteria configured.</p>}
          </div>
         </div>
        </section>
@@ -538,23 +508,18 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
        {data.documents.length>0&&(
         <section className="screening-review-section">
          <div className="screening-section-heading">
-          <div>
-           <h3>Uploaded documents</h3>
-           <p>Files submitted with the application.</p>
-          </div>
-          <span className="screening-count">{data.documents.length} files</span>
+          <div><h3>Documents</h3><p>Files submitted with the application.</p></div>
+          <span className="screening-count">{data.documents.length}</span>
          </div>
          <div className="screening-document-list">
           {data.documents.map((document:any)=>(
            <div className="screening-document" key={document.id}>
-            <div>
+            <div className="screening-document-copy">
              <strong>{document.original_name}</strong>
              <p>{document.mime_type||'File'} · {document.file_size?Math.round(document.file_size/1024)+' KB':'Size unavailable'} · {document.extraction_status||'pending'}</p>
              {document.extracted_text&&<div className="screening-document-text">{document.extracted_text}</div>}
             </div>
-            <button className="secondary-button" onClick={()=>extractDocument(document.id)} disabled={extractingId===document.id||document.extraction_status==='processing'}>
-             {extractingId===document.id?'Extracting…':document.extraction_status==='completed'?'Re-extract':'Extract text'}
-            </button>
+            <button className="secondary-button" onClick={()=>extractDocument(document.id)} disabled={extractingId===document.id||document.extraction_status==='processing'}>{extractingId===document.id?'Extracting…':document.extraction_status==='completed'?'Re-extract':'Extract text'}</button>
            </div>
           ))}
          </div>
@@ -563,33 +528,25 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
 
        <section className="screening-review-section screening-ai-section">
         <div className="screening-section-heading">
-         <div>
-          <h3>AI screening</h3>
-          <p>Optional recommendation based on the complete application.</p>
-         </div>
-         <button className="secondary-button" onClick={runAiScreening} disabled={aiRunning}>
-          {aiRunning?'Screening…':data.ai?'Run again':'Screen with AI'}
-         </button>
+         <div><h3>AI recommendation</h3><p>Optional. AI reviews the complete application and provides a recommendation.</p></div>
+         <button className="secondary-button" onClick={runAiScreening} disabled={aiRunning}>{aiRunning?'Screening…':data.ai?'Run again':'Screen with AI'}</button>
         </div>
-        {aiError&&<div className="form-error">{aiError}</div>}
+        {aiError&&<div className="form-error screening-inline-error">{aiError}</div>}
         {data.ai ? (
          <div className="screening-ai-result">
-          <div className="screening-ai-topline">
-           <span className="screening-summary-label">Recommendation</span>
-           <strong>{aiRecommendation||'Review recommended'}</strong>
-          </div>
+          <div className="screening-ai-topline"><span className="screening-summary-label">Recommendation</span><strong>{aiRecommendation||'Review recommended'}</strong></div>
           <p>{data.ai.overall_assessment||'No overall assessment recorded.'}</p>
           {data.ai.strengths?.length>0&&<div><span className="screening-summary-label">Strengths</span><ul className="screening-simple-list">{data.ai.strengths.map((item:any,index:number)=><li key={index}>{typeof item==='string'?item:JSON.stringify(item)}</li>)}</ul></div>}
-          {data.ai.concerns?.length>0&&<div><span className="screening-summary-label">Concerns</span><ul className="screening-simple-list">{data.ai.concerns.map((item:any,index:number)=><li key={index}>{typeof item==='string'?item:JSON.stringify(item)}</li></ul></div>}
+          {data.ai.concerns?.length>0&&<div><span className="screening-summary-label">Concerns</span><ul className="screening-simple-list">{data.ai.concerns.map((item:any,index:number)=><li key={index}>{typeof item==='string'?item:JSON.stringify(item)}</li>)}</ul></div>}
          </div>
-        ) : <p className="muted">AI has not screened this application yet.</p>}
+        ) : <div className="screening-ai-empty"><p className="muted">AI has not screened this application yet.</p></div>}
        </section>
       </main>
 
       <footer className="screening-review-footer">
-       <div>
+       <div className="screening-decision-copy">
         <span className="screening-summary-label">Final decision</span>
-        <strong>{currentDecision==='pending'?'Choose an action for this applicant.':currentDecision==='approved'?'Applicant approved':'Applicant rejected'}</strong>
+        <strong>{currentDecision==='pending'?'Approve or reject this applicant.':currentDecision==='approved'?'Applicant approved':'Applicant rejected'}</strong>
        </div>
        <div className="screening-decision-actions">
         <button className="secondary-button screening-reject-button" onClick={()=>onDecision(row,'rejected')} disabled={currentDecision==='rejected'}>Reject</button>
