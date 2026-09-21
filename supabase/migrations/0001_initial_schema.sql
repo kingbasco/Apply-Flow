@@ -103,3 +103,47 @@ create policy "question_options_delete_own" on public.question_options for delet
 grant select,insert,update,delete on public.form_versions to authenticated;
 grant select,insert,update,delete on public.questions to authenticated;
 grant select,insert,update,delete on public.question_options to authenticated;
+
+
+create table if not exists public.applicants (
+  id uuid primary key default gen_random_uuid(),
+  application_id uuid not null references public.applications(id) on delete cascade,
+  email text,
+  full_name text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.submissions (
+  id uuid primary key default gen_random_uuid(),
+  application_id uuid not null references public.applications(id) on delete cascade,
+  form_version_id uuid not null references public.form_versions(id) on delete restrict,
+  applicant_id uuid not null references public.applicants(id) on delete cascade,
+  status text not null default 'submitted' check (status in ('draft','submitted')),
+  submitted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create table if not exists public.answers (
+  id uuid primary key default gen_random_uuid(),
+  submission_id uuid not null references public.submissions(id) on delete cascade,
+  question_id uuid not null references public.questions(id) on delete restrict,
+  value jsonb not null default 'null'::jsonb,
+  created_at timestamptz not null default now(),
+  unique(submission_id, question_id)
+);
+create index if not exists applicants_application_id_idx on public.applicants(application_id);
+create index if not exists submissions_application_id_idx on public.submissions(application_id);
+create index if not exists submissions_applicant_id_idx on public.submissions(applicant_id);
+create index if not exists answers_submission_id_idx on public.answers(submission_id);
+alter table public.applicants enable row level security;
+alter table public.submissions enable row level security;
+alter table public.answers enable row level security;
+grant select on public.applicants to authenticated;
+grant select,insert,update on public.submissions to authenticated;
+grant select,insert,update on public.answers to authenticated;
+create policy "applicants_owner_select" on public.applicants for select to authenticated using (exists(select 1 from public.applications a where a.id=application_id and a.created_by=auth.uid()));
+create policy "submissions_owner_select" on public.submissions for select to authenticated using (exists(select 1 from public.applications a where a.id=application_id and a.created_by=auth.uid()));
+create policy "submissions_owner_insert" on public.submissions for insert to authenticated with check (exists(select 1 from public.applications a where a.id=application_id and a.created_by=auth.uid()));
+create policy "submissions_owner_update" on public.submissions for update to authenticated using (exists(select 1 from public.applications a where a.id=application_id and a.created_by=auth.uid())) with check (exists(select 1 from public.applications a where a.id=application_id and a.created_by=auth.uid()));
+create policy "answers_owner_select" on public.answers for select to authenticated using (exists(select 1 from public.submissions s join public.applications a on a.id=s.application_id where s.id=submission_id and a.created_by=auth.uid()));
+create policy "answers_owner_insert" on public.answers for insert to authenticated with check (exists(select 1 from public.submissions s join public.applications a on a.id=s.application_id where s.id=submission_id and a.created_by=auth.uid()));
+create policy "answers_owner_update" on public.answers for update to authenticated using (exists(select 1 from public.submissions s join public.applications a on a.id=s.application_id where s.id=submission_id and a.created_by=auth.uid())) with check (exists(select 1 from public.submissions s join public.applications a on a.id=s.application_id where s.id=submission_id and a.created_by=auth.uid()));
