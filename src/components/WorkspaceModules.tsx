@@ -122,6 +122,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
   </div>
   <div className="card table-card"><div className="card-header"><div><h2>Application forms</h2><p>Manage publishing, access and version history from one place.</p></div></div>
    <div className="forms-toolbar">
+    <div className="forms-search"><select aria-label="Filter by reviewer" value={reviewerFilter} onChange={e=>setReviewerFilter(e.target.value)}><option value="all">All reviewers</option>{reviewers.map(p=><option key={p.id} value={p.id}>{p.full_name||'Unnamed reviewer'}</option>)}</select></div>
     <div className="forms-search"><Search size={16}/><input aria-label="Search forms" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search programmes…" /></div>
     <div className="forms-filters" role="group" aria-label="Filter forms by status">{(['all','draft','published','closed','none'] as const).map(f=><button key={f} className={filter===f?'filter-button active':'filter-button'} onClick={()=>setFilter(f)}>{f==='all'?'All':f==='none'?'Not started':f[0].toUpperCase()+f.slice(1)}<span>{f==='all'?summaries.length:f==='draft'?counts.draft:f==='published'?counts.published:f==='closed'?counts.closed:summaries.filter(s=>formWorkspaceStatus(s)==='none').length}</span></button>)}</div>
    </div>
@@ -191,6 +192,12 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
  const [query,setQuery]=useState('')
  const [filter,setFilter]=useState<'all'|'pending'|'screened'|'eligible'|'ineligible'|'recommended'|'review'>('all')
  const [reviewing,setReviewing]=useState<ScreeningRow|null>(null)
+ const [assignments,setAssignments]=useState<any[]>([])
+ const [reviewerFilter,setReviewerFilter]=useState('all')
+ const [selected,setSelected]=useState<string[]>([])
+ const [reviewers,setReviewers]=useState<any[]>([])
+ const [bulkReviewer,setBulkReviewer]=useState('')
+ const [bulkSaving,setBulkSaving]=useState(false)
 
  async function load(){
   setLoading(true);setError('')
@@ -202,10 +209,13 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
     supabase.from('submission_eligibility').select('submission_id,status,overridden').in('submission_id',[]),
     supabase.from('submission_scores').select('submission_id,overall_score,status').in('submission_id',[]),
     supabase.from('ai_screenings').select('submission_id,status,overall_assessment').in('submission_id',[]),
-    supabase.from('applicants').select('id,full_name,email').in('application_id',ids)
+    supabase.from('applicants').select('id,full_name,email').in('application_id',ids),
+   supabase.from('profiles').select('id,full_name,role').eq('organization_id',applications[0]?.organization_id||'').in('role',['reviewer','admin','owner']).order('full_name')
    ])
    if(subsError)throw subsError
    if(applicantError)throw applicantError
+   if(reviewersError)throw reviewersError
+   setReviewers(reviewersData||[])
    const submissionIds=(subs||[]).map(s=>s.id)
    const [eligResult,scoreResult,aiResult]=await Promise.all([
     submissionIds.length?supabase.from('submission_eligibility').select('submission_id,status,overridden').in('submission_id',submissionIds):Promise.resolve({data:[],error:null}),
@@ -215,6 +225,11 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
    if(eligResult.error)throw eligResult.error
    if(scoreResult.error)throw scoreResult.error
    if(aiResult.error)throw aiResult.error
+   const submissionIds=(subs||[]).map(s=>s.id)
+   const {data:assignmentData,error:assignmentError}=submissionIds.length?await supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,notes,decision').in('submission_id',submissionIds):{data:[],error:null}
+   if(assignmentError)throw assignmentError
+   setAssignments(assignmentData||[])
+   const assignmentMap=new Map((assignmentData||[]).map(a=>[a.submission_id,a]))
    const applicantMap=new Map((applicants||[]).map(a=>[a.id,a]))
    const eligMap=new Map((eligResult.data||[]).map(e=>[e.submission_id,e]))
    const scoreMap=new Map((scoreResult.data||[]).map(s=>[s.submission_id,s]))
@@ -233,7 +248,9 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
      eligibility:e?.status==='eligible'?'eligible':e?.status==='ineligible'?'ineligible':'pending',
      score:score?.overall_score==null?null:Number(score.overall_score),
      aiStatus:ai?.status||'pending',
-     aiRecommendation:screeningRecommendation(ai)
+     aiRecommendation:screeningRecommendation(ai),
+     reviewerId:assignmentMap.get(s.id)?.reviewer_id||null,
+     reviewStatus:assignmentMap.get(s.id)?.status||null
     }
    }))
   }catch(e){setError(e instanceof Error?e.message:'Could not load screening data.')}
@@ -252,8 +269,10 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
   const q=query.trim().toLowerCase()
   return rows.filter(r=>{
    const matchesQuery=!q||r.applicantName.toLowerCase().includes(q)||(r.email||'').toLowerCase().includes(q)
+   const assignment=assignments.find(a=>a.submission_id===r.submissionId)
+   const matchesReviewer=reviewerFilter==='all'||assignment?.reviewer_id===reviewerFilter
    const matchesFilter=filter==='all'||(filter==='pending'?(r.aiStatus==='pending'||r.aiStatus==='processing'):filter==='screened'?['completed','failed'].includes(r.aiStatus):filter==='eligible'?r.eligibility==='eligible':filter==='ineligible'?r.eligibility==='ineligible':filter==='recommended'?r.aiRecommendation==='Recommended':r.aiStatus==='completed'&&r.eligibility==='pending')
-   return matchesQuery&&matchesFilter
+   return matchesQuery&&matchesFilter&&matchesReviewer
   })
  },[rows,query,filter])
 
@@ -273,21 +292,22 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
    <div className="card stat-card"><div className="stat-icon"><ArrowRight size={18}/></div><div><p className="eyebrow">AI recommended</p><div className="stat-value">{counts.recommended}</div><p className="muted">Recommended for review</p></div></div>
   </div>
   <div className="card table-card">
-   <div className="card-header"><div><h2>Screening queue</h2><p>Open an application to continue screening.</p></div><button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
+   <div className="card-header"><div><h2>Screening queue</h2><p>Assign reviewers in bulk or open an application for full screening.</p></div><button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
    <div className="forms-toolbar">
     <div className="forms-search"><Search size={16}/><input aria-label="Search applications" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applicants or email…" /></div>
     <div className="forms-filters" role="group" aria-label="Filter screening applications">
      {(['all','pending','screened','eligible','ineligible','recommended','review'] as const).map(f=><button key={f} className={filter===f?'filter-button active':'filter-button'} onClick={()=>setFilter(f)}>{f==='all'?'All':f==='pending'?'Pending':f==='screened'?'Screened':f==='eligible'?'Eligible':f==='ineligible'?'Ineligible':f==='recommended'?'AI recommended':'Needs review'}<span>{f==='all'?counts.total:f==='pending'?counts.pending:f==='screened'?counts.screened:f==='eligible'?counts.eligible:f==='ineligible'?rows.filter(r=>r.eligibility==='ineligible').length:f==='recommended'?counts.recommended:rows.filter(r=>r.aiStatus==='completed'&&r.eligibility==='pending').length}</span></button>)}
     </div>
    </div>
-   <div className="table-wrap"><table><thead><tr><th>Applicant</th><th>Eligibility</th><th>Score</th><th>AI assessment</th><th>Submitted</th><th></th></tr></thead><tbody>
-    {loading?<tr><td colSpan={6}><div className="loading-card">Loading screening queue…</div></td></tr>:!filtered.length?<tr><td colSpan={6}><div className="table-empty"><div className="empty-icon"><ShieldCheck size={20}/></div><h3>{rows.length?'No applications match your filters':'No submitted applications yet'}</h3><p>{rows.length?'Try another search or filter.':'Applications will appear here after applicants submit a form.'}</p></div></td></tr>:
+   {selected.length>0&&<div className="forms-toolbar"><div className="forms-search"><strong>{selected.length} selected</strong></div><div className="detail-actions"><select value={bulkReviewer} onChange={e=>setBulkReviewer(e.target.value)}><option value="">Assign reviewer…</option>{reviewers.map(p=><option key={p.id} value={p.id}>{p.full_name||'Unnamed reviewer'}</option>)}</select><button className="primary-button" disabled={!bulkReviewer||bulkSaving} onClick={async()=>{setBulkSaving(true);for(const id of selected){await supabase.rpc('assign_review_submission',{p_submission_id:id,p_reviewer_id:bulkReviewer})}setSelected([]);setBulkReviewer('');setBulkSaving(false);await load()}}>{bulkSaving?'Assigning…':'Assign selected'}</button></div></div>}
+   <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label="Select all visible applications" checked={filtered.length>0&&filtered.every(r=>selected.includes(r.submissionId))} onChange={e=>setSelected(e.target.checked?Array.from(new Set([...selected,...filtered.map(r=>r.submissionId)])):selected.filter(id=>!filtered.some(r=>r.submissionId===id)))} /></th><th>Applicant</th><th>Eligibility</th><th>Score</th><th>AI assessment</th><th>Reviewer</th><th>Submitted</th><th></th></tr></thead><tbody>
+    {loading?<tr><td colSpan={7}><div className="loading-card">Loading screening queue…</div></td></tr>:!filtered.length?<tr><td colSpan={7}><div className="table-empty"><div className="empty-icon"><ShieldCheck size={20}/></div><h3>{rows.length?'No applications match your filters':'No submitted applications yet'}</h3><p>{rows.length?'Try another search or filter.':'Applications will appear here after applicants submit a form.'}</p></div></td></tr>:
     filtered.map(row=><tr key={row.submissionId}>
-     <td><strong>{row.applicantName}</strong><span className="table-sub">{row.email||'No email provided'}</span></td>
+     <td><input type="checkbox" aria-label={`Select ${row.applicantName}`} checked={selected.includes(row.submissionId)} onChange={e=>setSelected(e.target.checked?[...selected,row.submissionId]:selected.filter(id=>id!==row.submissionId))}/></td><td><strong>{row.applicantName}</strong><span className="table-sub">{row.email||'No email provided'}</span></td>
      <td><span className={'status '+(row.eligibility==='eligible'?'blue':row.eligibility==='ineligible'?'neutral':'amber')}>{row.eligibility}</span></td>
      <td>{row.score==null?'—':row.score.toFixed(1)}</td>
      <td><span className={'status '+(row.aiRecommendation==='Recommended'?'blue':row.aiRecommendation==='Not recommended'?'neutral':'amber')}>{row.aiRecommendation}</span></td>
-     <td>{row.submittedAt?new Date(row.submittedAt).toLocaleDateString():'—'}</td>
+     <td>{reviewers.find(p=>p.id===row.reviewerId)?.full_name||'Unassigned'}</td><td>{row.submittedAt?new Date(row.submittedAt).toLocaleDateString():'—'}</td>
      <td><button className="secondary-button" onClick={()=>openApplicant(row)}>Review <ArrowRight size={15}/></button></td>
     </tr>)}
    </tbody></table></div>
