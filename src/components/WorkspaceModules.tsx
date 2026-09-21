@@ -259,7 +259,8 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
 
  const openApplicant=(row:ScreeningRow)=>setReviewing(row)
 
- return <section>
+ return <>
+  <section>
   <div className="page-heading compact">
    <div><p className="eyebrow">Application screening</p><h1>Screening</h1><p className="subtitle">Review submitted applications, eligibility, scores and AI-assisted screening.</p></div>
   </div>
@@ -292,13 +293,16 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
    </tbody></table></div>
   </div>
  </section>
+ {reviewing&&<ScreeningReviewModal row={reviewing} onClose={()=>setReviewing(null)}/>} 
+ </>
+}
 
 type ScreeningReviewData={submission:any;applicant:any;answers:any[];questions:any[];eligibility:any;score:any;criteria:any[];ai:any}
 function ScreeningReviewModal({row,onClose}:{row:ScreeningRow;onClose:()=>void}){
  const [data,setData]=useState<ScreeningReviewData|null>(null);const [loading,setLoading]=useState(true);const [error,setError]=useState('');
  useEffect(()=>{(async()=>{try{const [{data:s,error:se},{data:a,error:ae},{data:ans,error:ane},{data:e,error:ee},{data:sc,error:sce},{data:cr,error:cre},{data:ai,error:aie}]=await Promise.all([
   supabase.from('submissions').select('id,application_id,form_version_id,applicant_id,status,submitted_at').eq('id',row.submissionId).maybeSingle(),
-  supabase.from('applicants').select('id,full_name,email').eq('id',row.submissionId?row.submissionId:row.submissionId).limit(0),
+  supabase.from('applicants').select('id,full_name,email').eq('id',row.submissionId).limit(0),
   supabase.from('answers').select('id,question_id,value').eq('submission_id',row.submissionId),
   supabase.from('submission_eligibility').select('*').eq('submission_id',row.submissionId).maybeSingle(),
   supabase.from('submission_scores').select('*').eq('submission_id',row.submissionId).maybeSingle(),
