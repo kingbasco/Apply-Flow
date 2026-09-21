@@ -250,7 +250,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
   const q=query.trim().toLowerCase()
   return rows.filter(r=>{
    const matchesQuery=!q||r.applicantName.toLowerCase().includes(q)||(r.email||'').toLowerCase().includes(q)||r.uniqueId.toLowerCase().includes(q)
-   const matchesFilter=filter==='all'||filter==='pending'?(r.decision==='pending'):filter==='approved'?r.decision==='approved':filter==='rejected'?r.decision==='rejected':r.aiRecommendation==='Recommended'
+   const matchesFilter=filter==='all'||(filter==='pending'&&r.decision==='pending')||(filter==='approved'&&r.decision==='approved')||(filter==='rejected'&&r.decision==='rejected')||(filter==='recommended'&&r.aiRecommendation==='Recommended')
    return matchesQuery&&matchesFilter
   })
  },[rows,query,filter])
