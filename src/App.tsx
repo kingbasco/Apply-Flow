@@ -101,6 +101,7 @@ function PublicApplication({slug}:{slug:string}) {
     const {data:sub,error:se}=await supabase.from('submissions').insert({application_id:app!.id,form_version_id:v.id,applicant_id:applicant.id,status:'submitted',submitted_at:new Date().toISOString()}).select('id').single();if(se)throw se
     const rows=questions.filter(q=>visible(q)&&answers[q.id]!==undefined).map(q=>({submission_id:sub.id,question_id:q.id,value:answers[q.id]}))
     const {error:ansError}=await supabase.from('answers').insert(rows);if(ansError)throw ansError
+    const {error:eligibilityError}=await supabase.rpc('evaluate_submission_eligibility',{p_submission_id:sub.id});if(eligibilityError)throw eligibilityError
     setSubmitted(true)
   }catch(e){setError(e instanceof Error?e.message:'Could not submit application.')}finally{setLoading(false)}}
   if(loading&&!app)return <div className="public-shell"><div className="public-card card">Loading application…</div></div>
@@ -329,7 +330,7 @@ function ApplicationDetails({ application, settings, tab, setTab, loading, savin
     {loading?<div className="loading-card card">Loading programme settings…</div>:error?<div className="form-error page-error">{error}</div>:tab==='Overview'?<div className="detail-grid">
       <div className="card detail-card"><div className="card-header"><div><h2>Programme details</h2><p>Update the basic information for this programme.</p></div></div><div className="detail-form"><label>Programme name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Description<textarea rows={5} value={description} onChange={e=>setDescription(e.target.value)}/></label><div className="form-grid"><label>Application deadline<input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)}/></label><label>Target number<input type="number" min="0" value={target} onChange={e=>setTarget(e.target.value)}/></label></div><div className="detail-form-footer"><button className="primary-button" disabled={saving} onClick={()=>onSave({name:name.trim(),description:description.trim()||null,deadline:deadline||null,target_count:target?Number(target):null})}>{saving?'Saving…':'Save changes'}</button></div></div></div>
       <div className="card detail-card"><div className="card-header"><div><h2>Public application</h2><p>Settings applicants will see.</p></div></div><div className="detail-form"><label>Public slug<input value={slug} onChange={e=>setSlug(e.target.value)}/></label><label>Confirmation message<textarea rows={5} value={message} onChange={e=>setMessage(e.target.value)}/></label><div className="detail-form-footer"><button className="secondary-button" disabled={saving} onClick={()=>onSave({}, {public_slug:slug.trim(),confirmation_message:message.trim()||'Thank you. Your application has been received.'})}>Save public settings</button></div></div></div>
-    </div>:tab==='Form'?<FormBuilder applicationId={application.id}/>:tab==='Applicants'?<ApplicantsPanel applicationId={application.id}/>:<div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{tab} is next</h2><p>This section is connected to the programme workspace and will be built on the live data model.</p></div>}
+    </div>:tab==='Form'?<FormBuilder applicationId={application.id}/>:tab==='Applicants'?<ApplicantsPanel applicationId={application.id}/>:tab==='Eligibility'?<EligibilityBuilder applicationId={application.id}/>:<div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{tab} is next</h2><p>This section is connected to the programme workspace and will be built on the live data model.</p></div>}
   </section>
 }
 
@@ -342,6 +343,102 @@ const questionTypes:{type:QuestionType;label:string;icon:string}[]=[
  {type:'number',label:'Number',icon:'#'},{type:'date',label:'Date',icon:'◫'},{type:'dropdown',label:'Dropdown',icon:'⌄'},{type:'single_choice',label:'Single choice',icon:'○'},
  {type:'multiple_choice',label:'Multiple choice',icon:'☑'},{type:'yes_no',label:'Yes / No',icon:'Y/N'},{type:'file',label:'File upload',icon:'↑'},{type:'image',label:'Image upload',icon:'▧'},{type:'rating',label:'Rating',icon:'★'}
 ]
+
+
+type EligibilityOperator='='|'!='|'>'|'<'|'>='|'<='|'IN'|'NOT IN'
+type EligibilityRule={id:string;application_id:string;question_id:string;operator:EligibilityOperator;value:unknown;logic:'AND'|'OR';position:number;enabled:boolean}
+
+function EligibilityBuilder({applicationId}:{applicationId:string}) {
+  const [questions,setQuestions]=useState<BuilderQuestion[]>([])
+  const [rules,setRules]=useState<EligibilityRule[]>([])
+  const [loading,setLoading]=useState(true)
+  const [busy,setBusy]=useState(false)
+  const [notice,setNotice]=useState('')
+
+  async function load(){
+    setLoading(true);setNotice('')
+    try{
+      const {data:versions,error:ve}=await supabase.from('form_versions').select('id,status,version_number').eq('application_id',applicationId).order('version_number',{ascending:false}).limit(10)
+      if(ve)throw ve
+      const version=(versions||[]).find(v=>v.status==='draft')||(versions||[]).find(v=>v.status==='published')
+      if(version){
+        const {data:qs,error:qe}=await supabase.from('questions').select('id,type,label,description,required,placeholder,position,config,conditional_rules').eq('form_version_id',version.id).order('position')
+        if(qe)throw qe
+        const full=await Promise.all((qs||[]).map(async q=>{const {data:o,error:oe}=await supabase.from('question_options').select('id,label,value,position').eq('question_id',q.id).order('position');if(oe)throw oe;return {...q,options:o||[]}}))
+        setQuestions(full as BuilderQuestion[])
+      } else setQuestions([])
+      const {data:rs,error:re}=await supabase.from('eligibility_rules').select('id,application_id,question_id,operator,value,logic,position,enabled').eq('application_id',applicationId).order('position')
+      if(re)throw re
+      setRules((rs||[]) as EligibilityRule[])
+    }catch(e){setNotice(e instanceof Error?e.message:'Could not load eligibility rules.')}finally{setLoading(false)}
+  }
+
+  useEffect(()=>{load()},[applicationId])
+
+  function defaultValue(q:BuilderQuestion){return q.type==='multiple_choice'?[]:q.type==='number'||q.type==='rating'?'':q.options[0]?.value||''}
+  function displayValue(rule:EligibilityRule){
+    const q=questions.find(x=>x.id===rule.question_id)
+    if(!q)return ''
+    if(Array.isArray(rule.value))return rule.value.join(', ')
+    const option=q.options.find(o=>o.value===String(rule.value))
+    return option?.label||String(rule.value??'')
+  }
+
+  async function addRule(){
+    if(!questions.length){setNotice('Add questions to the form before creating eligibility rules.');return}
+    setBusy(true);setNotice('')
+    const q=questions[0]
+    const {data,error}=await supabase.from('eligibility_rules').insert({
+      application_id:applicationId,question_id:q.id,operator:'=',value:defaultValue(q),logic:'AND',position:rules.length,enabled:true
+    }).select('id,application_id,question_id,operator,value,logic,position,enabled').single()
+    if(error)setNotice(error.message);else setRules(x=>[...x,data as EligibilityRule])
+    setBusy(false)
+  }
+
+  async function updateRule(id:string,patch:Partial<EligibilityRule>){
+    setBusy(true);setNotice('')
+    const clean={...patch,updated_at:new Date().toISOString()}
+    const {data,error}=await supabase.from('eligibility_rules').update(clean).eq('id',id).select('id,application_id,question_id,operator,value,logic,position,enabled').single()
+    if(error)setNotice(error.message);else setRules(x=>x.map(r=>r.id===id?data as EligibilityRule:r))
+    setBusy(false)
+  }
+
+  async function removeRule(id:string){
+    setBusy(true);setNotice('')
+    const {error}=await supabase.from('eligibility_rules').delete().eq('id',id)
+    if(error)setNotice(error.message);else setRules(x=>x.filter(r=>r.id!==id))
+    setBusy(false)
+  }
+
+  function valueEditor(rule:EligibilityRule,q:BuilderQuestion){
+    const value=rule.value
+    const isMulti=rule.operator==='IN'||rule.operator==='NOT IN'
+    if(q.options.length){
+      if(isMulti)return <div className="public-options">{q.options.map(o=>{const values=Array.isArray(value)?value.map(String):[];const checked=values.includes(o.value);return <label key={o.id}><input type="checkbox" checked={checked} onChange={e=>{const current=Array.isArray(value)?value.map(String):[];updateRule(rule.id,{value:e.target.checked?[...current,o.value]:current.filter(v=>v!==o.value)})}}/><span>{o.label}</span></label>})}</div>
+      return <select value={String(value??'')} onChange={e=>updateRule(rule.id,{value:e.target.value})}><option value="">Choose answer…</option>{q.options.map(o=><option key={o.id} value={o.value}>{o.label}</option>)}</select>
+    }
+    return <input type={q.type==='number'||q.type==='rating'?'number':q.type==='date'?'date':'text'} value={Array.isArray(value)?value.join(', '):String(value??'')} placeholder={isMulti?'Comma-separated values':''} onChange={e=>updateRule(rule.id,{value:isMulti?e.target.value.split(',').map(v=>v.trim()).filter(Boolean):e.target.value})}/>
+  }
+
+  if(loading)return <div className="loading-card card">Loading eligibility rules…</div>
+
+  return <div className="eligibility-builder">
+    <div className="builder-top"><div><p className="eyebrow">Eligibility</p><h2>Eligibility rules</h2><p>Set deterministic rules that are evaluated automatically when an application is submitted.</p></div><div className="builder-actions">{notice&&<span className="builder-notice">{notice}</span>}<button className="primary-button" disabled={busy||!questions.length} onClick={addRule}><Plus size={14}/> Add rule</button></div></div>
+    <div className="card" style={{padding:20}}>
+      {!rules.length?<div className="builder-empty"><ShieldCheck size={24}/><h3>No eligibility rules yet</h3><p>For example: Age ≥ 18, Location = Kaduna, or Business type = Artisan.</p><button className="secondary-button" disabled={!questions.length||busy} onClick={addRule}>Create first rule</button></div>:
+      <div className="eligibility-list">{rules.map((rule,index)=>{const q=questions.find(x=>x.id===rule.question_id);return <div className="eligibility-rule" key={rule.id}>
+        <div className="question-card-top"><span className="question-number">{index+1}</span><span className="question-kind">{rule.logic} condition</span><button className="icon-button question-delete" onClick={()=>removeRule(rule.id)}><X size={15}/></button></div>
+        <div className="form-grid">
+          <label>Question<select value={rule.question_id} onChange={e=>{const next=questions.find(x=>x.id===e.target.value);updateRule(rule.id,{question_id:e.target.value,value:next?defaultValue(next):''})}}>{questions.map(x=><option key={x.id} value={x.id}>{x.label}</option>)}</select></label>
+          <label>Operator<select value={rule.operator} onChange={e=>updateRule(rule.id,{operator:e.target.value as EligibilityOperator,value:(e.target.value==='IN'||e.target.value==='NOT IN')?[]:rule.value})}><option value="=">= Equals</option><option value="!=">≠ Does not equal</option><option value=">">&gt; Greater than</option><option value="<">&lt; Less than</option><option value=">=">≥ At least</option><option value="<=">≤ At most</option><option value="IN">In any of</option><option value="NOT IN">Not in</option></select></label>
+        </div>
+        {q&&<label>Expected answer{valueEditor(rule,q)}</label>}
+        <div className="detail-form-footer"><label className="toggle-row"><span>Enabled</span><input type="checkbox" checked={rule.enabled} onChange={e=>updateRule(rule.id,{enabled:e.target.checked})}/></label><label>Next rule logic<select value={rule.logic} onChange={e=>updateRule(rule.id,{logic:e.target.value as 'AND'|'OR'})}><option value="AND">AND — this must also pass</option><option value="OR">OR — this can satisfy the alternative</option></select></label><span className="muted">Current: {displayValue(rule)||'No value set'}</span></div>
+      </div>})}</div>}
+    </div>
+    <div className="card" style={{padding:18,marginTop:14}}><p className="eyebrow">How it works</p><p className="muted" style={{margin:0}}>Eligibility is deterministic: ApplyFlow checks the applicant's submitted answers against these rules and records Eligible, Ineligible, or Pending. Missing information is not inferred.</p></div>
+  </div>
+}
 
 function FormBuilder({applicationId}:{applicationId:string}) {
   const [versionId,setVersionId]=useState<string|null>(null), [version,setVersion]=useState(1)
