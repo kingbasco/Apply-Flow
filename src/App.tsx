@@ -96,21 +96,23 @@ function PublicApplication({slug}:{slug:string}) {
   function setAnswer(id:string,value:string|string[]){setAnswers(x=>({...x,[id]:value}))}
   function setFile(id:string,file:File|null){setFiles(x=>{const next={...x};if(file)next[id]=file;else delete next[id];return next})}
   async function submit(e:React.FormEvent){e.preventDefault();setError('');for(const q of questions){if(visible(q)&&q.required&&!answers[q.id]){setError(`Please answer: ${q.label}`);return}}setLoading(true);try{
+    const answerPayload=questions.filter(q=>visible(q)&&answers[q.id]!==undefined).map(q=>{
+      const file=files[q.id]
+      if((q.type==='file'||q.type==='image')&&file){
+        const safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'-')
+        const path=`public-submissions/${app!.id}/${q.id}-${crypto.randomUUID()}-${safe}`
+        return {question_id:q.id,value:{path,name:file.name,size:file.size,type:file.type}}
+      }
+      return {question_id:q.id,value:answers[q.id]}
+    })
     const emailQ=questions.find(q=>q.type==='email'), nameQ=questions.find(q=>q.label.toLowerCase().includes('full name')||q.label.toLowerCase()==='name')
-    const {data:applicant,error:ae}=await supabase.from('applicants').insert({application_id:app!.id,email:emailQ?String(answers[emailQ.id]||''):null,full_name:nameQ?String(answers[nameQ.id]||''):null}).select('id').single();if(ae)throw ae
-    const {data:v}=await supabase.from('form_versions').select('id').eq('application_id',app!.id).eq('status','published').order('version_number',{ascending:false}).limit(1).single()
-    const {data:sub,error:se}=await supabase.from('submissions').insert({application_id:app!.id,form_version_id:v.id,applicant_id:applicant.id,status:'submitted',submitted_at:new Date().toISOString()}).select('id').single();if(se)throw se
-    const rows:any[]=[]
-    for(const q of questions.filter(q=>visible(q)&&answers[q.id]!==undefined)){
-      if((q.type==='file'||q.type==='image')&&files[q.id]){
-        const file=files[q.id], safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'-'), path=`public-submissions/${sub.id}/${q.id}-${crypto.randomUUID()}-${safe}`
-        const {error:uploadError}=await supabase.storage.from('application-files').upload(path,file,{contentType:file.type||'application/octet-stream',upsert:false})
-        if(uploadError)throw uploadError
-        rows.push({submission_id:sub.id,question_id:q.id,value:{path,name:file.name,size:file.size,type:file.type}})
-      }else rows.push({submission_id:sub.id,question_id:q.id,value:answers[q.id]})
+    const {data:v,error:ve}=await supabase.from('form_versions').select('id').eq('application_id',app!.id).eq('status','published').order('version_number',{ascending:false}).limit(1).single();if(ve)throw ve
+    const {data:subId,error:se}=await supabase.rpc('submit_application',{p_application_id:app!.id,p_form_version_id:v.id,p_email:emailQ?String(answers[emailQ.id]||''):null,p_full_name:nameQ?String(answers[nameQ.id]||''):null,p_answers:answerPayload});if(se)throw se
+    for(const q of questions.filter(q=>(q.type==='file'||q.type==='image')&&files[q.id])){
+      const file=files[q.id]!, meta=answerPayload.find(x=>x.question_id===q.id)?.value as {path:string}
+      const {error:uploadError}=await supabase.storage.from('application-files').upload(meta.path,file,{contentType:file.type||'application/octet-stream',upsert:false})
+      if(uploadError)throw uploadError
     }
-    const {error:ansError}=await supabase.from('answers').insert(rows);if(ansError)throw ansError
-    const {error:eligibilityError}=await supabase.rpc('evaluate_submission_eligibility',{p_submission_id:sub.id});if(eligibilityError)throw eligibilityError
     setSubmitted(true)
   }catch(e){setError(e instanceof Error?e.message:'Could not submit application.')}finally{setLoading(false)}}
   if(loading&&!app)return <div className="public-shell"><div className="public-card card">Loading application…</div></div>
