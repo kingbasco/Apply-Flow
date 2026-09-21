@@ -122,6 +122,8 @@ function PublicApplication({slug}:{slug:string}) {
       const file=files[q.id]!, meta=answerPayload.find(x=>x.question_id===q.id)?.value as {path:string}
       const {error:uploadError}=await supabase.storage.from('application-files').upload(meta.path,file,{contentType:file.type||'application/octet-stream',upsert:false})
       if(uploadError)throw uploadError
+      const {error:markError}=await supabase.rpc('mark_application_document_uploaded',{p_submission_id:subId,p_storage_path:meta.path})
+      if(markError)throw markError
     }
     setSubmitted(true)
   }catch(e){setError(e instanceof Error?e.message:'Could not submit application.')}finally{setLoading(false)}}
