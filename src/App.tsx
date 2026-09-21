@@ -237,8 +237,26 @@ function App() {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setSessionReady(true); if (data.session) loadWorkspace(data.session) })
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => { setSession(next); if (next) loadWorkspace(next) })
+    const path = window.location.pathname
+    const isPublicRoute = path === '/' || path.startsWith('/apply/')
+    if (isPublicRoute) {
+      setSessionReady(true)
+      return
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+      setSessionReady(true)
+      if (data.session) loadWorkspace(data.session)
+    }).catch((err) => {
+      setError(err instanceof Error ? err.message : 'Could not connect to the authentication service.')
+      setSessionReady(true)
+    })
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
+      setSession(next)
+      if (next) loadWorkspace(next)
+    })
     return () => listener.subscription.unsubscribe()
   }, [])
 
