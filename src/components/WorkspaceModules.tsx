@@ -391,7 +391,7 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:any;onClose:()=>void
       <div>
        <p>{data.ai.overall_assessment||'No overall assessment yet.'}</p>
        {data.ai.strengths?.length>0&&<div><h4>Strengths</h4><ul className="screening-list">{data.ai.strengths.map((x:any,i:number)=><li key={i}>{typeof x==='string'?x:JSON.stringify(x)}</li>)}</ul></div>}
-       {data.ai.concerns?.length>0&&<div><h4>Concerns</h4><ul className="screening-list">{data.ai.concerns.map((x:any,i:number)=><li key={i}>{typeof x==='string'?x:JSON.stringify(x)}</li></ul></div>}
+       {data.ai.concerns?.length>0&&<div><h4>Concerns</h4><ul className="screening-list">{data.ai.concerns.map((x:any,i:number)=><li key={i}>{typeof x==='string'?x:JSON.stringify(x)}</li>)}</ul></div>}
       </div>
      ) : <p className="muted">AI screening has not been run for this application yet.</p>}
     </div>
