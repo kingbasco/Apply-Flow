@@ -389,7 +389,6 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:any;onClose:()=>void
    </div>}
   </div>
  </div>
-</div>
 }
 
 export function ReviewsWorkspace({applications,organizationId,onOpen}:{applications:Application[];organizationId:string;onOpen:(a:Application)=>void}){
