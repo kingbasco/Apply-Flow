@@ -3,7 +3,7 @@ import { ArrowRight, Users, Settings, FileText, ShieldCheck, ClipboardList, Save
 import { supabase } from '../lib/supabase'
 
 type Application={id:string;name:string;description:string|null;status:'draft'|'published'|'screening'|'closed'|'completed';deadline:string|null;target_count:number|null;created_at:string}
-type FormSummary={application:Application;version:number|null;versionStatus:'draft'|'published'|'none';questionCount:number;submissionCount:number;publicSlug:string|null}
+type FormSummary={application:Application;version:number|null;versionStatus:'draft'|'published'|'none';questionCount:number;submissionCount:number;publicSlug:string|null;settings?:FormSettings}
 async function loadFormSummaries(applications:Application[]):Promise<FormSummary[]>{
  if(!applications.length)return []
  const ids=applications.map(a=>a.id)
@@ -20,8 +20,9 @@ async function loadFormSummaries(applications:Application[]):Promise<FormSummary
  if(latestIds.length){const {data,error}=await supabase.from('questions').select('id,form_version_id').in('form_version_id',latestIds);if(error)throw error;for(const q of data||[])counts.set(q.form_version_id,(counts.get(q.form_version_id)||0)+1)}
  const submissionCounts=new Map<string,number>();for(const s of submissions)submissionCounts.set(s.application_id,(submissionCounts.get(s.application_id)||0)+1)
  const slugs=new Map<string,string|null>();for(const s of settings)slugs.set(s.application_id,s.public_slug)
- return applications.map(application=>{const v=latest.get(application.id);return {application,version:v?.version_number??null,versionStatus:v?.status??'none',questionCount:v?counts.get(v.id)||0:0,submissionCount:submissionCounts.get(application.id)||0,publicSlug:slugs.get(application.id)||null}})
+ return applications.map(application=>{const v=latest.get(application.id);const raw=(settings as any[]).find(s=>s.application_id===application.id);return {application,version:v?.version_number??null,versionStatus:v?.status??'none',questionCount:v?counts.get(v.id)||0:0,submissionCount:submissionCounts.get(application.id)||0,publicSlug:slugs.get(application.id)||null,settings:raw?{start_date:raw.start_date??null,submission_limit:raw.submission_limit??null,confirmation_message:raw.confirmation_message??'Thank you. Your application has been received.',applicant_instructions:raw.applicant_instructions??null}:undefined}})
 }
+type FormSettings={start_date:string|null;submission_limit:number|null;confirmation_message:string;applicant_instructions:string|null}
 type Profile={id:string;full_name:string|null;role:string;organization_id:string|null}
 
 function ModuleList({title,eyebrow,description,icon:Icon,applications,onOpen}:{title:string;eyebrow:string;description:string;icon:any;applications:Application[];onOpen:(a:Application)=>void}){
@@ -38,7 +39,7 @@ function formWorkspaceStatus(s:FormSummary):'draft'|'published'|'closed'|'none'{
 
 export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Application[];onOpen:(a:Application)=>void;onCreate?:()=>void}){
  const [summaries,setSummaries]=useState<FormSummary[]>([]); const [loading,setLoading]=useState(true); const [error,setError]=useState(''); const [query,setQuery]=useState(''); const [filter,setFilter]=useState<'all'|'draft'|'published'|'closed'|'none'>('all')
- const [versions,setVersions]=useState<VersionRecord[]>([]); const [historyFor,setHistoryFor]=useState<FormSummary|null>(null); const [historyLoading,setHistoryLoading]=useState(false); const [busyId,setBusyId]=useState('')
+ const [versions,setVersions]=useState<VersionRecord[]>([]); const [historyFor,setHistoryFor]=useState<FormSummary|null>(null); const [historyLoading,setHistoryLoading]=useState(false); const [busyId,setBusyId]=useState(''); const [settingsFor,setSettingsFor]=useState<FormSummary|null>(null); const [settingsDraft,setSettingsDraft]=useState<FormSettings>({start_date:null,submission_limit:null,confirmation_message:'Thank you. Your application has been received.',applicant_instructions:null}); const [settingsSaving,setSettingsSaving]=useState(false)
 
  async function load(){setLoading(true);setError('');try{setSummaries(await loadFormSummaries(applications))}catch(e){setError(e instanceof Error?e.message:'Could not load forms.')}finally{setLoading(false)}}
  useEffect(()=>{load()},[applications])
@@ -56,6 +57,30 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
    }catch(e){setError(e instanceof Error?e.message:'Could not update form status.')}finally{setBusyId('')}
  }
 
+ function openSettings(summary:FormSummary){
+   setSettingsFor(summary)
+   setSettingsDraft(summary.settings||{start_date:null,submission_limit:null,confirmation_message:'Thank you. Your application has been received.',applicant_instructions:null})
+ }
+ async function saveSettings(){
+   if(!settingsFor)return
+   setSettingsSaving(true);setError('')
+   try{
+     const limit=settingsDraft.submission_limit===null?null:Number(settingsDraft.submission_limit)
+     if(limit!==null&&(!Number.isInteger(limit)||limit<1))throw new Error('Submission limit must be a whole number greater than 0.')
+     const {error}=await supabase.from('application_settings').upsert({
+       application_id:settingsFor.application.id,
+       public_slug:settingsFor.publicSlug||settingsFor.application.name.toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''),
+       start_date:settingsDraft.start_date||null,
+       submission_limit:limit,
+       confirmation_message:settingsDraft.confirmation_message.trim()||'Thank you. Your application has been received.',
+       applicant_instructions:settingsDraft.applicant_instructions?.trim()||null,
+       updated_at:new Date().toISOString()
+     },{onConflict:'application_id'})
+     if(error)throw error
+     setSettingsFor(null);await load()
+   }catch(e){setError(e instanceof Error?e.message:'Could not save form settings.')}finally{setSettingsSaving(false)}
+ }
+ 
  async function openHistory(summary:FormSummary){
    setHistoryFor(summary);setHistoryLoading(true);setVersions([])
    const {data,error}=await supabase.from('form_versions').select('id,version_number,status,title,created_at,published_at').eq('application_id',summary.application.id).order('version_number',{ascending:false})
@@ -110,7 +135,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
         {status==='published'&&<button className="icon-button" title="Close applications" aria-label="Close applications" disabled={busy} onClick={()=>changeStatus(s,'closed')}><Lock size={16}/></button>}
         {status==='closed'&&<button className="icon-button" title="Reopen applications" aria-label="Reopen applications" disabled={busy} onClick={()=>changeStatus(s,'published')}><LockOpen size={16}/></button>}
         <button className="icon-button" title="Version history" aria-label="Version history" onClick={()=>openHistory(s)}><History size={16}/></button>
-        <button className="icon-button" title="Form settings" aria-label="Form settings" onClick={()=>onOpen(s.application)}><SlidersHorizontal size={16}/></button>
+        <button className="icon-button" title="Form settings" aria-label="Form settings" onClick={()=>openSettings(s)}><SlidersHorizontal size={16}/></button>
         <button className="icon-button" title="Preview form" aria-label="Preview form" disabled={!s.publicSlug||status!=='published'} onClick={()=>preview(s)}><Eye size={16}/></button>
         <button className="secondary-button" disabled={busy} onClick={()=>onOpen(s.application)}> {s.versionStatus==='draft'?'Open builder':'Open'} <ArrowRight size={15}/></button>
       </div></td>
@@ -118,7 +143,19 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
    </tbody></table></div>
   </div>
 
-  {historyFor&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setHistoryFor(null)}}>
+  {settingsFor&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSettingsFor(null)}}>
+   <div className="modal card" style={{maxWidth:720}}>
+    <div className="modal-header"><div><p className="eyebrow">Form settings</p><h2>{settingsFor.application.name}</h2><p>Control when applicants can apply and what they see after submission.</p></div><button type="button" className="icon-button" onClick={()=>setSettingsFor(null)} aria-label="Close"><MoreHorizontal size={18}/></button></div>
+    <div className="form-grid" style={{padding:'8px 0'}}>
+      <label className="field"><span>Application start date</span><input type="date" value={settingsDraft.start_date||''} onChange={e=>setSettingsDraft(d=>({...d,start_date:e.target.value||null}))}/><small className="muted">Leave blank to allow applications immediately.</small></label>
+      <label className="field"><span>Application deadline</span><input type="date" value={settingsFor.application.deadline||''} onChange={async e=>{const value=e.target.value||null;const {error}=await supabase.from('applications').update({deadline:value,updated_at:new Date().toISOString()}).eq('id',settingsFor.application.id);if(error)setError(error.message);else setSettingsFor(d=>d?{...d,application:{...d.application,deadline:value}}:d)}}/><small className="muted">Applicants cannot submit after this date.</small></label>
+      <label className="field"><span>Submission limit</span><input type="number" min="1" step="1" value={settingsDraft.submission_limit??''} onChange={e=>setSettingsDraft(d=>({...d,submission_limit:e.target.value?Number(e.target.value):null}))}/><small className="muted">Optional maximum number of submitted applications.</small></label>
+      <label className="field field-full"><span>Applicant instructions</span><textarea rows={5} value={settingsDraft.applicant_instructions||''} onChange={e=>setSettingsDraft(d=>({...d,applicant_instructions:e.target.value||null}))} placeholder="Tell applicants what they need before they start…"/></label>
+      <label className="field field-full"><span>Confirmation message</span><textarea rows={4} value={settingsDraft.confirmation_message} onChange={e=>setSettingsDraft(d=>({...d,confirmation_message:e.target.value}))}/></label>
+    </div>
+    <div className="modal-footer"><button className="secondary-button" onClick={()=>setSettingsFor(null)}>Cancel</button><button className="primary-button" disabled={settingsSaving} onClick={saveSettings}>{settingsSaving?'Saving…':'Save settings'}</button></div>
+   </div>
+  </div>}\n  {historyFor&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setHistoryFor(null)}}>
    <div className="modal card" style={{maxWidth:720}}>
     <div className="modal-header"><div><p className="eyebrow">Version history</p><h2>{historyFor.application.name}</h2><p>Published versions stay tied to the submissions that used them.</p></div><button type="button" className="icon-button" onClick={()=>setHistoryFor(null)} aria-label="Close"><MoreHorizontal size={18}/></button></div>
     {historyLoading?<div className="loading-card">Loading version history…</div>:versions.length?<div style={{display:'grid',gap:10,maxHeight:'55vh',overflowY:'auto'}}>{versions.map(v=><div key={v.id} className="card" style={{padding:16,display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}><div><div style={{display:'flex',alignItems:'center',gap:8}}><strong>Version {v.version_number}</strong><span className={'status '+(v.status==='published'?'blue':'amber')}>{v.status}</span></div><div className="muted" style={{marginTop:5}}>{v.title||'Application form'} · Created {new Date(v.created_at).toLocaleDateString()} · {v.submissionCount} submission{v.submissionCount===1?'':'s'}</div></div><div style={{display:'flex',alignItems:'center',gap:12}}><div style={{textAlign:'right'}}>{v.published_at?<><strong>Published</strong><div className="muted">{new Date(v.published_at).toLocaleDateString()}</div></>:<span className="muted">Draft</span>}</div>{v.status==='draft'?<button className="secondary-button" disabled={busyId===historyFor.application.id} onClick={()=>{setHistoryFor(null);onOpen(historyFor.application)}}>Continue draft <ArrowRight size={15}/></button>:<button className="secondary-button" disabled={busyId===historyFor.application.id} onClick={()=>duplicateVersion(v.id,historyFor)}>Duplicate as draft <ArrowRight size={15}/></button>}</div></div>)}</div>:<div className="table-empty">No form versions yet.</div>}
