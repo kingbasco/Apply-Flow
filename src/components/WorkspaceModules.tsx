@@ -257,7 +257,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
 
  const setDecision=async(row:ScreeningRow,decision:'approved'|'rejected')=>{
   setError('')
-  const {error}=await supabase.from('submissions').update({decision,updated_at:new Date().toISOString()}).eq('id',row.submissionId)
+  const {error}=await supabase.from('submissions').update({decision}).eq('id',row.submissionId)
   if(error){setError(error.message);return}
   setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision}:r))
   setReviewing(current=>current?.submissionId===row.submissionId?{...current,decision}:current)
