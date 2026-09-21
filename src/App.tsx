@@ -330,7 +330,7 @@ function ApplicationDetails({ application, settings, tab, setTab, loading, savin
     {loading?<div className="loading-card card">Loading programme settings…</div>:error?<div className="form-error page-error">{error}</div>:tab==='Overview'?<div className="detail-grid">
       <div className="card detail-card"><div className="card-header"><div><h2>Programme details</h2><p>Update the basic information for this programme.</p></div></div><div className="detail-form"><label>Programme name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Description<textarea rows={5} value={description} onChange={e=>setDescription(e.target.value)}/></label><div className="form-grid"><label>Application deadline<input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)}/></label><label>Target number<input type="number" min="0" value={target} onChange={e=>setTarget(e.target.value)}/></label></div><div className="detail-form-footer"><button className="primary-button" disabled={saving} onClick={()=>onSave({name:name.trim(),description:description.trim()||null,deadline:deadline||null,target_count:target?Number(target):null})}>{saving?'Saving…':'Save changes'}</button></div></div></div>
       <div className="card detail-card"><div className="card-header"><div><h2>Public application</h2><p>Settings applicants will see.</p></div></div><div className="detail-form"><label>Public slug<input value={slug} onChange={e=>setSlug(e.target.value)}/></label><label>Confirmation message<textarea rows={5} value={message} onChange={e=>setMessage(e.target.value)}/></label><div className="detail-form-footer"><button className="secondary-button" disabled={saving} onClick={()=>onSave({}, {public_slug:slug.trim(),confirmation_message:message.trim()||'Thank you. Your application has been received.'})}>Save public settings</button></div></div></div>
-    </div>:tab==='Form'?<FormBuilder applicationId={application.id}/>:tab==='Applicants'?<ApplicantsPanel applicationId={application.id}/>:tab==='Eligibility'?<EligibilityBuilder applicationId={application.id}/>:<div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{tab} is next</h2><p>This section is connected to the programme workspace and will be built on the live data model.</p></div>}
+    </div>:tab==='Form'?<FormBuilder applicationId={application.id}/>:tab==='Applicants'?<ApplicantsPanel applicationId={application.id}/>:tab==='Eligibility'?<EligibilityBuilder applicationId={application.id}/>:tab==='Scoring'?<ScoringBuilder applicationId={application.id}/>:<div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{tab} is next</h2><p>This section is connected to the programme workspace and will be built on the live data model.</p></div>}
   </section>
 }
 
@@ -440,6 +440,40 @@ function EligibilityBuilder({applicationId}:{applicationId:string}) {
   </div>
 }
 
+
+type ScoringCriterion={id:string;application_id:string;name:string;description:string|null;weight:number;max_score:number;source:'manual'|'automatic'|'ai';position:number;enabled:boolean}
+function ScoringBuilder({applicationId}:{applicationId:string}){
+ const [criteria,setCriteria]=useState<ScoringCriterion[]>([]),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[notice,setNotice]=useState('')
+ const total=useMemo(()=>criteria.filter(c=>c.enabled).reduce((s,c)=>s+Number(c.weight||0),0),[criteria])
+ async function load(){setLoading(true);const {data,error}=await supabase.from('scoring_criteria').select('id,application_id,name,description,weight,max_score,source,position,enabled').eq('application_id',applicationId).order('position');if(error)setNotice(error.message);else setCriteria((data||[]) as ScoringCriterion[]);setLoading(false)}
+ useEffect(()=>{load()},[applicationId])
+ async function add(){setBusy(true);setNotice('');const {data,error}=await supabase.from('scoring_criteria').insert({application_id:applicationId,name:'New scoring criterion',description:'',weight:0,max_score:10,source:'manual',position:criteria.length,enabled:true}).select('id,application_id,name,description,weight,max_score,source,position,enabled').single();if(error)setNotice(error.message);else setCriteria(x=>[...x,data as ScoringCriterion]);setBusy(false)}
+ async function update(id:string,patch:Partial<ScoringCriterion>){setBusy(true);setNotice('');const {data,error}=await supabase.from('scoring_criteria').update({...patch,updated_at:new Date().toISOString()}).eq('id',id).select('id,application_id,name,description,weight,max_score,source,position,enabled').single();if(error)setNotice(error.message);else setCriteria(x=>x.map(c=>c.id===id?data as ScoringCriterion:c));setBusy(false)}
+ async function remove(id:string){setBusy(true);const {error}=await supabase.from('scoring_criteria').delete().eq('id',id);if(error)setNotice(error.message);else setCriteria(x=>x.filter(c=>c.id!==id));setBusy(false)}
+ if(loading)return <div className="loading-card card">Loading scoring criteria…</div>
+ const valid=Math.abs(total-100)<0.001
+ return <div className="scoring-builder">
+  <div className="builder-top"><div><p className="eyebrow">Scoring</p><h2>Scoring criteria</h2><p>Define what reviewers score and how much each criterion contributes to the final score.</p></div><div className="builder-actions">{notice&&<span className="builder-notice">{notice}</span>}<button className="primary-button" disabled={busy} onClick={add}><Plus size={14}/> Add criterion</button></div></div>
+  <div className={valid?'score-total valid':'score-total'}><div><span>Total weight</span><strong>{total.toFixed(1)}%</strong></div><div><span>{valid?'Ready to score':'Weights must total 100%'}</span><div className="score-bar"><i style={{width:Math.min(total,100)+'%'}}/></div></div></div>
+  {!criteria.length?<div className="card builder-empty"><ShieldCheck size={24}/><h3>No scoring criteria yet</h3><p>Add criteria such as business experience, programme fit, need, or application quality.</p><button className="secondary-button" onClick={add}>Create first criterion</button></div>:
+  <div className="scoring-list">{criteria.map((c,i)=><div className="card scoring-item" key={c.id}>
+   <div className="question-card-top"><span className="question-number">{i+1}</span><span className="question-kind">{c.source}</span><button className="icon-button question-delete" onClick={()=>remove(c.id)}><X size={15}/></button></div>
+   <div className="form-grid">
+    <label>Criterion name<input value={c.name} onChange={e=>update(c.id,{name:e.target.value})}/></label>
+    <label>Weight (%)<input type="number" min="0" max="100" step="0.1" value={c.weight} onChange={e=>update(c.id,{weight:Number(e.target.value)})}/></label>
+   </div>
+   <div className="form-grid">
+    <label>Description<textarea value={c.description||''} onChange={e=>update(c.id,{description:e.target.value})} placeholder="What should the reviewer consider?"/></label>
+    <div className="form-grid">
+      <label>Max score<input type="number" min="1" step="1" value={c.max_score} onChange={e=>update(c.id,{max_score:Number(e.target.value)})}/></label>
+      <label>Source<select value={c.source} onChange={e=>update(c.id,{source:e.target.value as ScoringCriterion['source']})}><option value="manual">Manual</option><option value="automatic">Automatic</option><option value="ai">AI-assisted</option></select></label>
+    </div>
+   </div>
+   <div className="detail-form-footer"><label className="toggle-row"><span>Enabled</span><input type="checkbox" checked={c.enabled} onChange={e=>update(c.id,{enabled:e.target.checked})}/></label><span className="muted">Criterion {i+1} · {Number(c.weight||0).toFixed(1)}% of final score</span></div>
+  </div>)}</div>}
+  <div className="card" style={{padding:18,marginTop:14}}><p className="eyebrow">Scoring model</p><p className="muted" style={{margin:0}}>Each criterion gets a score up to its max score. ApplyFlow will use the weights to calculate an overall score once scoring is completed. AI-assisted scoring remains reviewable by a human.</p></div>
+ </div>
+}
 function FormBuilder({applicationId}:{applicationId:string}) {
   const [versionId,setVersionId]=useState<string|null>(null), [version,setVersion]=useState(1)
   const [questions,setQuestions]=useState<BuilderQuestion[]>([]), [selectedId,setSelectedId]=useState<string|null>(null)
