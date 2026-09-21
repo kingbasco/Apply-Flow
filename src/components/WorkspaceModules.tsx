@@ -190,6 +190,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
  const [error,setError]=useState('')
  const [query,setQuery]=useState('')
  const [filter,setFilter]=useState<'all'|'pending'|'screened'|'eligible'|'ineligible'|'recommended'|'review'>('all')
+ const [reviewing,setReviewing]=useState<ScreeningRow|null>(null)
 
  async function load(){
   setLoading(true);setError('')
@@ -256,10 +257,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
   })
  },[rows,query,filter])
 
- const openApplicant=(row:ScreeningRow)=>{
-  const app=applications.find(a=>a.id===row.applicationId)
-  if(app)onOpen(app)
- }
+ const openApplicant=(row:ScreeningRow)=>setReviewing(row)
 
  return <section>
   <div className="page-heading compact">
@@ -294,6 +292,35 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
    </tbody></table></div>
   </div>
  </section>
+
+type ScreeningReviewData={submission:any;applicant:any;answers:any[];questions:any[];eligibility:any;score:any;criteria:any[];ai:any}
+function ScreeningReviewModal({row,onClose}:{row:ScreeningRow;onClose:()=>void}){
+ const [data,setData]=useState<ScreeningReviewData|null>(null);const [loading,setLoading]=useState(true);const [error,setError]=useState('');
+ useEffect(()=>{(async()=>{try{const [{data:s,error:se},{data:a,error:ae},{data:ans,error:ane},{data:e,error:ee},{data:sc,error:sce},{data:cr,error:cre},{data:ai,error:aie}]=await Promise.all([
+  supabase.from('submissions').select('id,application_id,form_version_id,applicant_id,status,submitted_at').eq('id',row.submissionId).maybeSingle(),
+  supabase.from('applicants').select('id,full_name,email').eq('id',row.submissionId?row.submissionId:row.submissionId).limit(0),
+  supabase.from('answers').select('id,question_id,value').eq('submission_id',row.submissionId),
+  supabase.from('submission_eligibility').select('*').eq('submission_id',row.submissionId).maybeSingle(),
+  supabase.from('submission_scores').select('*').eq('submission_id',row.submissionId).maybeSingle(),
+  supabase.from('scoring_criteria').select('id,name,description,weight,max_score,position,enabled').eq('application_id',row.applicationId).eq('enabled',true).order('position'),
+  supabase.from('ai_screenings').select('*').eq('submission_id',row.submissionId).maybeSingle()
+ ]);if(se)throw se;if(ane)throw ane;if(ee)throw ee;if(sce)throw sce;if(cre)throw cre;if(aie)throw aie;
+  const {data:applicant,error:appErr}=await supabase.from('applicants').select('id,full_name,email').eq('id',s?.applicant_id||'').maybeSingle();if(appErr)throw appErr;
+  const {data:questions,error:qErr}=await supabase.from('questions').select('id,label,description,type,position').eq('form_version_id',s?.form_version_id||'').order('position');if(qErr)throw qErr;
+  setData({submission:s,applicant,answers:ans||[],questions:questions||[],eligibility:e,score:sc,criteria:cr||[],ai});
+ }catch(e){setError(e instanceof Error?e.message:'Could not load this application.')}finally{setLoading(false)}})()},[row.submissionId,row.applicationId]);
+ const answerMap=new Map((data?.answers||[]).map(a=>[a.question_id,a.value]));
+ const formatValue=(v:any)=>{if(v===null||v===undefined||v==='')return 'Not provided';if(Array.isArray(v))return v.join(', ');if(typeof v==='object')return Object.values(v).join(', ');return String(v)};
+ return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Screen application"><div className="modal-card screening-review-modal">
+  <div className="modal-header"><div><p className="eyebrow">Screening review</p><h2>{row.applicantName}</h2><p className="muted">{row.email||'No email provided'} · Submitted {row.submittedAt?new Date(row.submittedAt).toLocaleString():'—'}</p></div><button className="icon-button" onClick={onClose} aria-label="Close review">×</button></div>
+  {loading?<div className="loading-card">Loading full application…</div>:error?<div className="form-error">{error}</div>:data&&<div className="screening-review-body">
+   <div className="screening-review-grid"><div className="card screening-section"><div className="card-header"><div><h3>Eligibility</h3><p>Deterministic eligibility result.</p></div><span className={'status '+(data.eligibility?.status==='eligible'?'blue':data.eligibility?.status==='ineligible'?'neutral':'amber')}>{data.eligibility?.status||'pending'}</span></div>{data.eligibility?.reasons?.length?<ul className="screening-list">{data.eligibility.reasons.map((r:any,i:number)=><li key={i}>{typeof r==='string'?r:JSON.stringify(r)}</li>)}</ul>:<p className="muted">No eligibility reasons recorded.</p>}</div>
+   <div className="card screening-section"><div className="card-header"><div><h3>Score</h3><p>Current recorded score.</p></div><strong className="screening-score">{data.score?.overall_score==null?'—':Number(data.score.overall_score).toFixed(1)}</strong></div>{data.criteria.length?<div className="screening-criteria">{data.criteria.map((c:any)=><div key={c.id}><div><strong>{c.name}</strong><span>{c.weight}%</span></div><p>{c.description||'No description.'}</p></div>)}</div>:<p className="muted">No scoring criteria configured.</p>}</div></div>
+   <div className="card screening-section"><div className="card-header"><div><h3>Application responses</h3><p>The complete submitted form, in the applicant's original structure.</p></div></div><div className="screening-answers">{data.questions.map(q=><div className="answer-item" key={q.id}><div className="eyebrow">{q.label}</div><div className="answer-value">{formatValue(answerMap.get(q.id))}</div>{q.description&&<p className="muted">{q.description}</p>}</div>)}</div></div>
+   <div className="card screening-section"><div className="card-header"><div><h3>AI assessment</h3><p>Advisory only. Human review remains the final screening decision.</p></div><span className="status amber">{data.ai?.status||'Not screened'}</span></div>{data.ai?<><p>{data.ai.overall_assessment||'No overall assessment yet.'}</p>{data.ai.strengths?.length>0&&<><h4>Strengths</h4><ul className="screening-list">{data.ai.strengths.map((x:any,i:number)=><li key={i}>{typeof x==='string'?x:JSON.stringify(x)}</li>)}</ul></>}{data.ai.concerns?.length>0&&<><h4>Concerns</h4><ul className="screening-list">{data.ai.concerns.map((x:any,i:number)=><li key={i}>{typeof x==='string'?x:JSON.stringify(x)}</li>)}</ul></>} </>:<p className="muted">AI screening has not been run for this application yet.</p>}</div>
+   <div className="card screening-section"><div className="card-header"><div><h3>Reviewer decision</h3><p>Human screening controls will be connected in the next review phase.</p></div></div><div className="detail-actions"><button className="secondary-button">Mark eligible</button><button className="secondary-button">Mark ineligible</button><button className="primary-button">Save screening decision</button></div></div>
+  </div>}
+ </div></div>
 }
 export function ReviewsWorkspace({applications,onOpen}:{applications:Application[];onOpen:(a:Application)=>void}){return <ModuleList title="Reviews" eyebrow="Human review" description="Assign reviewers and manage structured application reviews." icon={ClipboardList} applications={applications} onOpen={onOpen}/>}
 
