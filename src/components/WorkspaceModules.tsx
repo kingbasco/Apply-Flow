@@ -367,7 +367,7 @@ export function ReviewsWorkspace({applications,onOpen}:{applications:Application
    if(!submissionIds.length){setRows([]);setLoading(false);return}
    const [{data:assignments,error:ae},{data:people,error:pe},{data:applicants,error:apE}]=await Promise.all([
     supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,decision,updated_at').in('submission_id',submissionIds),
-    supabase.from('profiles').select('id,full_name,role').in('role',['reviewer','admin','owner']).order('full_name'),
+    supabase.from('profiles').select('id,full_name,role,organization_id').in('role',['reviewer','admin','owner']).order('full_name'),
     supabase.from('applicants').select('id,full_name,email').in('id',(subs||[]).map(s=>s.applicant_id).filter(Boolean))
    ])
    if(ae)throw ae;if(pe)throw pe;if(apE)throw apE
