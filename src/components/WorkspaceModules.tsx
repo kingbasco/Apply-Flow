@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, Users, Settings, FileText, ShieldCheck, ClipboardList, Save, Eye, Search, Plus, History, Lock, LockOpen, SlidersHorizontal, MoreHorizontal } from 'lucide-react'
+import { ArrowRight, Users, Settings, FileText, ShieldCheck, ClipboardList, Save, Eye, Search, Plus, History, Lock, LockOpen, SlidersHorizontal, MoreHorizontal, Download } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 type Application={id:string;name:string;description:string|null;status:'draft'|'published'|'screening'|'closed'|'completed';deadline:string|null;target_count:number|null;created_at:string}
@@ -355,7 +355,7 @@ function ScreeningReviewModal({row,onClose}:{row:ScreeningRow;onClose:()=>void})
  </div></div>
 }
 export function ReviewsWorkspace({applications,onOpen}:{applications:Application[];onOpen:(a:Application)=>void}){
- const [rows,setRows]=useState<any[]>([]),[reviewers,setReviewers]=useState<Profile[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[status,setStatus]=useState('all')
+ const [rows,setRows]=useState<any[]>([]),[reviewers,setReviewers]=useState<Profile[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[status,setStatus]=useState('all'),[view,setView]=useState<'reviews'|'audit'>('reviews'),[auditRows,setAuditRows]=useState<any[]>([]),[auditLoading,setAuditLoading]=useState(false),[auditError,setAuditError]=useState(''),[auditQuery,setAuditQuery]=useState('')
  async function load(){
   setLoading(true);setError('')
   try{
@@ -379,10 +379,34 @@ export function ReviewsWorkspace({applications,onOpen}:{applications:Application
   }catch(e:any){setError(e.message||'Unable to load review operations.')}finally{setLoading(false)}
  }
  useEffect(()=>{load()},[applications.map(a=>a.id).join(',')])
+ async function loadAudit(){
+  setAuditLoading(true);setAuditError('')
+  try{
+   const {data:logs,error:le}=await supabase.from('review_audit_logs').select('id,review_assignment_id,action,from_status,to_status,previous_score,new_score,actor_id,metadata,created_at').order('created_at',{ascending:false}).limit(500)
+   if(le)throw le
+   const assignmentIds=(logs||[]).map(x=>x.review_assignment_id).filter(Boolean),actorIds=(logs||[]).map(x=>x.actor_id).filter(Boolean)
+   const [{data:assignments,error:ae},{data:actors,error:actorError}]=await Promise.all([
+    assignmentIds.length?supabase.from('review_assignments').select('id,submission_id').in('id',assignmentIds):Promise.resolve({data:[],error:null}),
+    actorIds.length?supabase.from('profiles').select('id,full_name,role,organization_id').in('id',actorIds):Promise.resolve({data:[],error:null})
+   ])
+   if(ae)throw ae;if(actorError)throw actorError
+   const submissionIds=(assignments||[]).map(x=>x.submission_id).filter(Boolean)
+   const {data:subs,error:se}=submissionIds.length?await supabase.from('submissions').select('id,application_id,applicant_id').in('id',submissionIds):{data:[],error:null};if(se)throw se
+   const applicantIds=(subs||[]).map(x=>x.applicant_id).filter(Boolean)
+   const {data:applicants,error:appError}=applicantIds.length?await supabase.from('applicants').select('id,full_name').in('id',applicantIds):{data:[],error:null};if(appError)throw appError
+   const subMap=new Map((subs||[]).map(x=>[x.id,x])),appMap=new Map(applications.map(x=>[x.id,x])),applicantMap=new Map((applicants||[]).map(x=>[x.id,x])),actorMap=new Map((actors||[]).map(x=>[x.id,x])),assignmentMap=new Map((assignments||[]).map(x=>[x.id,x]))
+   setAuditRows((logs||[]).map(log=>{const assignment=assignmentMap.get(log.review_assignment_id),sub=assignment?subMap.get(assignment.submission_id):null,applicant=sub?applicantMap.get(sub.applicant_id):null,programme=sub?appMap.get(sub.application_id):null,actor=actorMap.get(log.actor_id);return {id:log.id,action:log.action,fromStatus:log.from_status,toStatus:log.to_status,previousScore:log.previous_score,newScore:log.new_score,actorName:actor?.full_name||'System',applicantName:applicant?.full_name||'Unknown applicant',programmeName:programme?.name||'Programme',createdAt:log.created_at}}))
+  }catch(e:any){setAuditError(e.message||'Unable to load audit history.')}finally{setAuditLoading(false)}
+ }
+ useEffect(()=>{if(view==='audit')loadAudit()},[view,applications.map(a=>a.id).join(',')])
  const filtered=useMemo(()=>rows.filter(r=>(status==='all'||r.status===status)&&(!query||r.applicantName.toLowerCase().includes(query.toLowerCase())||r.email?.toLowerCase().includes(query.toLowerCase())||r.programmeName.toLowerCase().includes(query.toLowerCase()))),[rows,status,query])
+ const filteredAudit=useMemo(()=>auditRows.filter(r=>!auditQuery||r.applicantName.toLowerCase().includes(auditQuery.toLowerCase())||r.actorName.toLowerCase().includes(auditQuery.toLowerCase())||r.action.toLowerCase().includes(auditQuery.toLowerCase())||r.programmeName.toLowerCase().includes(auditQuery.toLowerCase())),[auditRows,auditQuery])
+ function exportAudit(){const header=['Date','Action','Applicant','Programme','Actor','From status','To status','Previous score','New score'];const csv=[header,...filteredAudit.map(r=>[new Date(r.createdAt).toISOString(),r.action,r.applicantName,r.programmeName,r.actorName,r.fromStatus||'',r.toStatus||'',r.previousScore??'',r.newScore??''])].map(row=>row.map(v=>JSON.stringify(String(v))).join(',')).join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='applyflow-screening-audit.csv';a.click();URL.revokeObjectURL(url)}
  const stats=useMemo(()=>({total:rows.length,unassigned:rows.filter(r=>r.status==='unassigned').length,assigned:rows.filter(r=>r.status==='assigned').length,inProgress:rows.filter(r=>r.status==='in_progress').length,completed:rows.filter(r=>r.status==='completed').length}),[rows])
  const reviewerCounts=useMemo(()=>reviewers.map(p=>({name:p.full_name||'Unnamed reviewer',count:rows.filter(r=>r.reviewerName===(p.full_name||'Unnamed reviewer')).length})).filter(x=>x.count>0),[reviewers,rows])
  return <section>
+  <div className="page-heading compact"><div><p className="eyebrow">Human review</p><h1>{view==='reviews'?'Reviews':'Audit history'}</h1><p className="subtitle">{view==='reviews'?'Track reviewer workload, assignments and screening decisions.':'Trace screening assignments, status changes and decision history.'}</p></div><div className="detail-actions"><button className={view==='reviews'?'primary-button':'secondary-button'} onClick={()=>setView('reviews')}>Reviews</button><button className={view==='audit'?'primary-button':'secondary-button'} onClick={()=>setView('audit')}>Audit history</button>{view==='reviews'?<button className="secondary-button" onClick={load}>Refresh</button>:<><button className="secondary-button" onClick={loadAudit}>Refresh</button><button className="secondary-button" onClick={exportAudit} disabled={!filteredAudit.length}><Download size={15}/> Export CSV</button></>}</div></div>
+  {view==='reviews'?
   <div className="page-heading compact"><div><p className="eyebrow">Human review</p><h1>Reviews</h1><p className="subtitle">Track reviewer workload, assignments and screening decisions.</p></div><button className="secondary-button" onClick={load}>Refresh</button></div>
   {error&&<div className="form-error page-error">{error}</div>}
   <div className="stats-grid">
