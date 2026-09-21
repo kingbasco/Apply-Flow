@@ -330,6 +330,9 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
  const [error,setError]=useState('')
  const [aiRunning,setAiRunning]=useState(false)
  const [aiError,setAiError]=useState('')
+ const [manualScore,setManualScore]=useState('')
+ const [scoreSaving,setScoreSaving]=useState(false)
+ const [scoreNotice,setScoreNotice]=useState('')
 
  useEffect(()=>{
   let active=true
@@ -366,7 +369,10 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
     const {data:questions,error:qErr}=await supabase.from('questions').select('id,label,description,type,position').eq('form_version_id',s?.form_version_id||'').order('position')
     if(qErr)throw qErr
 
-    if(active)setData({submission:s,applicant,answers:ans||[],questions:questions||[],eligibility:e,score:sc,criteria:cr||[],ai,documents:documents||[]})
+    if(active){
+      setData({submission:s,applicant,answers:ans||[],questions:questions||[],eligibility:e,score:sc,criteria:cr||[],ai,documents:documents||[]})
+      setManualScore(sc?.overall_score==null?'':String(sc.overall_score))
+    }
    }catch(e){
     if(active)setError(e instanceof Error?e.message:'Could not load this application.')
    }finally{
@@ -377,33 +383,26 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
  },[row.submissionId,row.applicationId])
 
  const refreshDocuments=async()=>{
-  const {data:documents,error}=await supabase
-   .from('uploaded_documents')
+  const {data:documents,error}=await supabase.from('uploaded_documents')
    .select('id,question_id,storage_bucket,storage_path,original_name,mime_type,file_size,status,extraction_status,extracted_text,created_at')
-   .eq('submission_id',row.submissionId)
-   .order('created_at')
+   .eq('submission_id',row.submissionId).order('created_at')
   if(error)throw error
   setData(prev=>prev?{...prev,documents:documents||[]}:prev)
  }
 
  const extractDocument=async(documentId:string)=>{
-  setExtractingId(documentId)
-  setAiError('')
+  setExtractingId(documentId);setAiError('')
   try{
    const {data:result,error:invokeError}=await supabase.functions.invoke('extract-application-document',{body:{document_id:documentId}})
    if(invokeError)throw invokeError
    if(result?.error)throw new Error(result.error)
    await refreshDocuments()
-  }catch(e){
-   setAiError(e instanceof Error?e.message:'Document extraction failed.')
-  }finally{
-   setExtractingId('')
-  }
+  }catch(e){setAiError(e instanceof Error?e.message:'Document extraction failed.')}
+  finally{setExtractingId('')}
  }
 
  const runAiScreening=async()=>{
-  setAiRunning(true)
-  setAiError('')
+  setAiRunning(true);setAiError('')
   try{
    const {data:result,error:invokeError}=await supabase.functions.invoke('run-ai-screening',{body:{submission_id:row.submissionId}})
    if(invokeError)throw invokeError
@@ -411,17 +410,39 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
    const {data:ai,error:aiLoadError}=await supabase.from('ai_screenings').select('*').eq('submission_id',row.submissionId).maybeSingle()
    if(aiLoadError)throw aiLoadError
    setData(prev=>prev?{...prev,ai}:prev)
-  }catch(e){
-   setAiError(e instanceof Error?e.message:'AI screening failed.')
-  }finally{
-   setAiRunning(false)
+  }catch(e){setAiError(e instanceof Error?e.message:'AI screening failed.')}
+  finally{setAiRunning(false)}
+ }
+
+ const saveScore=async()=>{
+  const value=manualScore.trim()===''?null:Number(manualScore)
+  if(value!==null&&(!Number.isFinite(value)||value<0||value>100)){
+   setScoreNotice('Enter a score from 0 to 100.')
+   return
   }
+  setScoreSaving(true);setScoreNotice('')
+  try{
+   const existingCriteria=data?.score?.criteria_scores||[]
+   const {data:score,error}=await supabase.from('submission_scores').upsert({
+    submission_id:row.submissionId,
+    overall_score:value,
+    criteria_scores:existingCriteria,
+    status:value===null?'pending':'scored',
+    scored_at:value===null?null:new Date().toISOString(),
+    updated_at:new Date().toISOString()
+   },{onConflict:'submission_id'}).select('*').single()
+   if(error)throw error
+   setData(prev=>prev?{...prev,score}:prev)
+   setScoreNotice('Score saved.')
+  }catch(e){
+   setScoreNotice(e instanceof Error?e.message:'Could not save score.')
+  }finally{setScoreSaving(false)}
  }
 
  const formatValue=(value:any)=>{
   if(value===null||value===undefined||value==='')return 'Not provided'
-  if(Array.isArray(value))return value.join(', ')
-  if(typeof value==='object')return Object.values(value).join(', ')
+  if(Array.isArray(value))return value.length?value.map(item=>typeof item==='object'?JSON.stringify(item):String(item)).join(', '):'Not provided'
+  if(typeof value==='object')return Object.entries(value).map(([key,val])=>`${key}: ${typeof val==='object'?JSON.stringify(val):String(val)}`).join(' · ')
   return String(value)
  }
 
@@ -458,13 +479,13 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
       <main className="screening-review-content">
        <section className="screening-summary-grid">
         <div className="screening-summary-card"><span className="screening-summary-label">Unique ID</span><strong className="screening-summary-value">{data.applicant?.unique_id||row.uniqueId}</strong></div>
-        <div className="screening-summary-card"><span className="screening-summary-label">Eligibility</span><div className="screening-summary-inline"><strong className="screening-summary-value">{eligibilityStatus}</strong><span className={'status '+(eligibilityStatus==='eligible'?'blue':eligibilityStatus==='ineligible'?'neutral':'amber')}>{eligibilityStatus}</span></div></div>
-        <div className="screening-summary-card"><span className="screening-summary-label">Score</span><strong className="screening-summary-value">{score==null?'—':Number(score).toFixed(1)}</strong></div>
+        <div className="screening-summary-card"><span className="screening-summary-label">Eligibility</span><strong className="screening-summary-value">{eligibilityStatus}</strong></div>
+        <div className="screening-summary-card"><span className="screening-summary-label">Current score</span><strong className="screening-summary-value">{score==null?'Not scored':Number(score).toFixed(1)+' / 100'}</strong></div>
        </section>
 
        <section className="screening-review-section">
         <div className="screening-section-heading">
-         <div><span className="screening-section-kicker">Application</span><h3>Form answers</h3><p>Review exactly what this applicant submitted.</p></div>
+         <div><span className="screening-section-kicker">Submitted application</span><h3>All form answers</h3><p>Go through every answer exactly as the applicant submitted it.</p></div>
          <span className="screening-count">{data.questions.length}</span>
         </div>
         <div className="screening-answer-list">
@@ -472,33 +493,17 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
           <article className="screening-answer" key={question.id}>
            <div className="screening-answer-number">{index+1}</div>
            <div className="screening-answer-content">
-            <div className="screening-answer-question">{question.label}</div>
+            <div className="screening-answer-question">{question.label}{question.description&&<span className="screening-answer-description">{question.description}</span>}</div>
             <div className="screening-answer-value">{formatValue(answerMap.get(question.id))}</div>
-            {question.description&&<div className="screening-answer-help">{question.description}</div>}
            </div>
           </article>
          )) : <p className="muted screening-empty-answer">No answers were found for this submission.</p>}
         </div>
        </section>
 
-       <section className="screening-review-section">
-        <div className="screening-section-heading"><div><span className="screening-section-kicker">Results</span><h3>Application results</h3><p>Eligibility and scoring information for this application.</p></div></div>
-        <div className="screening-result-grid">
-         <div className="screening-result-block">
-          <span className="screening-summary-label">Eligibility</span>
-          <strong>{eligibilityStatus}</strong>
-          {data.eligibility?.reasons?.length ? <ul className="screening-simple-list">{data.eligibility.reasons.map((reason:any,index:number)=><li key={index}>{typeof reason==='string'?reason:JSON.stringify(reason)}</li>)}</ul> : <p className="muted">No eligibility details recorded.</p>}
-         </div>
-         <div className="screening-result-block">
-          <span className="screening-summary-label">Score breakdown</span>
-          {data.criteria.length ? <div className="screening-score-list">{data.criteria.map((criterion:any)=><div key={criterion.id} className="screening-score-row"><span>{criterion.name}</span><strong>{criterion.weight}%</strong></div>)}</div> : <p className="muted">No scoring criteria configured.</p>}
-         </div>
-        </div>
-       </section>
-
        {data.documents.length>0&&(
         <section className="screening-review-section">
-         <div className="screening-section-heading"><div><span className="screening-section-kicker">Files</span><h3>Documents</h3><p>Files submitted with the application.</p></div><span className="screening-count">{data.documents.length}</span></div>
+         <div className="screening-section-heading"><div><span className="screening-section-kicker">Submitted files</span><h3>Documents</h3><p>Files included with the application.</p></div><span className="screening-count">{data.documents.length}</span></div>
          <div className="screening-document-list">
           {data.documents.map((document:any)=>(
            <div className="screening-document" key={document.id}>
@@ -510,8 +515,25 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
         </section>
        )}
 
+       <section className="screening-review-section">
+        <div className="screening-section-heading">
+         <div><span className="screening-section-kicker">Human review</span><h3>Your score</h3><p>Give this applicant a score out of 100 based on your review.</p></div>
+        </div>
+        <div className="screening-score-editor">
+         <label className="screening-score-field">
+          <span>Score</span>
+          <div className="screening-score-input-wrap"><input type="number" min="0" max="100" step="1" value={manualScore} onChange={e=>{setManualScore(e.target.value);setScoreNotice('')}} placeholder="80"/><span>/ 100</span></div>
+         </label>
+         <button className="primary-button" onClick={saveScore} disabled={scoreSaving}>{scoreSaving?'Saving…':'Save score'}</button>
+         {scoreNotice&&<span className={scoreNotice==='Score saved.'?'screening-score-success':'screening-score-error'}>{scoreNotice}</span>}
+        </div>
+       </section>
+
        <section className="screening-review-section screening-ai-section">
-        <div className="screening-section-heading"><div><span className="screening-section-kicker">Optional</span><h3>AI recommendation</h3><p>AI reviews the complete application and gives you a recommendation.</p></div><button className="secondary-button" onClick={runAiScreening} disabled={aiRunning}>{aiRunning?'Screening…':data.ai?'Run again':'Screen with AI'}</button></div>
+        <div className="screening-section-heading">
+         <div><span className="screening-section-kicker">Optional</span><h3>AI recommendation</h3><p>AI reviews the complete application and gives you a recommendation.</p></div>
+         <button className="secondary-button" onClick={runAiScreening} disabled={aiRunning}>{aiRunning?'Screening…':data.ai?'Run again':'Screen with AI'}</button>
+        </div>
         {aiError&&<div className="form-error screening-inline-error">{aiError}</div>}
         {data.ai ? (
          <div className="screening-ai-result">
@@ -525,7 +547,7 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
       </main>
 
       <footer className="screening-review-footer">
-       <div className="screening-decision-copy"><span className="screening-summary-label">Final decision</span><strong>{currentDecision==='pending'?'Choose an action for this applicant.':currentDecision==='approved'?'Applicant approved':'Applicant rejected'}</strong></div>
+       <div className="screening-decision-copy"><span className="screening-summary-label">Final decision</span><strong>{currentDecision==='pending'?'Choose approve or reject after reviewing the application.':currentDecision==='approved'?'Applicant approved':'Applicant rejected'}</strong></div>
        <div className="screening-decision-actions">
         <button className="secondary-button screening-reject-button" onClick={()=>onDecision(row,'rejected')} disabled={currentDecision==='rejected'}>Reject</button>
         <button className="primary-button screening-approve-button" onClick={()=>onDecision(row,'approved')} disabled={currentDecision==='approved'}>Approve</button>
@@ -537,7 +559,6 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
   </div>
  )
 }
-
 export function ReviewsWorkspace({applications,organizationId,onOpen}:{applications:Application[];organizationId:string;onOpen:(a:Application)=>void}){
  const [rows,setRows]=useState<any[]>([]),[reviewers,setReviewers]=useState<Profile[]>([]),[audit,setAudit]=useState<any[]>([]),[loading,setLoading]=useState(true),[auditLoading,setAuditLoading]=useState(true),[error,setError]=useState(''),[auditError,setAuditError]=useState(''),[query,setQuery]=useState(''),[status,setStatus]=useState('all')
  async function load(){setLoading(true);setError('');try{const ids=applications.map(a=>a.id);if(!ids.length){setRows([]);setLoading(false);return}const {data:subs,error:se}=await supabase.from('submissions').select('id,application_id,applicant_id,created_at').in('application_id',ids).order('created_at',{ascending:false});if(se)throw se;const submissionIds=(subs||[]).map(s=>s.id);if(!submissionIds.length){setRows([]);setLoading(false);return}const [{data:assignments,error:ae},{data:people,error:pe},{data:applicants,error:apE}]=await Promise.all([supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,decision,updated_at').in('submission_id',submissionIds),supabase.from('profiles').select('id,full_name,role,organization_id').eq('organization_id',organizationId).in('role',['reviewer','admin','owner']).order('full_name'),supabase.from('applicants').select('id,full_name,email').in('id',(subs||[]).map(s=>s.applicant_id).filter(Boolean))]);if(ae)throw ae;if(pe)throw pe;if(apE)throw apE;setReviewers(people||[]);const applicantMap=new Map((applicants||[]).map(x=>[x.id,x])),appMap=new Map(applications.map(x=>[x.id,x])),reviewerMap=new Map((people||[]).map(x=>[x.id,x]));setRows((subs||[]).map(s=>{const x=assignments?.find(a=>a.submission_id===s.id),p=applicantMap.get(s.applicant_id),app=appMap.get(s.application_id),r=x?reviewerMap.get(x.reviewer_id):null;return{submissionId:s.id,applicationId:s.application_id,applicantName:p?.full_name||'Unnamed applicant',email:p?.email||null,programmeName:app?.name||'Programme',reviewerName:r?.full_name||null,status:x?.status||'unassigned',decision:x?.decision||null,score:x?.score??null,updatedAt:x?.updated_at||s.created_at}}))}catch(e:any){setError(e.message||'Unable to load review operations.')}finally{setLoading(false)}}
