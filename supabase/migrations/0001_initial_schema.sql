@@ -48,3 +48,58 @@ create policy "Users can delete their applications" on public.applications for d
 grant select, insert, update on public.organizations to authenticated;
 grant select, insert, update on public.profiles to authenticated;
 grant select, insert, update, delete on public.applications to authenticated;
+
+-- Form builder foundation
+create table if not exists public.form_versions (
+  id uuid primary key default gen_random_uuid(),
+  application_id uuid not null references public.applications(id) on delete cascade,
+  version_number integer not null,
+  status text not null default 'draft' check (status in ('draft','published')),
+  title text not null default 'Application form',
+  created_by uuid not null references auth.users(id) on delete restrict,
+  created_at timestamptz not null default now(),
+  published_at timestamptz,
+  unique(application_id, version_number)
+);
+create table if not exists public.questions (
+  id uuid primary key default gen_random_uuid(),
+  form_version_id uuid not null references public.form_versions(id) on delete cascade,
+  type text not null check (type in ('short_text','long_text','email','phone','number','date','dropdown','single_choice','multiple_choice','yes_no','file','image','rating')),
+  label text not null,
+  description text,
+  required boolean not null default false,
+  placeholder text,
+  position integer not null default 0,
+  config jsonb not null default '{}'::jsonb,
+  conditional_rules jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.question_options (
+  id uuid primary key default gen_random_uuid(),
+  question_id uuid not null references public.questions(id) on delete cascade,
+  label text not null,
+  value text not null,
+  position integer not null default 0
+);
+create index if not exists form_versions_application_id_idx on public.form_versions(application_id);
+create index if not exists questions_form_version_id_idx on public.questions(form_version_id);
+create index if not exists question_options_question_id_idx on public.question_options(question_id);
+alter table public.form_versions enable row level security;
+alter table public.questions enable row level security;
+alter table public.question_options enable row level security;
+create policy "form_versions_select_own" on public.form_versions for select using (exists (select 1 from public.applications a where a.id=form_versions.application_id and a.created_by=auth.uid()));
+create policy "form_versions_insert_own" on public.form_versions for insert with check (exists (select 1 from public.applications a where a.id=form_versions.application_id and a.created_by=auth.uid()) and created_by=auth.uid());
+create policy "form_versions_update_own" on public.form_versions for update using (exists (select 1 from public.applications a where a.id=form_versions.application_id and a.created_by=auth.uid())) with check (exists (select 1 from public.applications a where a.id=form_versions.application_id and a.created_by=auth.uid()));
+create policy "form_versions_delete_own" on public.form_versions for delete using (exists (select 1 from public.applications a where a.id=form_versions.application_id and a.created_by=auth.uid()));
+create policy "questions_select_own" on public.questions for select using (exists (select 1 from public.form_versions v join public.applications a on a.id=v.application_id where v.id=questions.form_version_id and a.created_by=auth.uid()));
+create policy "questions_insert_own" on public.questions for insert with check (exists (select 1 from public.form_versions v join public.applications a on a.id=v.application_id where v.id=questions.form_version_id and a.created_by=auth.uid()));
+create policy "questions_update_own" on public.questions for update using (exists (select 1 from public.form_versions v join public.applications a on a.id=v.application_id where v.id=questions.form_version_id and a.created_by=auth.uid())) with check (exists (select 1 from public.form_versions v join public.applications a on a.id=v.application_id where v.id=questions.form_version_id and a.created_by=auth.uid()));
+create policy "questions_delete_own" on public.questions for delete using (exists (select 1 from public.form_versions v join public.applications a on a.id=v.application_id where v.id=questions.form_version_id and a.created_by=auth.uid()));
+create policy "question_options_select_own" on public.question_options for select using (exists (select 1 from public.questions q join public.form_versions v on v.id=q.form_version_id join public.applications a on a.id=v.application_id where q.id=question_options.question_id and a.created_by=auth.uid()));
+create policy "question_options_insert_own" on public.question_options for insert with check (exists (select 1 from public.questions q join public.form_versions v on v.id=q.form_version_id join public.applications a on a.id=v.application_id where q.id=question_options.question_id and a.created_by=auth.uid()));
+create policy "question_options_update_own" on public.question_options for update using (exists (select 1 from public.questions q join public.form_versions v on v.id=q.form_version_id join public.applications a on a.id=v.application_id where q.id=question_options.question_id and a.created_by=auth.uid())) with check (exists (select 1 from public.questions q join public.form_versions v on v.id=q.form_version_id join public.applications a on a.id=v.application_id where q.id=question_options.question_id and a.created_by=auth.uid()));
+create policy "question_options_delete_own" on public.question_options for delete using (exists (select 1 from public.questions q join public.form_versions v on v.id=q.form_version_id join public.applications a on a.id=v.application_id where q.id=question_options.question_id and a.created_by=auth.uid()));
+grant select,insert,update,delete on public.form_versions to authenticated;
+grant select,insert,update,delete on public.questions to authenticated;
+grant select,insert,update,delete on public.question_options to authenticated;
