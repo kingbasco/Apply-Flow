@@ -249,26 +249,29 @@ function App() {
   }
 
   useEffect(() => {
-    const path = window.location.pathname
-    const isPublicRoute = path === '/' || path === '/login' || path.startsWith('/apply/')
-    if (isPublicRoute) {
-      setSessionReady(true)
-      return
+    // Always restore the persisted Supabase session on startup, including public routes.
+    // Public pages can render without waiting for auth, but a logged-in user must not
+    // be treated as signed out just because the browser was refreshed.
+    const restoreSession = async () => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        setSession(data.session)
+        if (data.session) await loadWorkspace(data.session)
+      } catch (err) {
+        // Keep public pages usable if Supabase is unavailable, but surface the error
+        // when the app needs an authenticated workspace.
+        setError(err instanceof Error ? err.message : 'Could not connect to the authentication service.')
+      } finally {
+        setSessionReady(true)
+      }
     }
-
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
-      setSessionReady(true)
-      if (data.session) loadWorkspace(data.session)
-    }).catch((err) => {
-      setError(err instanceof Error ? err.message : 'Could not connect to the authentication service.')
-      setSessionReady(true)
-    })
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next)
       if (next) loadWorkspace(next)
     })
+
+    restoreSession()
     return () => listener.subscription.unsubscribe()
   }, [])
 
