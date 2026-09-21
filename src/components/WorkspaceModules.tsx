@@ -111,8 +111,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
 
  function preview(s:FormSummary){if(!s.publicSlug){setError('This programme does not have a public application link yet.');return}window.open('/apply/'+s.publicSlug,'_blank','noopener,noreferrer')}
 
- return <>
- <section>
+ return <section>
   <div className="page-heading compact"><div><p className="eyebrow">Application intake</p><h1>Forms</h1><p className="subtitle">Build, publish and manage the forms applicants use.</p></div><div className="detail-actions">{onCreate&&<button className="primary-button" onClick={onCreate}><Plus size={16}/> Create programme</button>}</div></div>
   {error&&<div className="form-error page-error">{error}</div>}
   <div className="stats-grid" style={{marginBottom:16}}>
