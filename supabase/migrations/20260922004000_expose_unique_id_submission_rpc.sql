@@ -6,7 +6,7 @@ create or replace function public.submit_application_with_id(
   p_answers jsonb
 ) returns jsonb
 language plpgsql
-security definer
+security invoker
 set search_path = pg_catalog, public
 as $function$
 declare
@@ -38,4 +38,5 @@ end;
 $function$;
 
 revoke execute on function public.submit_application_with_id(uuid,uuid,text,text,jsonb) from public;
+revoke execute on function public.submit_application_with_id(uuid,uuid,text,text,jsonb) from authenticated;
 grant execute on function public.submit_application_with_id(uuid,uuid,text,text,jsonb) to anon;
