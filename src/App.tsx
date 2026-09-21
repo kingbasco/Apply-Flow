@@ -282,6 +282,31 @@ function App() {
 }
 
 
+function ApplicantsPanel({applicationId}:{applicationId:string}) {
+  type Row={id:string;applicant_id:string;full_name:string|null;email:string|null;status:string;submitted_at:string|null;created_at:string}
+  const [rows,setRows]=useState<Row[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[selected,setSelected]=useState<Row|null>(null)
+  const [answerRows,setAnswerRows]=useState<{label:string;value:string}[]>([])
+  useEffect(()=>{(async()=>{try{
+    const {data,error}=await supabase.from('submissions').select('id,applicant_id,status,submitted_at,created_at,applicants!inner(full_name,email)').eq('application_id',applicationId).order('submitted_at',{ascending:false})
+    if(error)throw error
+    setRows((data||[]).map((r:any)=>({id:r.id,applicant_id:r.applicant_id,status:r.status,submitted_at:r.submitted_at,created_at:r.created_at,full_name:r.applicants?.full_name||null,email:r.applicants?.email||null})))
+  }catch(e){setError(e instanceof Error?e.message:'Could not load applicants.')}finally{setLoading(false)}})()},[applicationId])
+  const filtered=useMemo(()=>rows.filter(r=>[r.full_name,r.email,r.status].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase())),[rows,query])
+  async function open(row:Row){
+    setSelected(row);setAnswerRows([])
+    const {data,error}=await supabase.from('answers').select('question_id,value').eq('submission_id',row.id)
+    if(error){setError(error.message);return}
+    if(data?.length){const ids=data.map(x=>x.question_id);const {data:qs}=await supabase.from('questions').select('id,label').in('id',ids);const labels=new Map((qs||[]).map(q=>[q.id,q.label]));setAnswerRows(data.map(x=>({label:labels.get(x.question_id)||'Question',value:Array.isArray(x.value)?x.value.join(', '):String(x.value??'')})))}
+  }
+  if(loading)return <div className="loading-card card">Loading applicants…</div>
+  if(error)return <div className="form-error page-error">{error}</div>
+  return <div className="applicants-panel">
+    <div className="applicants-toolbar"><div><p className="eyebrow">Applications received</p><h2>{rows.length} applicant{rows.length===1?'':'s'}</h2></div><div className="applicant-search"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search name or email"/></div></div>
+    {!filtered.length?<div className="empty-state card"><div className="empty-icon"><Users size={22}/></div><h2>No applicants yet</h2><p>Submitted applications will appear here.</p></div>:<div className="card applicants-table-wrap"><table className="applicants-table"><thead><tr><th>Applicant</th><th>Email</th><th>Status</th><th>Submitted</th><th></th></tr></thead><tbody>{filtered.map(r=><tr key={r.id} onClick={()=>open(r)}><td><strong>{r.full_name||'Unnamed applicant'}</strong><span>#{r.applicant_id.slice(0,8)}</span></td><td>{r.email||'—'}</td><td><span className="status blue">{statusLabel(r.status as AppStatus)}</span></td><td>{r.submitted_at?formatDate(r.submitted_at):'—'}</td><td><button className="text-button" onClick={e=>{e.stopPropagation();open(r)}}>View</button></td></tr>)}</tbody></table></div>}
+    {selected&&<div className="applicant-drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSelected(null)}}><aside className="applicant-drawer"><div className="drawer-header"><div><p className="eyebrow">Applicant</p><h2>{selected.full_name||'Unnamed applicant'}</h2><p>{selected.email||'No email provided'}</p></div><button className="icon-button" onClick={()=>setSelected(null)}><X size={18}/></button></div><div className="drawer-meta"><div><span>Status</span><strong>{statusLabel(selected.status as AppStatus)}</strong></div><div><span>Submitted</span><strong>{selected.submitted_at?formatDate(selected.submitted_at):'—'}</strong></div></div><div className="drawer-section"><p className="eyebrow">Application answers</p>{answerRows.length?answerRows.map((a,i)=><div className="answer-item" key={i}><strong>{a.label}</strong><span>{a.value||'Not provided'}</span></div>):<p className="muted">No answers recorded.</p>}</div></aside></div>}
+  </div>
+}
+
 function ApplicationDetails({ application, settings, tab, setTab, loading, saving, error, onBack, onSave }:{
   application: Application
   settings: {public_slug:string; confirmation_message:string} | null
@@ -304,7 +329,7 @@ function ApplicationDetails({ application, settings, tab, setTab, loading, savin
     {loading?<div className="loading-card card">Loading programme settings…</div>:error?<div className="form-error page-error">{error}</div>:tab==='Overview'?<div className="detail-grid">
       <div className="card detail-card"><div className="card-header"><div><h2>Programme details</h2><p>Update the basic information for this programme.</p></div></div><div className="detail-form"><label>Programme name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Description<textarea rows={5} value={description} onChange={e=>setDescription(e.target.value)}/></label><div className="form-grid"><label>Application deadline<input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)}/></label><label>Target number<input type="number" min="0" value={target} onChange={e=>setTarget(e.target.value)}/></label></div><div className="detail-form-footer"><button className="primary-button" disabled={saving} onClick={()=>onSave({name:name.trim(),description:description.trim()||null,deadline:deadline||null,target_count:target?Number(target):null})}>{saving?'Saving…':'Save changes'}</button></div></div></div>
       <div className="card detail-card"><div className="card-header"><div><h2>Public application</h2><p>Settings applicants will see.</p></div></div><div className="detail-form"><label>Public slug<input value={slug} onChange={e=>setSlug(e.target.value)}/></label><label>Confirmation message<textarea rows={5} value={message} onChange={e=>setMessage(e.target.value)}/></label><div className="detail-form-footer"><button className="secondary-button" disabled={saving} onClick={()=>onSave({}, {public_slug:slug.trim(),confirmation_message:message.trim()||'Thank you. Your application has been received.'})}>Save public settings</button></div></div></div>
-    </div>:tab==='Form'?<FormBuilder applicationId={application.id}/>:<div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{tab} is next</h2><p>This section is connected to the programme workspace and will be built on the live data model.</p></div>}
+    </div>:tab==='Form'?<FormBuilder applicationId={application.id}/>:tab==='Applicants'?<ApplicantsPanel applicationId={application.id}/>:<div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{tab} is next</h2><p>This section is connected to the programme workspace and will be built on the live data model.</p></div>}
   </section>
 }
 
