@@ -1,0 +1,27 @@
+import { useEffect, useState } from 'react'
+import { ArrowRight, Users, Settings, FileText, ShieldCheck, ClipboardList, Save } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+
+type Application={id:string;name:string;description:string|null;status:string;deadline:string|null;target_count:number|null;created_at:string}
+type Profile={id:string;full_name:string|null;role:string;organization_id:string|null}
+
+function ModuleList({title,eyebrow,description,icon:Icon,applications,onOpen}:{title:string;eyebrow:string;description:string;icon:any;applications:Application[];onOpen:(a:Application)=>void}){
+ return <section><div className="page-heading compact"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p className="subtitle">{description}</p></div></div><div className="card table-card"><div className="card-header"><div><h2>{title} by programme</h2><p>Choose a programme to continue.</p></div></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Deadline</th><th></th></tr></thead><tbody>{applications.length?applications.map(a=><tr key={a.id}><td><strong>{a.name}</strong><span className="table-sub">{a.description||'No description yet.'}</span></td><td><span className={'status '+(a.status==='published'?'blue':'neutral')}>{a.status}</span></td><td>{a.deadline?new Date(a.deadline).toLocaleDateString():'—'}</td><td><button className="secondary-button" onClick={()=>onOpen(a)}>Open <ArrowRight size={15}/></button></td></tr>):<tr><td colSpan={4}><div className="table-empty">Create a programme first.</div></td></tr>}</tbody></table></div></div></section>
+}
+
+export function FormsWorkspace({applications,onOpen}:{applications:Application[];onOpen:(a:Application)=>void}){return <ModuleList title="Forms" eyebrow="Application intake" description="Build, publish and manage the forms applicants use." icon={FileText} applications={applications} onOpen={onOpen}/>}
+export function ScreeningWorkspace({applications,onOpen}:{applications:Application[];onOpen:(a:Application)=>void}){return <ModuleList title="Screening" eyebrow="Application screening" description="Review eligibility, scores and AI-assisted assessments." icon={ShieldCheck} applications={applications} onOpen={onOpen}/>}
+export function ReviewsWorkspace({applications,onOpen}:{applications:Application[];onOpen:(a:Application)=>void}){return <ModuleList title="Reviews" eyebrow="Human review" description="Assign reviewers and manage structured application reviews." icon={ClipboardList} applications={applications} onOpen={onOpen}/>}
+
+export function TeamWorkspace({organizationId}:{organizationId:string}){
+ const [people,setPeople]=useState<Profile[]>([]); const [loading,setLoading]=useState(true); const [error,setError]=useState('')
+ useEffect(()=>{(async()=>{const {data,error}=await supabase.from('profiles').select('id,full_name,role,organization_id').eq('organization_id',organizationId).order('full_name');if(error)setError(error.message);setPeople(data||[]);setLoading(false)})()},[organizationId])
+ return <section><div className="page-heading compact"><div><p className="eyebrow">Manage</p><h1>Team</h1><p className="subtitle">People with access to this ApplyFlow workspace.</p></div></div>{error&&<div className="form-error page-error">{error}</div>}<div className="card table-card"><div className="card-header"><div><h2>Workspace members</h2><p>Roles control what each person can access.</p></div><Users size={20}/></div>{loading?<div className="loading-card">Loading team…</div>:<div className="table-wrap"><table><thead><tr><th>Member</th><th>Role</th><th>Access</th></tr></thead><tbody>{people.map(p=><tr key={p.id}><td><strong>{p.full_name||'Unnamed member'}</strong></td><td><span className="status blue">{p.role}</span></td><td>Workspace access</td></tr>)}</tbody></table></div>}</div></section>
+}
+
+export function SettingsWorkspace({organization,onSaved}:{organization:{id:string;name:string;slug:string}|null;onSaved:(name:string)=>void}){
+ const [name,setName]=useState(organization?.name||''); const [slug,setSlug]=useState(organization?.slug||''); const [saving,setSaving]=useState(false); const [notice,setNotice]=useState(''); const [error,setError]=useState('')
+ useEffect(()=>{setName(organization?.name||'');setSlug(organization?.slug||'')},[organization])
+ async function save(){if(!organization||!name.trim())return;setSaving(true);setError('');setNotice('');const {error}=await supabase.from('organizations').update({name:name.trim(),slug:slug.trim()||organization.slug}).eq('id',organization.id);if(error)setError(error.message);else{setNotice('Workspace settings saved.');onSaved(name.trim())}setSaving(false)}
+ return <section><div className="page-heading compact"><div><p className="eyebrow">Manage</p><h1>Settings</h1><p className="subtitle">Configure your ApplyFlow workspace.</p></div></div>{error&&<div className="form-error page-error">{error}</div>}{notice&&<div className="form-message page-message">{notice}</div>}<div className="card detail-card"><div className="card-header"><div><h2>Workspace</h2><p>Basic organisation settings.</p></div><Settings size={20}/></div><div className="detail-form"><label>Organisation name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Workspace slug<input value={slug} onChange={e=>setSlug(e.target.value)}/></label><div className="detail-form-footer"><button className="primary-button" onClick={save} disabled={saving}><Save size={16}/>{saving?'Saving…':'Save settings'}</button></div></div></div></section>
+}
