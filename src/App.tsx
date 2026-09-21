@@ -79,6 +79,36 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
   </div>
 }
 
+function PublicApplication({slug}:{slug:string}) {
+  const [loading,setLoading]=useState(true), [error,setError]=useState(''), [submitted,setSubmitted]=useState(false)
+  const [app,setApp]=useState<{id:string;name:string;description:string|null;deadline:string|null} | null>(null)
+  const [settings,setSettings]=useState<{confirmation_message:string}|null>(null)
+  const [questions,setQuestions]=useState<BuilderQuestion[]>([]), [answers,setAnswers]=useState<Record<string,string|string[]>>({})
+  useEffect(()=>{(async()=>{try{
+    const {data:s,error:se}=await supabase.from('application_settings').select('application_id,confirmation_message').eq('public_slug',slug).single(); if(se)throw se
+    const {data:a,error:ae}=await supabase.from('applications').select('id,name,description,deadline').eq('id',s.application_id).eq('status','published').single(); if(ae)throw ae
+    const {data:v,error:ve}=await supabase.from('form_versions').select('id').eq('application_id',a.id).eq('status','published').order('version_number',{ascending:false}).limit(1).single(); if(ve)throw ve
+    const {data:qs,error:qe}=await supabase.from('questions').select('id,type,label,description,required,placeholder,position,config,conditional_rules').eq('form_version_id',v.id).order('position'); if(qe)throw qe
+    const full=await Promise.all((qs||[]).map(async q=>{const {data:o,error:oe}=await supabase.from('question_options').select('id,label,value,position').eq('question_id',q.id).order('position');if(oe)throw oe;return {...q,options:o||[]}}))
+    setApp(a);setSettings(s);setQuestions(full as BuilderQuestion[])
+  }catch(e){setError(e instanceof Error?e.message:'This application is unavailable.')}finally{setLoading(false)}})()},[slug])
+  const visible=(q:BuilderQuestion)=>{const r=q.conditional_rules?.[0];if(!r)return true;return answers[r.question_id]===r.value}
+  function setAnswer(id:string,value:string|string[]){setAnswers(x=>({...x,[id]:value}))}
+  async function submit(e:React.FormEvent){e.preventDefault();setError('');for(const q of questions){if(visible(q)&&q.required&&!answers[q.id]){setError(`Please answer: ${q.label}`);return}}setLoading(true);try{
+    const emailQ=questions.find(q=>q.type==='email'), nameQ=questions.find(q=>q.label.toLowerCase().includes('full name')||q.label.toLowerCase()==='name')
+    const {data:applicant,error:ae}=await supabase.from('applicants').insert({application_id:app!.id,email:emailQ?String(answers[emailQ.id]||''):null,full_name:nameQ?String(answers[nameQ.id]||''):null}).select('id').single();if(ae)throw ae
+    const {data:v}=await supabase.from('form_versions').select('id').eq('application_id',app!.id).eq('status','published').order('version_number',{ascending:false}).limit(1).single()
+    const {data:sub,error:se}=await supabase.from('submissions').insert({application_id:app!.id,form_version_id:v.id,applicant_id:applicant.id,status:'submitted',submitted_at:new Date().toISOString()}).select('id').single();if(se)throw se
+    const rows=questions.filter(q=>visible(q)&&answers[q.id]!==undefined).map(q=>({submission_id:sub.id,question_id:q.id,value:answers[q.id]}))
+    const {error:ansError}=await supabase.from('answers').insert(rows);if(ansError)throw ansError
+    setSubmitted(true)
+  }catch(e){setError(e instanceof Error?e.message:'Could not submit application.')}finally{setLoading(false)}}
+  if(loading&&!app)return <div className="public-shell"><div className="public-card card">Loading application…</div></div>
+  if(error&&!app)return <div className="public-shell"><div className="public-card card"><div className="empty-icon"><FileText size={22}/></div><h1>Application unavailable</h1><p>{error}</p></div></div>
+  if(submitted)return <div className="public-shell"><div className="public-card card public-success"><div className="success-mark">✓</div><p className="eyebrow">Application submitted</p><h1>Thank you.</h1><p>{settings?.confirmation_message}</p></div></div>
+  return <div className="public-shell"><form className="public-card card public-form" onSubmit={submit}><div className="public-header"><p className="eyebrow">Application</p><h1>{app?.name}</h1><p>{app?.description||'Complete the form below to apply.'}</p>{app?.deadline&&<span className="public-deadline">Deadline: {formatDate(app.deadline)}</span>}</div>{questions.map((q,i)=>visible(q)&&<div className="public-question" key={q.id}><label><span>{i+1}. {q.label}{q.required&&<span className="required-star">*</span>}</span>{q.description&&<small>{q.description}</small>}</label>{q.type==='long_text'?<textarea value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} placeholder={q.placeholder||''}/>:q.type==='date'?<input type="date" value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)}/>:q.type==='number'?<input type="number" value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} placeholder={q.placeholder||''}/>:q.type==='email'?<input type="email" value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} placeholder={q.placeholder||''}/>:q.type==='phone'?<input type="tel" value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} placeholder={q.placeholder||''}/>:q.type==='dropdown'?<select value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)}><option value="">Select an option</option>{q.options.map(o=><option key={o.id} value={o.value}>{o.label}</option>)}</select>:q.type==='single_choice'||q.type==='yes_no'?<div className="public-options">{q.options.map(o=><label key={o.id}><input type="radio" name={q.id} checked={answers[q.id]===o.value} onChange={()=>setAnswer(q.id,o.value)}/><span>{o.label}</span></label>)}</div>:q.type==='multiple_choice'?<div className="public-options">{q.options.map(o=><label key={o.id}><input type="checkbox" checked={Array.isArray(answers[q.id])&&answers[q.id].includes(o.value)} onChange={e=>{const current=Array.isArray(answers[q.id])?answers[q.id]:[];setAnswer(q.id,e.target.checked?[...current,o.value]:current.filter(v=>v!==o.value))}}/><span>{o.label}</span></label>)}</div>:q.type==='rating'?<div className="rating-options">{[1,2,3,4,5].map(n=><button type="button" key={n} className={answers[q.id]===String(n)?'rating-active':''} onClick={()=>setAnswer(q.id,String(n))}>{n}</button>)}</div>:q.type==='file'||q.type==='image'?<input type="file" onChange={e=>setAnswer(q.id,e.target.files?.[0]?.name||'')}/>:<input value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} placeholder={q.placeholder||''}/>}</div>)}{error&&<div className="form-error">{error}</div>}<button className="primary-button public-submit" disabled={loading}>{loading?'Submitting…':'Submit application'}</button></form></div>
+}
+
 function App() {
   const [sessionReady, setSessionReady] = useState(false)
   const [session, setSession] = useState<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>(null)
@@ -132,6 +162,7 @@ function App() {
   const profileName = profile?.full_name || session?.user.email?.split('@')[0] || 'there'
   const firstName = profileName.split(' ')[0]
 
+  if (window.location.pathname.startsWith('/apply/')) return <PublicApplication slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
   if (!sessionReady) return <div className="loading-screen"><div className="brand-mark">A</div><span>Loading ApplyFlow…</span></div>
   if (!session) return <AuthScreen onSignedIn={()=>setSessionReady(true)} />
 
