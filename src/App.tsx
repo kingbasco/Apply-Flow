@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  BarChart3, Bell, ChevronDown, ClipboardList, FileCheck2, FileText,
+  ArrowRight, BarChart3, Bell, Check, ChevronDown, ChevronRight, ClipboardList, FileCheck2, FileText,
   FolderKanban, LayoutDashboard, LogOut, Menu, Plus, Search, Settings,
-  ShieldCheck, Sparkles, Users, X, Download, TrendingUp, MapPin, Tags, Target, CheckCircle2,
+  ShieldCheck, Sparkles, Users, X, Download, TrendingUp, MapPin, Tags, Target, CheckCircle2, Layers, Workflow, Brain,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
 
@@ -121,6 +121,79 @@ function PublicApplication({slug}:{slug:string}) {
   return <div className="public-shell"><form className="public-card card public-form" onSubmit={submit}><div className="public-header"><p className="eyebrow">Application</p><h1>{app?.name}</h1><p>{app?.description||'Complete the form below to apply.'}</p>{app?.deadline&&<span className="public-deadline">Deadline: {formatDate(app.deadline)}</span>}</div>{questions.map((q,i)=>visible(q)&&<div className="public-question" key={q.id}><label><span>{i+1}. {q.label}{q.required&&<span className="required-star">*</span>}</span>{q.description&&<small>{q.description}</small>}</label>{q.type==='long_text'?<textarea value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} placeholder={q.placeholder||''}/>:q.type==='date'?<input type="date" value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)}/>:q.type==='number'?<input type="number" value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} placeholder={q.placeholder||''}/>:q.type==='email'?<input type="email" value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} placeholder={q.placeholder||''}/>:q.type==='phone'?<input type="tel" value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} placeholder={q.placeholder||''}/>:q.type==='dropdown'?<select value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)}><option value="">Select an option</option>{q.options.map(o=><option key={o.id} value={o.value}>{o.label}</option>)}</select>:q.type==='single_choice'||q.type==='yes_no'?<div className="public-options">{q.options.map(o=><label key={o.id}><input type="radio" name={q.id} checked={answers[q.id]===o.value} onChange={()=>setAnswer(q.id,o.value)}/><span>{o.label}</span></label>)}</div>:q.type==='multiple_choice'?<div className="public-options">{q.options.map(o=><label key={o.id}><input type="checkbox" checked={Array.isArray(answers[q.id])&&answers[q.id].includes(o.value)} onChange={e=>{const current=Array.isArray(answers[q.id])?(answers[q.id] as string[]):[];setAnswer(q.id,e.target.checked?[...current,o.value]:current.filter((v:string)=>v!==o.value))}}/><span>{o.label}</span></label>)}</div>:q.type==='rating'?<div className="rating-options">{[1,2,3,4,5].map(n=><button type="button" key={n} className={answers[q.id]===String(n)?'rating-active':''} onClick={()=>setAnswer(q.id,String(n))}>{n}</button>)}</div>:q.type==='file'||q.type==='image'?<input type="file" accept={q.type==='image'?'image/*':undefined} onChange={e=>{const f=e.target.files?.[0]||null;setFile(q.id,f);setAnswer(q.id,f?.name||'')}}/>:<input value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} placeholder={q.placeholder||''}/>}</div>)}{error&&<div className="form-error">{error}</div>}<button className="primary-button public-submit" disabled={loading}>{loading?'Submitting…':'Submit application'}</button></form></div>
 }
 
+function LandingPage() {
+  const features = [
+    { icon: FileText, title: 'Flexible application forms', text: 'Build structured application forms with conditional questions, uploads and versioned publishing.' },
+    { icon: ShieldCheck, title: 'Eligibility without the guesswork', text: 'Define clear rules and automatically separate eligible applications from those that do not qualify.' },
+    { icon: Target, title: 'Consistent scoring', text: 'Create weighted criteria so reviewers assess applications against the same programme priorities.' },
+    { icon: Brain, title: 'AI-assisted screening', text: 'Use AI to surface evidence, strengths, concerns and missing information while keeping people in control.' },
+    { icon: Users, title: 'Collaborative review', text: 'Assign reviewers, collect scores and notes, and keep a clear history of review decisions.' },
+    { icon: BarChart3, title: 'Selection and analytics', text: 'Move applicants from shortlist to selection and understand your programme with live reporting.' },
+  ]
+  const steps = [
+    ['01', 'Create your programme', 'Set the programme details, target and deadline in one workspace.'],
+    ['02', 'Build your application', 'Design the questions and rules applicants need to complete.'],
+    ['03', 'Screen and review', 'Apply eligibility, scoring and optional AI assistance before human review.'],
+    ['04', 'Select and report', 'Shortlist, select, communicate and export the results.'],
+  ]
+  return <div className="landing-shell">
+    <header className="landing-nav">
+      <a className="landing-brand" href="/"><span className="landing-mark">A</span><span><strong>ApplyFlow</strong><small>Application OS</small></span></a>
+      <nav className="landing-links"><a href="#product">Product</a><a href="#how-it-works">How it works</a><a href="#features">Features</a></nav>
+      <div className="landing-actions"><a className="landing-login" href="/login">Sign in</a><a className="landing-cta small" href="/login">Get started <ArrowRight size={15}/></a></div>
+    </header>
+
+    <main>
+      <section className="landing-hero" id="product">
+        <div className="hero-copy">
+          <span className="hero-kicker"><span className="kicker-dot"></span> APPLICATION INTAKE + SCREENING</span>
+          <h1>From applications<br/><em>to decisions.</em></h1>
+          <p>ApplyFlow gives organisations one workspace to collect applications, check eligibility, screen candidates, review submissions and make final selections.</p>
+          <div className="hero-actions"><a className="landing-cta" href="/login">Start building <ArrowRight size={17}/></a><a className="hero-secondary" href="#how-it-works">See how it works <ChevronRight size={16}/></a></div>
+          <div className="hero-trust"><span><Check size={14}/> Structured intake</span><span><Check size={14}/> Human-led decisions</span><span><Check size={14}/> Live programme data</span></div>
+        </div>
+        <div className="hero-visual">
+          <div className="dashboard-window">
+            <div className="window-top"><div className="window-dots"><i></i><i></i><i></i></div><span>ApplyFlow / Programme overview</span><div className="window-avatar">EC</div></div>
+            <div className="mock-content">
+              <div className="mock-heading"><div><small>PROGRAMME OVERVIEW</small><h3>Women Artisans — Cohort 3</h3></div><span className="mock-status">● Screening</span></div>
+              <div className="mock-stats"><div><small>Applications</small><strong>450</strong><span>+18 this week</span></div><div><small>Eligible</small><strong>382</strong><span>84.9% of total</span></div><div><small>Shortlisted</small><strong>210</strong><span>55% of eligible</span></div></div>
+              <div className="mock-body"><div className="mock-chart"><div className="chart-label"><span>Application pipeline</span><small>Last 30 days</small></div><div className="chart-bars"><i style={{height:'35%'}}></i><i style={{height:'48%'}}></i><i style={{height:'42%'}}></i><i style={{height:'61%'}}></i><i style={{height:'54%'}}></i><i style={{height:'76%'}}></i><i style={{height:'88%'}}></i><i style={{height:'70%'}}></i><i style={{height:'94%'}}></i><i style={{height:'82%'}}></i></div></div><div className="mock-side"><small>TOP LOCATIONS</small><div><span>Lagos</span><b>124</b></div><div><span>Kaduna</span><b>86</b></div><div><span>Abuja</span><b>71</b></div><div><span>Oyo</span><b>48</b></div></div></div>
+              <div className="mock-table"><span>Applicant</span><span>Score</span><span>Status</span><b>Amina Yusuf</b><strong>87.5</strong><em>Shortlisted</em><b>Grace Okafor</b><strong>82.0</strong><em>Review</em></div>
+            </div>
+          </div>
+          <div className="hero-float"><span className="float-icon"><Check size={15}/></span><div><strong>Eligibility evaluated</strong><small>382 applications passed</small></div></div>
+        </div>
+      </section>
+
+      <section className="landing-strip"><span>BUILT FOR PROGRAMMES THAT NEED MORE THAN A FORM</span><div><b>APPLICATIONS</b><b>ELIGIBILITY</b><b>SCREENING</b><b>REVIEWS</b><b>SELECTION</b><b>REPORTING</b></div></section>
+
+      <section className="landing-section intro-section" id="features">
+        <div className="section-kicker">ONE WORKSPACE</div>
+        <div className="intro-grid"><h2>Everything between <em>“Apply”</em> and <em>“Selected.”</em></h2><p>Stop stitching together forms, spreadsheets, email threads and review notes. ApplyFlow keeps the full application lifecycle connected so your team can focus on evaluating people, not moving data around.</p></div>
+      </section>
+
+      <section className="landing-section feature-section">
+        <div className="feature-grid">{features.map(({icon:Icon,title,text})=><article className="feature-card" key={title}><div className="feature-icon"><Icon size={19}/></div><h3>{title}</h3><p>{text}</p><span className="feature-line"></span></article>)}</div>
+      </section>
+
+      <section className="landing-section workflow-section" id="how-it-works">
+        <div className="section-kicker">HOW IT WORKS</div>
+        <div className="workflow-head"><h2>A clearer path from <em>intake</em> to <em>outcome.</em></h2><p>Every stage builds on the one before it. Your programme team gets a shared record of what happened and why.</p></div>
+        <div className="steps-grid">{steps.map(([num,title,text])=><article className="step-card" key={num}><span>{num}</span><div><h3>{title}</h3><p>{text}</p></div></article>)}</div>
+      </section>
+
+      <section className="landing-section spotlight-section">
+        <div className="spotlight-card"><div className="spotlight-copy"><div className="section-kicker">AI, WITH HUMAN OVERSIGHT</div><h2>Let AI help with the volume. Keep people in charge of the decision.</h2><p>ApplyFlow can assess configured criteria against the information an applicant actually provided. It surfaces evidence, strengths, concerns and missing information — then leaves the decision with your team.</p><ul><li><Check size={15}/> Evidence-backed criterion assessments</li><li><Check size={15}/> No invented or missing applicant information</li><li><Check size={15}/> Human review, overrides and audit history</li></ul></div><div className="ai-panel"><div className="ai-panel-head"><span><Brain size={15}/> AI SCREENING</span><small>COMPLETED</small></div><div className="ai-score"><div><small>SUGGESTED SCORE</small><strong>82<span>/100</span></strong></div><div className="confidence">92%<small>confidence</small></div></div><div className="ai-rows"><div><span>Business experience</span><b>17/20</b></div><div><span>Programme fit</span><b>16/20</b></div><div><span>Application quality</span><b>13/15</b></div><div><span>Need</span><b>18/20</b></div></div><div className="ai-note">Evidence found across 8 submitted answers. 1 concern flagged for reviewer.</div></div></div>
+      </section>
+
+      <section className="landing-section closing-section"><div className="closing-inner"><div className="section-kicker">READY WHEN YOU ARE</div><h2>Build a better application process.</h2><p>Give your applicants a clear experience and your programme team a system they can trust.</p><a className="landing-cta" href="/login">Create your workspace <ArrowRight size={17}/></a></div></section>
+    </main>
+
+    <footer className="landing-footer"><div className="landing-brand"><span className="landing-mark">A</span><span><strong>ApplyFlow</strong><small>Application OS</small></span></div><span>Application intake, screening and selection — in one workspace.</span><span>© 2026 ApplyFlow</span></footer>
+  </div>
+}
+
 function App() {
   const [sessionReady, setSessionReady] = useState(false)
   const [session, setSession] = useState<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>(null)
@@ -175,8 +248,12 @@ function App() {
   const firstName = profileName.split(' ')[0]
 
   if (window.location.pathname.startsWith('/apply/')) return <PublicApplication slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
+  if (window.location.pathname === '/login') {
+    if (!sessionReady) return <div className="loading-screen"><div className="brand-mark">A</div><span>Loading ApplyFlow…</span></div>
+    if (!session) return <AuthScreen onSignedIn={()=>{ window.history.replaceState({}, '', '/'); setSessionReady(true) }} />
+  }
   if (!sessionReady) return <div className="loading-screen"><div className="brand-mark">A</div><span>Loading ApplyFlow…</span></div>
-  if (!session) return <AuthScreen onSignedIn={()=>setSessionReady(true)} />
+  if (!session) return <LandingPage />
 
   async function signOut() { await supabase.auth.signOut(); setSession(null); setProfile(null); setOrganization(null); setApplications([]) }
 
