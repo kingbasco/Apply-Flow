@@ -468,13 +468,6 @@ type QuestionType='short_text'|'long_text'|'email'|'phone'|'number'|'date'|'drop
 type BuilderOption={id:string;label:string;value:string;position:number}
 type BuilderQuestion={id:string;type:QuestionType;label:string;description:string|null;required:boolean;placeholder:string|null;position:number;config:Record<string,unknown>;conditional_rules:ConditionRule[]|null;options:BuilderOption[]}
 type ConditionRule={question_id:string;operator:'equals'|'not_equals';value:string}
-const NIGERIAN_STATES = [
-  'Abia','Adamawa','Akwa Ibom','Anambra','Bauchi','Bayelsa','Benue','Borno','Cross River','Delta',
-  'Ebonyi','Edo','Ekiti','Enugu','Gombe','Imo','Jigawa','Kaduna','Kano','Katsina','Kebbi',
-  'Kogi','Kwara','Lagos','Nasarawa','Niger','Ogun','Ondo','Osun','Oyo','Plateau','Rivers',
-  'Sokoto','Taraba','Yobe','Zamfara','Federal Capital Territory (FCT)'
-] as const
-
 const questionTypes:{type:QuestionType;label:string;icon:string}[]=[
  {type:'short_text',label:'Short text',icon:'Aa'},{type:'long_text',label:'Long text',icon:'¶'},{type:'email',label:'Email',icon:'@'},{type:'phone',label:'Phone',icon:'☎'},
  {type:'number',label:'Number',icon:'#'},{type:'date',label:'Date',icon:'◫'},{type:'dropdown',label:'Dropdown',icon:'⌄'},{type:'single_choice',label:'Single choice',icon:'○'},
