@@ -467,7 +467,7 @@ type QuestionType='short_text'|'long_text'|'email'|'phone'|'number'|'date'|'drop
 type BuilderOption={id:string;label:string;value:string;position:number}
 type BuilderQuestion={id:string;type:QuestionType;label:string;description:string|null;required:boolean;placeholder:string|null;position:number;config:Record<string,unknown>;conditional_rules:ConditionRule[]|null;options:BuilderOption[]}
 type ConditionRule={question_id:string;operator:'equals'|'not_equals';value:string}
-const NIGERIA_LGA_DATA_URL = 'https://raw.githubusercontent.com/temikeezy/nigeria-geojson-data/main/data/lgas.json'
+const NIGERIA_LGA_DATA_URL = '/nigeria-lgas.json'
 let nigeriaLgaCache: Record<string,string[]> | null = null
 async function getNigerianLgas(state:string): Promise<string[]> {
   if (!nigeriaLgaCache) {
@@ -475,7 +475,7 @@ async function getNigerianLgas(state:string): Promise<string[]> {
     if (!response.ok) throw new Error('Could not load Nigerian local government data.')
     nigeriaLgaCache = await response.json()
   }
-  const key = state === 'Nasarawa' ? 'Nassarawa' : state
+  const key = state === 'Nasarawa' ? 'Nassarawa' : state === 'Federal Capital Territory (FCT)' ? 'Federal Capital Territory' : state
   return nigeriaLgaCache[key] || []
 }
 
