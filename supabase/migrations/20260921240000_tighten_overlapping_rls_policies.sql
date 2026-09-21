@@ -135,3 +135,19 @@ create policy submissions_org_delete on public.submissions
     select 1 from public.applications a
     where a.id = submissions.application_id and private.is_org_admin(a.organization_id)
   ));
+
+
+drop policy if exists review_assignments_org_admin_select on public.review_assignments;
+drop policy if exists review_assignments_reviewer_select on public.review_assignments;
+create policy review_assignments_select on public.review_assignments
+  for select to authenticated
+  using (
+    reviewer_id = (select auth.uid())
+    or exists (
+      select 1
+      from public.submissions s
+      join public.applications a on a.id = s.application_id
+      where s.id = review_assignments.submission_id
+        and private.is_org_admin(a.organization_id)
+    )
+  );
