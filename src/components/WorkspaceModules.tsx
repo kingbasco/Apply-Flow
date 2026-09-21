@@ -264,7 +264,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
   })
  },[rows,query,filter])
 
- const setDecision=async(row:any,decision:'approved'|'rejected')=>{
+ const setDecision=async(row:ScreeningRow,decision:'approved'|'rejected')=>{
   setError('')
   const {error}=await supabase.from('submissions').update({decision}).eq('id',row.submissionId)
   if(error){setError(error.message);return}
@@ -323,7 +323,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
 }
 
 type ScreeningReviewData={submission:any;applicant:any;answers:any[];questions:any[];eligibility:any;score:any;criteria:any[];ai:any;documents:any[]}
-function ScreeningReviewModal({row,onClose,onDecision}:{row:any;onClose:()=>void;onDecision:(row:any,decision:'approved'|'rejected')=>Promise<void>}){
+function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose:()=>void;onDecision:(row:ScreeningRow,decision:'approved'|'rejected')=>Promise<void>}){
  const [data,setData]=useState<ScreeningReviewData|null>(null)
  const [extractingId,setExtractingId]=useState('')
  const [loading,setLoading]=useState(true)
