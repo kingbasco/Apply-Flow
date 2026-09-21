@@ -44,7 +44,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
         if (error) throw error
         onSignedIn()
       } else {
-        const { data, error } = await supabase.auth.signUp({ email, password })
+        const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name.trim(), organization_name: orgName.trim() } } })
         if (error) throw error
         if (!data.user) throw new Error('Account could not be created.')
         if (!data.session) {
@@ -222,8 +222,20 @@ function App() {
   async function loadWorkspace(currentSession = session) {
     if (!currentSession?.user) return
     setLoading(true); setError('')
-    const { data: p, error: pError } = await supabase.from('profiles').select('id,full_name,organization_id,role').eq('id', currentSession.user.id).single()
+    let { data: p, error: pError } = await supabase.from('profiles').select('id,full_name,organization_id,role').eq('id', currentSession.user.id).maybeSingle()
     if (pError) { setError(pError.message); setLoading(false); return }
+    if (!p) {
+      const metadata = currentSession.user.user_metadata || {}
+      const fullName = String(metadata.full_name || currentSession.user.email?.split('@')[0] || 'Workspace owner').trim()
+      const organizationName = String(metadata.organization_name || 'ApplyFlow Workspace').trim() || 'ApplyFlow Workspace'
+      const slugBase = organizationName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'applyflow'
+      const slug = slugBase + '-' + currentSession.user.id.slice(0, 8)
+      const { data: org, error: orgError } = await supabase.from('organizations').insert({ name: organizationName, slug, created_by: currentSession.user.id }).select('id,name,slug').single()
+      if (orgError) { setError(orgError.message); setLoading(false); return }
+      const { data: createdProfile, error: profileError } = await supabase.from('profiles').insert({ id: currentSession.user.id, full_name: fullName, organization_id: org.id, role: 'owner' }).select('id,full_name,organization_id,role').single()
+      if (profileError) { setError(profileError.message); setLoading(false); return }
+      p = createdProfile
+    }
     setProfile(p)
     if (p.organization_id) {
       const [{ data: org, error: oError }, { data: apps, error: aError }] = await Promise.all([
