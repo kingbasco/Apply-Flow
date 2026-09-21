@@ -36,6 +36,13 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
+  const [newName, setNewName] = useState('')
+  const [newDescription, setNewDescription] = useState('')
+  const [newDeadline, setNewDeadline] = useState('')
+  const [newTarget, setNewTarget] = useState('')
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError(''); setMessage('')
@@ -125,6 +132,46 @@ function App() {
 
   async function signOut() { await supabase.auth.signOut(); setSession(null); setProfile(null); setOrganization(null); setApplications([]) }
 
+  function openCreate() { setCreateError(''); setNewName(''); setNewDescription(''); setNewDeadline(''); setNewTarget(''); setCreateOpen(true) }
+
+  async function createApplication(e: React.FormEvent) {
+    e.preventDefault()
+    if (!session?.user || !profile?.organization_id) return
+    if (!newName.trim()) { setCreateError('Programme name is required.'); return }
+    setCreating(true); setCreateError('')
+    try {
+      const { data: application, error: applicationError } = await supabase.from('applications')
+        .insert({
+          organization_id: profile.organization_id,
+          created_by: session.user.id,
+          name: newName.trim(),
+          description: newDescription.trim() || null,
+          deadline: newDeadline || null,
+          target_count: newTarget ? Number(newTarget) : null,
+          status: 'draft',
+        })
+        .select('id,name,description,status,deadline,target_count,created_at')
+        .single()
+      if (applicationError) throw applicationError
+
+      const slugBase = newName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'application'
+      const publicSlug = `${slugBase}-${application.id.slice(0, 8)}`
+      const { error: settingsError } = await supabase.from('application_settings').insert({
+        application_id: application.id,
+        public_slug: publicSlug,
+      })
+      if (settingsError) throw settingsError
+
+      setApplications(current => [application, ...current])
+      setCreateOpen(false)
+      setActive('Applications')
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Could not create the application.')
+    } finally {
+      setCreating(false)
+    }
+  }
+
   return <div className="app-shell">
     <aside className={sidebarOpen ? 'sidebar open' : 'sidebar'}>
       <div className="brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Application OS</span></div><button className="mobile-close" onClick={()=>setSidebarOpen(false)} aria-label="Close menu"><X size={18}/></button></div>
@@ -136,12 +183,24 @@ function App() {
     <main className="main"><header className="topbar"><button className="mobile-menu" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Menu size={20}/></button><div className="breadcrumbs"><span>Workspace</span><span>/</span><strong>{active}</strong></div><div className="top-actions"><button className="icon-button" aria-label="Notifications"><Bell size={18}/></button><div className="top-avatar">{profileName.slice(0,2).toUpperCase()}</div></div></header>
       <div className="content">
         {loading ? <div className="loading-card card">Loading your workspace…</div> : error ? <div className="form-error page-error">{error}</div> : active==='Dashboard' ? <>
-          <section className="page-heading"><div><p className="eyebrow">Your workspace</p><h1>Good evening, {firstName}.</h1><p className="subtitle">Here’s what is happening across your programmes.</p></div><button className="primary-button" onClick={()=>setActive('Applications')}><Plus size={17}/> New application</button></section>
+          <section className="page-heading"><div><p className="eyebrow">Your workspace</p><h1>Good evening, {firstName}.</h1><p className="subtitle">Here’s what is happening across your programmes.</p></div><button className="primary-button" onClick={openCreate}><Plus size={17}/> New application</button></section>
           <section className="stats-grid"><StatCard label="Programmes" value={applications.length.toLocaleString()} note="In your workspace" icon={FolderKanban}/><StatCard label="Targets" value={totalTarget.toLocaleString()} note="Across programmes" icon={FileCheck2}/><StatCard label="Published" value={applications.filter(a=>a.status==='published').length.toLocaleString()} note="Currently accepting" icon={ShieldCheck}/><StatCard label="Screening" value={applications.filter(a=>a.status==='screening').length.toLocaleString()} note="In review" icon={Users}/></section>
           <section className="dashboard-grid"><div className="card table-card"><div className="card-header"><div><h2>Programmes</h2><p>Your application programmes from Supabase.</p></div><button className="text-button" onClick={()=>setActive('Applications')}>View all</button></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th></tr></thead><tbody>{applications.length===0?<tr><td colSpan={4}><div className="table-empty">No programmes yet. Create your first application programme.</div></td></tr>:applications.map(item=><tr key={item.id}><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td></tr>)}</tbody></table></div></div><div className="card funnel-card"><div className="card-header"><div><h2>Workspace health</h2><p>Live database connection</p></div><span className="status green">Connected</span></div><div className="connection-list"><div><span>Organisation</span><strong>{organization?.name || '—'}</strong></div><div><span>Role</span><strong>{profile?.role || '—'}</strong></div><div><span>Programmes</span><strong>{applications.length}</strong></div></div></div></section>
-        </> : <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>{active}</h1><p className="subtitle">{active==='Applications'?'Manage your application programmes.':'This module is scaffolded and ready for the next implementation phase.'}</p></div>{active==='Applications'&&<button className="primary-button"><Plus size={17}/> New application</button>}</div>{active==='Applications'?<div className="card table-card"><div className="toolbar"><div className="search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applications…"/></div><button className="secondary-button">All status <ChevronDown size={15}/></button></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th></tr></thead><tbody>{filtered.map(item=><tr key={item.id}><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td></tr>)}</tbody></table></div></div>:<div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{active} is coming next</h2><p>The shared workspace is now connected to Supabase. We’ll build this module on top of the live architecture.</p></div>}</section>}
+        </> : <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>{active}</h1><p className="subtitle">{active==='Applications'?'Manage your application programmes.':'This module is scaffolded and ready for the next implementation phase.'}</p></div>{active==='Applications'&&<button className="primary-button" onClick={openCreate}><Plus size={17}/> New application</button>}</div>{active==='Applications'?<div className="card table-card"><div className="toolbar"><div className="search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applications…"/></div><button className="secondary-button">All status <ChevronDown size={15}/></button></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th></tr></thead><tbody>{filtered.map(item=><tr key={item.id}><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td></tr>)}</tbody></table></div></div>:<div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{active} is coming next</h2><p>The shared workspace is now connected to Supabase. We’ll build this module on top of the live architecture.</p></div>}</section>}
       </div>
     </main>
+    {createOpen && <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setCreateOpen(false)}}>
+      <form className="modal card" onSubmit={createApplication}>
+        <div className="modal-header"><div><p className="eyebrow">New programme</p><h2>Create an application programme</h2><p>Start with the basic programme details. You can build the form after this.</p></div><button type="button" className="icon-button" onClick={()=>setCreateOpen(false)} aria-label="Close"><X size={18}/></button></div>
+        <div className="modal-form">
+          <label>Programme name<input autoFocus value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Hertisan Women Artisans — Cohort 3" required /></label>
+          <label>Description <span className="optional">Optional</span><textarea value={newDescription} onChange={e=>setNewDescription(e.target.value)} placeholder="Briefly describe who this programme is for and what it offers." rows={4}/></label>
+          <div className="form-grid"><label>Application deadline <span className="optional">Optional</span><input type="date" value={newDeadline} onChange={e=>setNewDeadline(e.target.value)} /></label><label>Target number <span className="optional">Optional</span><input type="number" min="0" value={newTarget} onChange={e=>setNewTarget(e.target.value)} placeholder="150" /></label></div>
+          {createError && <div className="form-error">{createError}</div>}
+        </div>
+        <div className="modal-footer"><button type="button" className="secondary-button" onClick={()=>setCreateOpen(false)}>Cancel</button><button className="primary-button" disabled={creating}>{creating?'Creating…':'Create programme'}</button></div>
+      </form>
+    </div>}
   </div>
 }
 
