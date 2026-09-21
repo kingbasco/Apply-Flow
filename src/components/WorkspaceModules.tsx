@@ -314,6 +314,9 @@ function ScreeningReviewModal({row,onClose}:{row:ScreeningRow;onClose:()=>void})
   setData({submission:s,applicant,answers:ans||[],questions:questions||[],eligibility:e,score:sc,criteria:cr||[],ai});
  }catch(e){setError(e instanceof Error?e.message:'Could not load this application.')}finally{setLoading(false)}})()},[row.submissionId,row.applicationId]);
  const answerMap=new Map((data?.answers||[]).map(a=>[a.question_id,a.value]));
+ const runAiScreening=async()=>{
+  setAiRunning(true);setAiError('');
+  try{const {data:result,error:invokeError}=await supabase.functions.invoke('run-ai-screening',{body:{submission_id:row.submissionId}});if(invokeError)throw invokeError;if(result?.error)throw new Error(result.error);const {data:ai,error:aiError}=await supabase.from('ai_screenings').select('*').eq('submission_id',row.submissionId).maybeSingle();if(aiError)throw aiError;setData(prev=>prev?{...prev,ai}:prev)}catch(e){setAiError(e instanceof Error?e.message:'AI screening failed.')}finally{setAiRunning(false)}};
  const formatValue=(v:any)=>{if(v===null||v===undefined||v==='')return 'Not provided';if(Array.isArray(v))return v.join(', ');if(typeof v==='object')return Object.values(v).join(', ');return String(v)};
  return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Screen application"><div className="modal-card screening-review-modal">
   <div className="modal-header"><div><p className="eyebrow">Screening review</p><h2>{row.applicantName}</h2><p className="muted">{row.email||'No email provided'} · Submitted {row.submittedAt?new Date(row.submittedAt).toLocaleString():'—'}</p></div><button className="icon-button" onClick={onClose} aria-label="Close review">×</button></div>
