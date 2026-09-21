@@ -122,7 +122,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
   </div>
   <div className="card table-card"><div className="card-header"><div><h2>Application forms</h2><p>Manage publishing, access and version history from one place.</p></div></div>
    <div className="forms-toolbar">
-    <div className="forms-search"><select aria-label="Filter by reviewer" value={reviewerFilter} onChange={e=>setReviewerFilter(e.target.value)}><option value="all">All reviewers</option>{reviewers.map(p=><option key={p.id} value={p.id}>{p.full_name||'Unnamed reviewer'}</option>)}</select></div>
+    
     <div className="forms-search"><Search size={16}/><input aria-label="Search forms" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search programmes…" /></div>
     <div className="forms-filters" role="group" aria-label="Filter forms by status">{(['all','draft','published','closed','none'] as const).map(f=><button key={f} className={filter===f?'filter-button active':'filter-button'} onClick={()=>setFilter(f)}>{f==='all'?'All':f==='none'?'Not started':f[0].toUpperCase()+f.slice(1)}<span>{f==='all'?summaries.length:f==='draft'?counts.draft:f==='published'?counts.published:f==='closed'?counts.closed:summaries.filter(s=>formWorkspaceStatus(s)==='none').length}</span></button>)}</div>
    </div>
@@ -210,7 +210,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
     supabase.from('submission_scores').select('submission_id,overall_score,status').in('submission_id',[]),
     supabase.from('ai_screenings').select('submission_id,status,overall_assessment').in('submission_id',[]),
     supabase.from('applicants').select('id,full_name,email').in('application_id',ids),
-   supabase.from('profiles').select('id,full_name,role').eq('organization_id',applications[0]?.organization_id||'').in('role',['reviewer','admin','owner']).order('full_name')
+   supabase.from('profiles').select('id,full_name,role').in('role',['reviewer','admin','owner']).order('full_name')
    ])
    if(subsError)throw subsError
    if(applicantError)throw applicantError
