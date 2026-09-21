@@ -318,7 +318,6 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
    </div>
   </section>
   {reviewing&&<ScreeningReviewModal row={reviewing} onClose={()=>setReviewing(null)} onDecision={setDecision}/>}
- </section>
  </>
 }
 
