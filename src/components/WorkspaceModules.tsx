@@ -453,8 +453,8 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
  const aiRecommendation=data?.ai?.recommendation||data?.ai?.decision||null
 
  return (
-  <div className="modal-backdrop screening-review-backdrop" role="dialog" aria-modal="true" aria-label="Review application">
-   <div className="screening-review-modal">
+  <div className="screening-review-page" role="dialog" aria-modal="true" aria-label="Review application">
+   <div className="screening-review-shell">
     <header className="screening-review-header">
      <div className="screening-review-heading">
       <div className="screening-review-heading-copy">
@@ -466,7 +466,7 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
         <span>{row.submittedAt?new Date(row.submittedAt).toLocaleString():'Submitted date unavailable'}</span>
        </div>
       </div>
-      <button type="button" className="screening-close-button" onClick={onClose} aria-label="Close review">×</button>
+      <button type="button" className="secondary-button screening-back-button" onClick={onClose} aria-label="Back to screening">← Back to screening</button>
      </div>
     </header>
 
