@@ -1,13 +1,10 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-declare const __APPLYFLOW_SUPABASE_URL__: string
-declare const __APPLYFLOW_SUPABASE_PUBLISHABLE_KEY__: string
-
-const supabaseUrl = __APPLYFLOW_SUPABASE_URL__
-const supabasePublishableKey = __APPLYFLOW_SUPABASE_PUBLISHABLE_KEY__
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
 
 const missingConfigMessage =
-  'Supabase is not configured for this deployment. Add SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY to the Vercel project environment variables.'
+  'Supabase is not configured for this deployment. Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in the Vercel project environment variables.'
 
 export const supabase: SupabaseClient = supabaseUrl && supabasePublishableKey
   ? createClient(supabaseUrl, supabasePublishableKey, {
