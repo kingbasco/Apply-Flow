@@ -82,6 +82,45 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
   </div>
 }
 
+function InviteSetupScreen({ email, onComplete }: { email: string; onComplete: () => Promise<void> | void }) {
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
+    if (password !== confirmPassword) { setError('Passwords do not match.'); return }
+    setBusy(true)
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({ password })
+      if (updateError) throw updateError
+      await onComplete()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not finish setting up your account.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <div className="auth-shell">
+    <div className="auth-panel">
+      <div className="brand auth-brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Application OS</span></div></div>
+      <div className="auth-copy"><p className="eyebrow">Team invitation</p><h1>Set up your account.</h1><p>You’ve been invited to join an ApplyFlow workspace. Set a password to finish your account setup.</p></div>
+      <form onSubmit={submit} className="auth-form">
+        <label>Email<input type="email" value={email} readOnly /></label>
+        <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Create a password" minLength={6} required /></label>
+        <label>Confirm password<input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter your password" minLength={6} required /></label>
+        {error && <div className="form-error">{error}</div>}
+        <button className="primary-button auth-submit" disabled={busy}>{busy ? 'Setting up…' : 'Finish account setup'}</button>
+      </form>
+    </div>
+    <div className="auth-aside"><div><span className="aside-kicker">APPLYFLOW</span><h2>Your workspace is ready for you.</h2><p>Once you set your password, you’ll be taken straight to the workspace and can start working on your assigned applications.</p></div><div className="aside-stat"><strong>Invited workspace member</strong><span>Set password · Enter workspace · Start reviewing</span></div></div>
+  </div>
+}
+
 function PublicApplication({slug}:{slug:string}) {
   const [loading,setLoading]=useState(true), [error,setError]=useState(''), [submitted,setSubmitted]=useState(false), [uniqueId,setUniqueId]=useState('')
   const [app,setApp]=useState<{id:string;name:string;description:string|null;deadline:string|null} | null>(null)
@@ -211,6 +250,7 @@ function LandingPage() {
 
 function App() {
   const [sessionReady, setSessionReady] = useState(false)
+  const [invitePending, setInvitePending] = useState(()=>new URLSearchParams(window.location.search).get('invite') === '1')
   const [session, setSession] = useState<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [organization, setOrganization] = useState<Organization | null>(null)
@@ -272,7 +312,7 @@ function App() {
       try {
         const { data } = await supabase.auth.getSession()
         setSession(data.session)
-        if (data.session) await loadWorkspace(data.session)
+        if (data.session && !invitePending) await loadWorkspace(data.session)
       } catch (err) {
         // Keep public pages usable if Supabase is unavailable, but surface the error
         // when the app needs an authenticated workspace.
@@ -284,7 +324,7 @@ function App() {
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next)
-      if (next) loadWorkspace(next)
+      if (next && !invitePending) loadWorkspace(next)
     })
 
     restoreSession()
@@ -297,6 +337,11 @@ function App() {
   const firstName = profileName.split(' ')[0]
 
   if (window.location.pathname.startsWith('/apply/')) return <PublicApplication slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
+  if (invitePending && session) return <InviteSetupScreen email={session.user.email || ''} onComplete={async () => {
+    setInvitePending(false)
+    window.history.replaceState({}, '', '/')
+    await loadWorkspace(session)
+  }} />
   if (window.location.pathname === '/login' && !session) return <AuthScreen onSignedIn={async () => {
     const { data } = await supabase.auth.getSession()
     setSession(data.session)
