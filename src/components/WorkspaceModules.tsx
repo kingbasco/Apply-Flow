@@ -383,11 +383,12 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
 
  const exportApplicants=()=>{
   const application=applications.find(a=>a.id===selectedApplicationId)
-  if(!application||!rows.length)return
+  const selectedRows=rows.filter(row=>selectedSubmissionIds.includes(row.submissionId))
+  if(!application||!selectedRows.length)return
   const escapeCsv=(value:string)=>'"'+value.replace(/"/g,'""')+'"'
   const csv=[
    ['Applicant ID','Full Name','Email Address'],
-   ...rows.map(row=>[row.uniqueId,row.applicantName,row.email||''])
+   ...selectedRows.map(row=>[row.uniqueId,row.applicantName,row.email||''])
   ].map(row=>row.map(value=>escapeCsv(String(value??''))).join(',')).join('\n')
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'})
   const url=URL.createObjectURL(blob)
@@ -398,7 +399,12 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
   link.click()
   link.remove()
   URL.revokeObjectURL(url)
+  setSelectedSubmissionIds([])
  }
+
+ const toggleApplicant=(submissionId:string)=>setSelectedSubmissionIds(current=>current.includes(submissionId)?current.filter(id=>id!==submissionId):[...current,submissionId])
+ const allFilteredSelected=filtered.length>0&&filtered.every(row=>selectedSubmissionIds.includes(row.submissionId))
+ const toggleAllFiltered=()=>setSelectedSubmissionIds(current=>allFilteredSelected?current.filter(id=>!filtered.some(row=>row.submissionId===id)):Array.from(new Set([...current,...filtered.map(row=>row.submissionId)])))
 
  const setDecision=async(row:ScreeningRow,decision:'approved'|'rejected')=>{
   setError('')
@@ -460,6 +466,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
     <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label={allFilteredSelected?"Deselect all visible applicants":"Select all visible applicants"} checked={allFilteredSelected} onChange={toggleAllFiltered} disabled={!filtered.length}/></th><th>Applicant</th><th>Unique ID</th><th>Score</th><th>Eligibility</th><th>AI</th><th>Status</th><th></th></tr></thead><tbody>
      {loading?<tr><td colSpan={8}><div className="loading-card">Loading applicants…</div></td></tr>:!filtered.length?<tr><td colSpan={8}><div className="table-empty"><h3>{rows.length?'No applicants match your filters':'No submitted applications yet'}</h3><p>{rows.length?'Try another filter or search.':'Applications will appear here after applicants submit a form.'}</p></div></td></tr>:
      filtered.map(row=><tr key={row.submissionId}>
+      <td><input type="checkbox" aria-label={`Select ${row.applicantName}`} checked={selectedSubmissionIds.includes(row.submissionId)} onChange={()=>toggleApplicant(row.submissionId)}/></td>
       <td><strong>{row.applicantName}</strong><span className="table-sub">{row.email||'No email'}</span></td>
       <td><strong>{row.uniqueId}</strong></td><td>{row.score==null?'—':row.score.toFixed(1)}</td>
       <td><span className={'status '+(row.eligibility==='eligible'?'blue':row.eligibility==='ineligible'?'neutral':'amber')}>{row.eligibility}</span></td>
