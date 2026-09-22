@@ -362,7 +362,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
   if(!applications.length){setSelectedApplicationId('');setRows([]);return}
   setSelectedApplicationId(current=>applications.some(a=>a.id===current)?current:applications[0].id)
  },[applications])
- useEffect(()=>{load()},[applications,role,selectedApplicationId])
+ useEffect(()=>{setSelectedSubmissionIds([]);load()},[applications,role,selectedApplicationId])
 
  const counts=useMemo(()=>({
   total:rows.length,
@@ -432,7 +432,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
   <section>
    <div className="page-heading compact">
     <div><p className="eyebrow">Application screening</p><h1>Screening</h1><p className="subtitle">Open one application at a time. Applicants and screening results stay separated by programme.</p></div>
-    <div className="detail-actions"><button className="secondary-button" onClick={exportApplicants} disabled={loading||selectedSubmissionIds.length===0}><Download size={16}/> Export selected{selectedSubmissionIds.length?` (${selectedSubmissionIds.length})`:``}</button>{role!=='reviewer'&&<button className="primary-button" onClick={screenWithAI} disabled={aiBulkRunning||loading||!rows.length}>{aiBulkRunning?'Screening with AI…':'Screen with AI'}</button>}<button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
+    <div className="detail-actions">{role!=='reviewer'&&<button className="primary-button" onClick={screenWithAI} disabled={aiBulkRunning||loading||!rows.length}>{aiBulkRunning?'Screening with AI…':'Screen with AI'}</button>}<button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
    </div>
    {error&&<div className="form-error page-error">{error}</div>}
    <div className="card screening-application-picker">
