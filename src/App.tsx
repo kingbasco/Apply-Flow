@@ -338,6 +338,11 @@ function App() {
 
   if (window.location.pathname.startsWith('/apply/')) return <PublicApplication slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
   if (invitePending && session) return <InviteSetupScreen email={session.user.email || ''} onComplete={async () => {
+    const { error: profileError } = await supabase.from('profiles')
+      .update({ invitation_status: 'active' })
+      .eq('id', session.user.id)
+    if (profileError) throw profileError
+
     setInvitePending(false)
     window.history.replaceState({}, '', '/')
     await loadWorkspace(session)
