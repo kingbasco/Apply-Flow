@@ -764,3 +764,72 @@
   .form-settings-footer-actions button{flex:1}
   .settings-save-state{display:none}
 }
+
+/* Public application form — question and action layout fix */
+.public-question>label{
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  width:100%;
+}
+.public-question-number{
+  width:30px;
+  height:30px;
+  flex:0 0 30px;
+  display:grid;
+  place-items:center;
+  border-radius:8px;
+  background:#f1f2f5;
+  color:#7c838e;
+  font-size:9px;
+  font-weight:800;
+}
+.public-question-copy{
+  min-width:0;
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  padding-top:4px;
+}
+.public-question-title{
+  display:block;
+  color:#202630;
+  font-size:13px;
+  line-height:1.45;
+  font-weight:700;
+  overflow-wrap:normal;
+  word-break:normal;
+}
+.public-question-copy small{
+  display:block;
+  font-size:11px;
+  font-weight:400;
+  color:#7b8491;
+  line-height:1.55;
+}
+.public-form-actions{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  padding:22px 38px 30px;
+  border-top:1px solid #eceef1;
+  background:#fff;
+}
+.public-form-actions .form-error{
+  margin:0;
+  width:100%;
+}
+.public-submit{
+  align-self:flex-end;
+  min-width:190px;
+  min-height:44px;
+  margin:0;
+  padding:11px 18px;
+}
+@media(max-width:640px){
+  .public-question>label{gap:10px}
+  .public-question-title{font-size:12px}
+  .public-form-actions{padding:20px 20px 24px}
+  .public-submit{width:100%;min-width:0}
+}
