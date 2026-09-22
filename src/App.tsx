@@ -399,7 +399,7 @@ function getInitialWorkspaceRoute() {
   const key = parts[0]
   const activeMap: Record<string, string> = { dashboard:'Dashboard', applications:'Applications', forms:'Forms', screening:'Screening', reviews:'Reviews', participants:'Participants', analytics:'Analytics', team:'Team', settings:'Settings' }
   if (key === 'application' && parts[1]) {
-    const tab = (parts[2] || 'overview').replace(/^./, x => x.toUpperCase()) as 'Overview'|'Form'|'Eligibility'|'Scoring'|'Screening'|'Applicants'|'Reviews'|'Selection'|'Communications'
+    const tab = (parts[2] || 'overview').replace(/^./, x => x.toUpperCase()) as 'Overview'|'Form'|'Eligibility'|'Screening'|'Applicants'|'Reviews'|'Selection'|'Communications'
     return { active: 'Applications', applicationId: parts[1], tab }
   }
   return { active: activeMap[key] || 'Dashboard', applicationId: '', tab: 'Overview' as const }
@@ -503,7 +503,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null)
-  const [detailTab, setDetailTab] = useState<'Overview'|'Form'|'Eligibility'|'Scoring'|'Screening'|'Applicants'|'Reviews'|'Selection'|'Communications'>(initialRoute.tab)
+  const [detailTab, setDetailTab] = useState<'Overview'|'Form'|'Eligibility'|'Screening'|'Applicants'|'Reviews'|'Selection'|'Communications'>(initialRoute.tab)
   const [applicationSettings, setApplicationSettings] = useState<{ public_slug: string; confirmation_message: string } | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailSaving, setDetailSaving] = useState(false)
@@ -827,8 +827,8 @@ function ApplicantsPanel({applicationId}:{applicationId:string}) {
 function ApplicationDetails({ application, settings, tab, setTab, loading, saving, error, onBack, onSave }:{
   application: Application
   settings: {public_slug:string; confirmation_message:string} | null
-  tab: 'Overview'|'Form'|'Eligibility'|'Scoring'|'Screening'|'Applicants'|'Reviews'|'Selection'|'Communications'
-  setTab: (tab:'Overview'|'Form'|'Eligibility'|'Scoring'|'Screening'|'Applicants'|'Reviews'|'Selection'|'Communications') => void
+  tab: 'Overview'|'Form'|'Eligibility'|'Screening'|'Applicants'|'Reviews'|'Selection'|'Communications'
+  setTab: (tab:'Overview'|'Form'|'Eligibility'|'Screening'|'Applicants'|'Reviews'|'Selection'|'Communications') => void
   loading: boolean; saving: boolean; error: string; onBack:()=>void
   onSave:(patch:Partial<Application>, settingsPatch?:Partial<{public_slug:string;confirmation_message:string}>)=>Promise<void>
 }) {
@@ -837,7 +837,7 @@ function ApplicationDetails({ application, settings, tab, setTab, loading, savin
   const [slug,setSlug]=useState(settings?.public_slug||''), [message,setMessage]=useState(settings?.confirmation_message||'')
   useEffect(()=>{setName(application.name);setDescription(application.description||'');setDeadline(application.deadline||'');setTarget(application.target_count?.toString()||'');setParticipantCode(application.participant_code||'APP')},[application])
   useEffect(()=>{setSlug(settings?.public_slug||'');setMessage(settings?.confirmation_message||'')},[settings])
-  const tabs=['Overview','Form','Eligibility','Scoring','Screening','Applicants','Reviews','Selection','Communications'] as const
+  const tabs=['Overview','Form','Eligibility','Screening','Applicants','Reviews','Selection','Communications'] as const
   return <section className="application-detail">
     <button className="back-link" onClick={onBack}>← Back to applications</button>
     <div className="detail-header"><div><p className="eyebrow">Application programme</p><div className="detail-title-row"><h1>{application.name}</h1><span className={'status '+(application.status==='published'?'blue':application.status==='screening'?'amber':'neutral')}>{statusLabel(application.status)}</span></div><p className="subtitle">{application.description||'No description yet.'}</p></div><div className="detail-actions">{application.status==='draft'&&<button className="primary-button" disabled={saving} onClick={()=>onSave({status:'published'})}>Publish</button>}{application.status==='published'&&<button className="secondary-button" disabled={saving} onClick={()=>onSave({status:'closed'})}>Close applications</button>}</div></div>
@@ -846,7 +846,7 @@ function ApplicationDetails({ application, settings, tab, setTab, loading, savin
     {loading?<div className="loading-card card">Loading programme settings…</div>:error?<div className="form-error page-error">{error}</div>:tab==='Overview'?<div className="detail-grid">
       <div className="card detail-card"><div className="card-header"><div><h2>Programme details</h2><p>Update the basic information for this programme.</p></div></div><div className="detail-form"><label>Programme name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Participant ID code<input value={participantCode} onChange={e=>setParticipantCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''))} minLength={2} maxLength={12} required/><small className="field-help">Format: <strong>{participantCode||'HC2'}-{new Date(application.created_at).getFullYear()}-0001</strong>. The year and sequence are generated automatically.</small></label><label>Description<textarea rows={5} value={description} onChange={e=>setDescription(e.target.value)}/></label><div className="form-grid"><label>Application deadline<input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)}/></label><label>Target number<input type="number" min="0" value={target} onChange={e=>setTarget(e.target.value)}/></label></div><div className="detail-form-footer"><button className="primary-button" disabled={saving} onClick={()=>onSave({name:name.trim(),description:description.trim()||null,deadline:deadline||null,target_count:target?Number(target):null,participant_code:participantCode.trim().toUpperCase()})}>{saving?'Saving…':'Save changes'}</button></div></div></div>
       <div className="card detail-card"><div className="card-header"><div><h2>Public application</h2><p>Settings applicants will see.</p></div></div><div className="detail-form"><label>Public slug<input value={slug} onChange={e=>setSlug(e.target.value)}/></label><label>Confirmation message<textarea rows={5} value={message} onChange={e=>setMessage(e.target.value)}/></label><div className="detail-form-footer"><button className="secondary-button" disabled={saving} onClick={()=>onSave({}, {public_slug:slug.trim(),confirmation_message:message.trim()||'Thank you. Your application has been received.'})}>Save public settings</button></div></div></div>
-    </div>:tab==='Form'?<FormBuilder applicationId={application.id}/>:tab==='Applicants'?<ApplicantsPanel applicationId={application.id}/>:tab==='Eligibility'?<EligibilityBuilder applicationId={application.id}/>:tab==='Scoring'?<ScoringBuilder applicationId={application.id}/>:tab==='Screening'?<ScreeningPanel applicationId={application.id}/>:tab==='Reviews'?<ReviewsPanel applicationId={application.id}/>:tab==='Selection'?<SelectionPanel applicationId={application.id}/>:tab==='Communications'?<CommunicationsPanel applicationId={application.id}/>:<div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{tab} is next</h2><p>This section is connected to the programme workspace and will be built on the live data model.</p></div>}
+    </div>:tab==='Form'?<FormBuilder applicationId={application.id}/>:tab==='Applicants'?<ApplicantsPanel applicationId={application.id}/>:tab==='Eligibility'?<EligibilityBuilder applicationId={application.id}/>:tab==='Screening'?<ScreeningPanel applicationId={application.id}/>:tab==='Reviews'?<ReviewsPanel applicationId={application.id}/>:tab==='Selection'?<SelectionPanel applicationId={application.id}/>:tab==='Communications'?<CommunicationsPanel applicationId={application.id}/>:<div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{tab} is next</h2><p>This section is connected to the programme workspace and will be built on the live data model.</p></div>}
   </section>
 }
 
@@ -971,61 +971,105 @@ function EligibilityBuilder({applicationId}:{applicationId:string}) {
   </div>
 }
 
-type ScoringCriterion={id:string;application_id:string;name:string;description:string|null;weight:number;max_score:number;source:'manual'|'automatic'|'ai';position:number;enabled:boolean}
-function ScoringBuilder({applicationId}:{applicationId:string}){
- const [criteria,setCriteria]=useState<ScoringCriterion[]>([]),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[notice,setNotice]=useState('')
- const total=useMemo(()=>criteria.filter(c=>c.enabled).reduce((s,c)=>s+Number(c.weight||0),0),[criteria])
- async function load(){setLoading(true);const {data,error}=await supabase.from('scoring_criteria').select('id,application_id,name,description,weight,max_score,source,position,enabled').eq('application_id',applicationId).order('position');if(error)setNotice(error.message);else setCriteria((data||[]) as ScoringCriterion[]);setLoading(false)}
- useEffect(()=>{load()},[applicationId])
- async function add(){setBusy(true);setNotice('');const {data,error}=await supabase.from('scoring_criteria').insert({application_id:applicationId,name:'New scoring criterion',description:'',weight:0,max_score:10,source:'manual',position:criteria.length,enabled:true}).select('id,application_id,name,description,weight,max_score,source,position,enabled').single();if(error)setNotice(error.message);else setCriteria(x=>[...x,data as ScoringCriterion]);setBusy(false)}
- async function update(id:string,patch:Partial<ScoringCriterion>){setBusy(true);setNotice('');const {data,error}=await supabase.from('scoring_criteria').update({...patch,updated_at:new Date().toISOString()}).eq('id',id).select('id,application_id,name,description,weight,max_score,source,position,enabled').single();if(error)setNotice(error.message);else setCriteria(x=>x.map(c=>c.id===id?data as ScoringCriterion:c));setBusy(false)}
- async function remove(id:string){setBusy(true);const {error}=await supabase.from('scoring_criteria').delete().eq('id',id);if(error)setNotice(error.message);else setCriteria(x=>x.filter(c=>c.id!==id));setBusy(false)}
- if(loading)return <div className="loading-card card">Loading scoring criteria…</div>
- const valid=Math.abs(total-100)<0.001
- return <div className="scoring-builder">
-  <div className="builder-top"><div><p className="eyebrow">Scoring</p><h2>Scoring criteria</h2><p>Define what reviewers score and how much each criterion contributes to the final score.</p></div><div className="builder-actions">{notice&&<span className="builder-notice">{notice}</span>}<button className="primary-button" disabled={busy} onClick={add}><Plus size={14}/> Add criterion</button></div></div>
-  <div className={valid?'score-total valid':'score-total'}><div><span>Total weight</span><strong>{total.toFixed(1)}%</strong></div><div><span>{valid?'Ready to score':'Weights must total 100%'}</span><div className="score-bar"><i style={{width:Math.min(total,100)+'%'}}/></div></div></div>
-  {!criteria.length?<div className="card builder-empty"><ShieldCheck size={24}/><h3>No scoring criteria yet</h3><p>Add criteria such as business experience, programme fit, need, or application quality.</p><button className="secondary-button" onClick={add}>Create first criterion</button></div>:
-  <div className="scoring-list">{criteria.map((c,i)=><div className="card scoring-item" key={c.id}>
-   <div className="question-card-top"><span className="question-number">{i+1}</span><span className="question-kind">{c.source}</span><button className="icon-button question-delete" onClick={()=>remove(c.id)}><X size={15}/></button></div>
-   <div className="form-grid">
-    <label>Criterion name<input value={c.name} onChange={e=>update(c.id,{name:e.target.value})}/></label>
-    <label>Weight (%)<input type="number" min="0" max="100" step="0.1" value={c.weight} onChange={e=>update(c.id,{weight:Number(e.target.value)})}/></label>
-   </div>
-   <div className="form-grid">
-    <label>Description<textarea value={c.description||''} onChange={e=>update(c.id,{description:e.target.value})} placeholder="What should the reviewer consider?"/></label>
-    <div className="form-grid">
-      <label>Max score<input type="number" min="1" step="1" value={c.max_score} onChange={e=>update(c.id,{max_score:Number(e.target.value)})}/></label>
-      <label>Source<select value={c.source} onChange={e=>update(c.id,{source:e.target.value as ScoringCriterion['source']})}><option value="manual">Manual</option><option value="automatic">Automatic</option><option value="ai">AI-assisted</option></select></label>
-    </div>
-   </div>
-   <div className="detail-form-footer"><label className="toggle-row"><span>Enabled</span><input type="checkbox" checked={c.enabled} onChange={e=>update(c.id,{enabled:e.target.checked})}/></label><span className="muted">Criterion {i+1} · {Number(c.weight||0).toFixed(1)}% of final score</span></div>
-  </div>)}</div>}
-  <div className="card" style={{padding:18,marginTop:14}}><p className="eyebrow">Scoring model</p><p className="muted" style={{margin:0}}>Each criterion gets a score up to its max score. ApplyFlow will use the weights to calculate an overall score once scoring is completed. AI-assisted scoring remains reviewable by a human.</p></div>
- </div>
-}
-
 type ReviewRow={id:string;submission_id:string;reviewer_id:string;status:'assigned'|'in_progress'|'completed';score:number|null;notes:string|null;created_at:string;updated_at:string}
 
 type SelectionStatus='submitted'|'shortlisted'|'selected'|'waitlisted'|'rejected'
 function SelectionPanel({applicationId}:{applicationId:string}){
  const [rows,setRows]=useState<any[]>([]),[target,setTarget]=useState<number|null>(null),[filter,setFilter]=useState<'all'|SelectionStatus>('all'),[notice,setNotice]=useState(''),[loading,setLoading]=useState(true)
- async function load(){setLoading(true);const {data,error}=await supabase.from('applications').select('target_count').eq('id',applicationId).single();if(error)setNotice(error.message);setTarget(data?.target_count??null);const {data:subs,error:se}=await supabase.from('submissions').select('id,status,submitted_at,applicants!inner(full_name,email),submission_selections(status,updated_at)').eq('application_id',applicationId).order('submitted_at',{ascending:false});if(se)setNotice(se.message);else setRows((subs||[]).map((x:any)=>({...x,selection_status:x.submission_selections?.[0]?.status||'submitted'})));setLoading(false)}
- useEffect(()=>{load()},[applicationId])
- const selectedCount=rows.filter(r=>r.selection_status==='selected').length,shortlistedCount=rows.filter(r=>r.selection_status==='shortlisted').length
- async function changeStatus(submissionId:string,status:SelectionStatus){const current=rows.find(r=>r.id===submissionId);if(!current)return;setNotice('');if(status==='selected'&&target!==null&&selectedCount>=target){setNotice(`Target of ${target} selected applicants has been reached. You can still select this applicant, but the target will be exceeded.`)}
- const {data:user}=await supabase.auth.getUser();const {error}=await supabase.from('submission_selections').upsert({submission_id:submissionId,status,decided_by:user.user?.id||null,decided_at:new Date().toISOString()},{onConflict:'submission_id'}).select('submission_id,status').single();if(error){setNotice(error.message);return}
- await supabase.from('selection_audit_logs').insert({submission_id:submissionId,action:'status_changed',from_status:current.selection_status,to_status:status,actor_id:user.user?.id||null,metadata:{target_count:target,selected_count_before:selectedCount}})
- setRows(x=>x.map(r=>r.id===submissionId?{...r,selection_status:status}:r))
+
+ async function load(){
+  setLoading(true);setNotice('')
+  const {data:application,error}=await supabase.from('applications').select('target_count').eq('id',applicationId).single()
+  if(error)setNotice(error.message)
+  setTarget(application?.target_count??null)
+
+  const {data:subs,error:se}=await supabase
+   .from('submissions')
+   .select('id,status,submitted_at,applicants!inner(full_name,email),submission_scores(overall_score),submission_eligibility(status),submission_selections(status,updated_at)')
+   .eq('application_id',applicationId)
+   .order('submitted_at',{ascending:false})
+
+  if(se)setNotice(se.message)
+  else setRows((subs||[]).map((x:any)=>({
+   ...x,
+   selection_status:x.submission_selections?.[0]?.status||'submitted',
+   score:x.submission_scores?.[0]?.overall_score??null,
+   eligibility:x.submission_eligibility?.[0]?.status||'pending',
+  })))
+  setLoading(false)
  }
+
+ useEffect(()=>{load()},[applicationId])
+
+ const selectedCount=rows.filter(r=>r.selection_status==='selected').length
+ const shortlistedCount=rows.filter(r=>r.selection_status==='shortlisted').length
+ const scoredCount=rows.filter(r=>r.score!==null&&r.score!==undefined).length
+ const averageScore=scoredCount?rows.filter(r=>r.score!==null&&r.score!==undefined).reduce((sum,r)=>sum+Number(r.score),0)/scoredCount:null
+
+ async function changeStatus(submissionId:string,status:SelectionStatus){
+  const current=rows.find(r=>r.id===submissionId)
+  if(!current)return
+  setNotice('')
+  if(status==='selected'&&target!==null&&selectedCount>=target){
+   setNotice(`Target of ${target} selected applicants has been reached. You can still select this applicant, but the target will be exceeded.`)
+  }
+  const {data:user}=await supabase.auth.getUser()
+  const {error}=await supabase.from('submission_selections').upsert({
+   submission_id:submissionId,status,decided_by:user.user?.id||null,decided_at:new Date().toISOString()
+  },{onConflict:'submission_id'}).select('submission_id,status').single()
+  if(error){setNotice(error.message);return}
+  await supabase.from('selection_audit_logs').insert({
+   submission_id:submissionId,
+   action:'status_changed',
+   from_status:current.selection_status,
+   to_status:status,
+   actor_id:user.user?.id||null,
+   metadata:{target_count:target,selected_count_before:selectedCount}
+  })
+  setRows(x=>x.map(r=>r.id===submissionId?{...r,selection_status:status}:r))
+ }
+
  if(loading)return <div className="loading-card card">Loading selection workspace…</div>
  const filtered=filter==='all'?rows:rows.filter(r=>r.selection_status===filter)
+
  return <div className="selection-panel">
-  <div className="builder-top"><div><p className="eyebrow">Selection</p><h2>Shortlist & final selection</h2><p>Move applicants through shortlist, selection, waitlist, or rejection. Target limits warn but never silently block a decision.</p></div>{notice&&<span className="builder-notice">{notice}</span>}</div>
-  <div className="selection-summary"><div className="card"><span>Shortlisted</span><strong>{shortlistedCount}</strong></div><div className="card"><span>Selected</span><strong>{selectedCount}{target!==null?<small> / {target}</small>:null}</strong></div><div className="card"><span>Waitlisted</span><strong>{rows.filter(r=>r.selection_status==='waitlisted').length}</strong></div><div className="card"><span>Rejected</span><strong>{rows.filter(r=>r.selection_status==='rejected').length}</strong></div></div>
-  <div className="selection-filters">{(['all','shortlisted','selected','waitlisted','rejected'] as const).map(x=><button key={x} className={filter===x?'filter-active':''} onClick={()=>setFilter(x)}>{x==='all'?'All':x.charAt(0).toUpperCase()+x.slice(1)}</button>)}</div>
-  {!filtered.length?<div className="card builder-empty"><ShieldCheck size={24}/><h3>No applicants in this view</h3><p>Submitted applications will appear here for selection decisions.</p></div>:<div className="card selection-table"><div className="selection-head"><span>Applicant</span><span>Status</span><span>Decision</span><span>Updated</span></div>{filtered.map(r=><div className="selection-row" key={r.id}><span><strong>{r.applicants?.full_name||'Unnamed applicant'}</strong><small>{r.applicants?.email||''}</small></span><span className={`selection-pill ${r.selection_status}`}>{r.selection_status}</span><select value={r.selection_status} onChange={e=>changeStatus(r.id,e.target.value as SelectionStatus)}><option value="submitted">Submitted</option><option value="shortlisted">Shortlist</option><option value="selected">Select</option><option value="waitlisted">Waitlist</option><option value="rejected">Reject</option></select><span>{r.submission_selections?.[0]?.updated_at?formatDate(r.submission_selections[0].updated_at):'—'}</span></div>)}</div>}
-  <div className="card selection-note"><p className="eyebrow">Decision record</p><p>Every status change is recorded with the actor, previous status, new status, timestamp, and target count snapshot.</p></div>
+  <div className="builder-top">
+   <div>
+    <p className="eyebrow">Selection</p>
+    <h2>Score & select applicants</h2>
+    <p>Use the reviewer score alongside eligibility to shortlist, select, waitlist, or reject applicants. There are no weighted criteria to configure.</p>
+   </div>
+   {notice&&<span className="builder-notice">{notice}</span>}
+  </div>
+
+  <div className="selection-summary">
+   <div className="card"><span>Scored</span><strong>{scoredCount}<small> / {rows.length}</small></strong></div>
+   <div className="card"><span>Average score</span><strong>{averageScore===null?'—':averageScore.toFixed(1)}<small>{averageScore===null?'':' / 100'}</small></strong></div>
+   <div className="card"><span>Shortlisted</span><strong>{shortlistedCount}</strong></div>
+   <div className="card"><span>Selected</span><strong>{selectedCount}{target!==null?<small> / {target}</small>:null}</strong></div>
+  </div>
+
+  <div className="selection-filters">
+   {(['all','shortlisted','selected','waitlisted','rejected'] as const).map(x=><button key={x} className={filter===x?'filter-active':''} onClick={()=>setFilter(x)}>{x==='all'?'All':x.charAt(0).toUpperCase()+x.slice(1)}</button>)}
+  </div>
+
+  {!filtered.length?<div className="card builder-empty"><ShieldCheck size={24}/><h3>No applicants in this view</h3><p>Submitted applications will appear here for selection decisions.</p></div>:
+   <div className="card selection-table">
+    <div className="selection-head"><span>Applicant</span><span>Eligibility</span><span>Score</span><span>Status</span><span>Decision</span><span>Updated</span></div>
+    {filtered.map(r=><div className="selection-row" key={r.id}>
+     <span><strong>{r.applicants?.full_name||'Unnamed applicant'}</strong><small>{r.applicants?.email||''}</small></span>
+     <span className={`selection-eligibility ${r.eligibility}`}>{r.eligibility}</span>
+     <span className="selection-score">{r.score===null||r.score===undefined?'—':<><strong>{Number(r.score).toFixed(1)}</strong><small>/ 100</small></>}</span>
+     <span className={`selection-pill ${r.selection_status}`}>{r.selection_status}</span>
+     <select value={r.selection_status} onChange={e=>changeStatus(r.id,e.target.value as SelectionStatus)} aria-label={`Change selection status for ${r.applicants?.full_name||'applicant'}`}>
+      <option value="submitted">Submitted</option><option value="shortlisted">Shortlist</option><option value="selected">Select</option><option value="waitlisted">Waitlist</option><option value="rejected">Reject</option>
+     </select>
+     <span>{r.submission_selections?.[0]?.updated_at?formatDate(r.submission_selections[0].updated_at):'—'}</span>
+    </div>)}
+   </div>
+  }
+
+  <div className="card selection-note"><p className="eyebrow">How scoring works</p><p>Reviewers give each applicant a simple score from 0–100 during application review. Selection uses that score together with eligibility and the reviewer's decision. No percentage weights or scoring criteria are required.</p></div>
  </div>
 }
 function ReviewsPanel({applicationId}:{applicationId:string}){
