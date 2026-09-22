@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { BadgeCheck, CalendarCheck2, Gift, Upload, Plus, Search, X, Users, CheckCircle2 } from 'lucide-react'
+import { BadgeCheck, CalendarCheck2, Gift, Upload, Plus, Search, X, Users, CheckCircle2, ChevronDown, Mail, Hash } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 type Application = { id:string; name:string }
@@ -235,11 +235,10 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
       </div>
     </div>
 
-    <div className="card" style={{padding:14,marginBottom:18,display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-      <div><p className="eyebrow" style={{marginBottom:3}}>Current application</p><strong>{appName(applicationFilter)}</strong><p className="muted" style={{margin:0}}>Participants, attendance and benefits below are scoped to this application.</p></div>
-      <select aria-label="Select application" value={applicationFilter} onChange={e=>setApplicationFilter(e.target.value)} style={{marginLeft:'auto',minWidth:240}}>
-        {applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
-      </select>
+    <div className="participant-application-picker card">
+      <div className="participant-picker-icon"><Users size={19}/></div>
+      <div className="participant-picker-copy"><p className="eyebrow">Current application</p><strong>{appName(applicationFilter)}</strong><p>Choose an application to view its participants, attendance and benefits.</p></div>
+      <label className="participant-select-field"><span>Select application</span><div className="participant-select-wrap"><select aria-label="Select application" value={applicationFilter} onChange={e=>setApplicationFilter(e.target.value)}>{applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select><ChevronDown size={16}/></div></label>
     </div>
 
     <div className="tabs" style={{display:'flex',gap:8,marginBottom:18}}>
@@ -263,8 +262,9 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
           <div><h2>Participant directory</h2><p>Showing participants selected and enrolled for the current application.</p></div>
           <div className="search"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search participants…"/></div>
         </div>
-        <div style={{display:'flex',gap:10,padding:'0 18px 16px',flexWrap:'wrap'}}>
-                    <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value as any)}><option value="all">All statuses</option><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select>
+        <div className="participant-directory-filters">
+          <label className="participant-select-field"><span>Filter by status</span><div className="participant-select-wrap"><select aria-label="Filter participants by status" value={statusFilter} onChange={e=>setStatusFilter(e.target.value as any)}><option value="all">All statuses</option><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select><ChevronDown size={16}/></div></label>
+          <span className="participant-filter-count">{filtered.length} participant{filtered.length===1?'':'s'}</span>
         </div>
         <div className="table-wrap"><table><thead><tr><th>Participant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
           {filtered.length?filtered.map(p=><tr key={p.id} className="clickable-row" onClick={()=>openParticipant(p)}>
@@ -326,22 +326,35 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
       </div>
     </div>}
 
-    {selectedParticipant&&<div className="preview-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSelectedParticipant(null)}}>
-      <div className="preview-panel card" style={{maxWidth:720}}>
-        <div className="preview-header"><div><p className="eyebrow">Participant profile</p><h2>{selectedParticipant.participant_code}</h2><p>{selectedParticipant.full_name||'Unnamed participant'} · {appName(selectedParticipant.application_id)}</p></div><button className="icon-button" onClick={()=>setSelectedParticipant(null)} aria-label="Close"><X size={18}/></button></div>
-        <div className="dashboard-grid" style={{marginBottom:16}}>
-          <div className="card"><p className="eyebrow">Status</p><select value={selectedParticipant.status} disabled={saving} onChange={e=>updateParticipantStatus(selectedParticipant.id,e.target.value as Participant['status'])}><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select></div>
-          <div className="card"><p className="eyebrow">Attendance</p><strong>{selectedParticipant.attendance_count||0} present</strong></div>
-          <div className="card"><p className="eyebrow">Joined</p><strong>{new Date(selectedParticipant.joined_at).toLocaleDateString()}</strong></div>
+    {selectedParticipant&&<div className="preview-backdrop participant-profile-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSelectedParticipant(null)}}>
+      <div className="participant-profile-modal">
+        <div className="participant-profile-header">
+          <div className="participant-profile-identity">
+            <div className="participant-avatar">{(selectedParticipant.full_name||'P').trim().charAt(0).toUpperCase()}</div>
+            <div><p className="eyebrow">Participant profile</p><h2>{selectedParticipant.full_name||'Unnamed participant'}</h2><div className="participant-profile-meta"><span><Hash size={13}/>{selectedParticipant.participant_code}</span><span>{appName(selectedParticipant.application_id)}</span></div></div>
+          </div>
+          <button className="icon-button" onClick={()=>setSelectedParticipant(null)} aria-label="Close"><X size={18}/></button>
         </div>
-        <div className="card" style={{padding:16,marginBottom:16}}>
-          <div className="card-header" style={{padding:0,marginBottom:12}}><div><h3 style={{margin:0}}>Attendance history</h3><p className="muted" style={{margin:'4px 0 0'}}>Attendance records for this participant in this application.</p></div></div>
-          {participantAttendanceLoading?<div className="loading-card">Loading attendance history…</div>:participantAttendance.length?<div className="table-wrap"><table><thead><tr><th>Session</th><th>Date</th><th>Status</th><th>Recorded</th></tr></thead><tbody>{participantAttendance.map(r=><tr key={r.id}><td><strong>{Array.isArray(r.attendance_sessions)?r.attendance_sessions[0]?.title||'Session':r.attendance_sessions?.title||'Session'}</strong></td><td>{(Array.isArray(r.attendance_sessions)?r.attendance_sessions[0]?.session_date:r.attendance_sessions?.session_date)?new Date((Array.isArray(r.attendance_sessions)?r.attendance_sessions[0]?.session_date:r.attendance_sessions?.session_date) as string).toLocaleDateString():'—'}</td><td><span className={'status '+(r.status==='present'?'green':'neutral')}>{r.status}</span></td><td>{new Date(r.marked_at).toLocaleString()}</td></tr>)}</tbody></table></div>:<div className="table-empty">No attendance history yet.</div>}
+        <div className="participant-profile-body">
+          <div className="participant-profile-statusbar">
+            <div><span className="eyebrow">Participation status</span><strong>{selectedParticipant.status==='active'?'Active / Enrolled':selectedParticipant.status==='completed'?'Completed':'Withdrawn'}</strong><small>Update the participant's current programme status.</small></div>
+            <label className="participant-status-select"><span>Change status</span><div className="participant-select-wrap"><select value={selectedParticipant.status} disabled={saving} onChange={e=>updateParticipantStatus(selectedParticipant.id,e.target.value as Participant['status'])}><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select><ChevronDown size={16}/></div></label>
+          </div>
+          <div className="participant-profile-stats">
+            <div><span>Attendance</span><strong>{selectedParticipant.attendance_count||0}</strong><small>sessions present</small></div>
+            <div><span>Joined</span><strong>{new Date(selectedParticipant.joined_at).toLocaleDateString()}</strong><small>programme start</small></div>
+            <div><span>Programme</span><strong>{appName(selectedParticipant.application_id)}</strong><small>current application</small></div>
+          </div>
+          <section className="participant-profile-section">
+            <div className="participant-section-heading"><div><p className="eyebrow">Attendance</p><h3>Attendance history</h3><p>Attendance records for this participant in this application.</p></div><CalendarCheck2 size={19}/></div>
+            {participantAttendanceLoading?<div className="loading-card">Loading attendance history…</div>:participantAttendance.length?<div className="table-wrap participant-profile-table"><table><thead><tr><th>Session</th><th>Date</th><th>Status</th><th>Recorded</th></tr></thead><tbody>{participantAttendance.map(r=><tr key={r.id}><td><strong>{Array.isArray(r.attendance_sessions)?r.attendance_sessions[0]?.title||'Session':r.attendance_sessions?.title||'Session'}</strong></td><td>{(Array.isArray(r.attendance_sessions)?r.attendance_sessions[0]?.session_date:r.attendance_sessions?.session_date)?new Date((Array.isArray(r.attendance_sessions)?r.attendance_sessions[0]?.session_date:r.attendance_sessions?.session_date) as string).toLocaleDateString():'—'}</td><td><span className={'status '+(r.status==='present'?'green':'neutral')}>{r.status}</span></td><td>{new Date(r.marked_at).toLocaleString()}</td></tr>)}</tbody></table></div>:<div className="table-empty">No attendance history yet.</div>}
+          </section>
+          <section className="participant-profile-section participant-contact-section">
+            <div className="participant-section-heading"><div><p className="eyebrow">Contact details</p><h3>Participant information</h3></div><Mail size={18}/></div>
+            <div className="participant-contact-grid"><div><span>Name</span><strong>{selectedParticipant.full_name||'Unnamed participant'}</strong></div><div><span>Email</span><strong>{selectedParticipant.email||'No email available'}</strong></div></div>
+          </section>
         </div>
-        <div className="card" style={{padding:16}}>
-          <p className="eyebrow">Contact</p><p style={{margin:'4px 0'}}><strong>{selectedParticipant.full_name||'Unnamed participant'}</strong></p><p className="muted" style={{margin:0}}>{selectedParticipant.email||'No email available'}</p>
-        </div>
-        <div className="preview-footer"><button className="secondary-button" onClick={()=>setSelectedParticipant(null)}>Close</button></div>
+        <div className="participant-profile-footer"><button className="secondary-button" onClick={()=>setSelectedParticipant(null)}>Close profile</button></div>
       </div>
     </div>}
   </section>
