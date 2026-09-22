@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CheckCircle2, FileSpreadsheet, Upload, X } from 'lucide-react'
+import { CheckCircle2, ChevronDown, FileSpreadsheet, Search, Upload, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 type Application = { id: string; name: string }
@@ -98,6 +98,15 @@ export function GoogleFormImport({
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
+  const [programmeOpen, setProgrammeOpen] = useState(false)
+  const [programmeSearch, setProgrammeSearch] = useState('')
+
+  const selectedApplication = applications.find((application) => application.id === applicationId) || null
+  const filteredApplications = useMemo(() => {
+    const query = programmeSearch.trim().toLowerCase()
+    if (!query) return applications
+    return applications.filter((application) => application.name.toLowerCase().includes(query))
+  }, [applications, programmeSearch])
 
   const questionHeaders = useMemo(
     () => parsed.headers.filter((header) => !isTimestampHeader(header)),
@@ -251,7 +260,7 @@ export function GoogleFormImport({
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Import Google Form responses">
-      <div className="modal card import-modal">
+      <div className="modal card import-modal import-modal-redesign">
         <div className="modal-header">
           <div>
             <p className="eyebrow">Phase 1 · Google Forms</p>
@@ -280,17 +289,90 @@ export function GoogleFormImport({
         ) : (
           <>
             <div className="modal-form">
-              <label>
-                Programme
-                <select value={applicationId} onChange={(event) => setApplicationId(event.target.value)}>
-                  {applications.map((application) => (
-                    <option key={application.id} value={application.id}>{application.name}</option>
-                  ))}
-                </select>
-              </label>
+              <div className="import-field">
+                <div className="import-field-label">
+                  <span>Programme</span>
+                  <span className="import-field-hint">Where these responses will be added</span>
+                </div>
+                <div className="programme-picker">
+                  <button
+                    type="button"
+                    className={programmeOpen ? 'programme-picker-trigger open' : 'programme-picker-trigger'}
+                    onClick={() => setProgrammeOpen((open) => !open)}
+                    aria-haspopup="listbox"
+                    aria-expanded={programmeOpen}
+                  >
+                    <span className="programme-picker-value">
+                      <span className="programme-picker-icon"><FileSpreadsheet size={16} /></span>
+                      <span>
+                        <strong>{selectedApplication?.name || 'Select a programme'}</strong>
+                        <small>{selectedApplication ? 'Responses will be added to this programme' : 'Choose a destination for this import'}</small>
+                      </span>
+                    </span>
+                    <ChevronDown size={17} className="programme-picker-chevron" />
+                  </button>
 
-              <label>
-                Google Forms CSV
+                  {programmeOpen && (
+                    <div className="programme-picker-menu" role="listbox" aria-label="Programme">
+                      <div className="programme-picker-search">
+                        <Search size={16} />
+                        <input
+                          autoFocus
+                          value={programmeSearch}
+                          onChange={(event) => setProgrammeSearch(event.target.value)}
+                          placeholder="Search programmes…"
+                          aria-label="Search programmes"
+                        />
+                      </div>
+                      <div className="programme-picker-options">
+                        {filteredApplications.length ? filteredApplications.map((application) => (
+                          <button
+                            type="button"
+                            key={application.id}
+                            className={application.id === applicationId ? 'programme-option selected' : 'programme-option'}
+                            onClick={() => {
+                              setApplicationId(application.id)
+                              setProgrammeOpen(false)
+                              setProgrammeSearch('')
+                            }}
+                            role="option"
+                            aria-selected={application.id === applicationId}
+                          >
+                            <span className="programme-option-icon"><FileSpreadsheet size={15} /></span>
+                            <span className="programme-option-copy">
+                              <strong>{application.name}</strong>
+                              <small>Application programme</small>
+                            </span>
+                            {application.id === applicationId && <CheckCircle2 size={17} />}
+                          </button>
+                        )) : (
+                          <div className="programme-picker-empty">No programmes match “{programmeSearch}”.</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="import-field">
+                <div className="import-field-label">
+                  <span>Google Forms CSV</span>
+                  <span className="import-field-hint">CSV only · Maximum 15 MB</span>
+                </div>
+                <label className="import-dropzone">
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    onChange={(event) => readFile(event.target.files?.[0] || null)}
+                  />
+                  <span className="import-upload-icon"><Upload size={20} /></span>
+                  <strong>{file ? file.name : 'Choose CSV file'}</strong>
+                  <span>{file ? 'File loaded. Click to replace it.' : 'Drag and drop your CSV here, or click to browse.'}</span>
+                  <small>Google Forms response exports work best in CSV format.</small>
+                </label>
+              </div>
+
+              {parsed.headers.length > 0 && (
                 <span className="import-dropzone">
                   <input
                     type="file"
