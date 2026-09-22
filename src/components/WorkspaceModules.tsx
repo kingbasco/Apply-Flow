@@ -498,8 +498,8 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
  const aiRecommendation=data?.ai?.recommendation||data?.ai?.decision||null
 
  return (
-  <div className="screening-review-page" role="dialog" aria-modal="true" aria-label="Review application">
-   <div className="screening-review-shell">
+  <div className="screening-review-backdrop" role="dialog" aria-modal="true" aria-label="Review application">
+   <div className="screening-review-modal">
     <header className="screening-review-header">
      <div className="screening-review-heading">
       <div className="screening-review-heading-copy">
