@@ -1243,3 +1243,51 @@
 .benefits-form .primary-button{width:100%;justify-content:center;margin-top:2px}
 .benefits-list-card .table-wrap{min-height:260px}
 @media(max-width:900px){.benefits-layout{grid-template-columns:1fr}}
+
+
+/* Eligibility builder polish */
+.eligibility-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.75fr);gap:18px;align-items:start}
+.eligibility-column{min-width:0}
+.eligibility-rules-card,.eligibility-summary-card{height:100%;overflow:hidden}
+.eligibility-rules-card .card-header,.eligibility-summary-card .card-header{padding:18px 20px}
+.eligibility-rules-card .card-header h2,.eligibility-summary-card .card-header h2{margin:3px 0 4px;font-size:16px}
+.eligibility-rules-card .card-header p:not(.eyebrow),.eligibility-summary-card .card-header p:not(.eyebrow){margin:0;color:#737b89;font-size:11px;line-height:1.5}
+.eligibility-rules-card .card-header>svg,.eligibility-summary-card .card-header>svg{color:#5968d5;flex:0 0 auto}
+.eligibility-list{padding:16px}
+.eligibility-rule{padding:16px;border:1px solid #e5e8ee;border-radius:14px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.03)}
+.eligibility-rule+.eligibility-rule{margin-top:12px}
+.eligibility-rule-header{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px}
+.eligibility-rule-title{display:flex;align-items:center;gap:10px;min-width:0}
+.eligibility-rule-title .question-number{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:#eef0ff;color:#4f5fd7;font-size:11px;font-weight:800;flex:0 0 30px}
+.eligibility-rule-title>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.eligibility-rule-title strong{font-size:13px;color:#18202b}
+.eligibility-rule-title span:not(.question-number){font-size:10px;color:#7b8491}
+.eligibility-rule-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(180px,.65fr);gap:12px}
+.eligibility-rule label,.eligibility-value-field,.eligibility-logic-field{display:flex;flex-direction:column;gap:6px;font-size:11px;font-weight:700;color:#3c4654}
+.eligibility-field{position:relative;display:flex;align-items:center}
+.eligibility-field select{appearance:none;width:100%;min-height:42px;padding:0 38px 0 12px;border:1px solid #dfe3ea;border-radius:10px;background:#fff;color:#18202b;font-size:12px;font-weight:600;outline:none;cursor:pointer}
+.eligibility-field select:hover{border-color:#b9c0cc}
+.eligibility-field select:focus{border-color:#5868dc;box-shadow:0 0 0 3px rgba(88,104,220,.10)}
+.eligibility-field>svg{position:absolute;right:12px;pointer-events:none;color:#7b8491}
+.eligibility-value-field{margin-top:12px}
+.eligibility-value-field>select,.eligibility-value-field>input{width:100%;min-height:42px}
+.eligibility-value-field .public-options{margin-top:0;padding:10px;border:1px solid #dfe3ea;border-radius:10px;background:#fafbfc}
+.eligibility-rule-footer{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid #edf0f4}
+.eligibility-rule-footer .toggle-row{margin:0;min-height:42px;padding:0 10px;border:1px solid #e3e6ec;border-radius:10px;background:#fafbfc}
+.eligibility-rule-footer .eligibility-logic-field{min-width:210px;flex:1}
+.eligibility-current{align-self:center;margin-left:auto;font-size:10px;color:#7b8491}
+.eligibility-current strong{color:#414b58;font-weight:700}
+.eligibility-empty{padding:52px 24px}
+.eligibility-summary-card{padding-bottom:16px}
+.eligibility-summary-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 18px 16px}
+.eligibility-summary-stats>div{padding:13px 12px;border:1px solid #e7e9ee;border-radius:11px;background:#fafbfc}
+.eligibility-summary-stats span{display:block;color:#7b8491;font-size:9px;text-transform:uppercase;letter-spacing:.05em}
+.eligibility-summary-stats strong{display:block;margin-top:5px;font-size:19px;letter-spacing:-.02em}
+.eligibility-info-box{display:flex;gap:10px;margin:0 18px 10px;padding:13px;border:1px solid #e5e8ee;border-radius:11px;background:#fff}
+.eligibility-info-icon{width:28px;height:28px;display:grid;place-items:center;flex:0 0 28px;border-radius:8px;background:#eef0ff;color:#5968d5}
+.eligibility-info-box strong{display:block;font-size:11px;color:#303947;margin-bottom:3px}
+.eligibility-info-box p{margin:0;color:#747d8a;font-size:10px;line-height:1.5}
+.eligibility-help{margin:16px 18px 0;padding:13px;border-radius:11px;background:#f8f9fb}
+.eligibility-help p:last-child{margin:4px 0 0;color:#747d8a;font-size:10px;line-height:1.55}
+@media(max-width:900px){.eligibility-layout{grid-template-columns:1fr}.eligibility-summary-card{height:auto}}
+@media(max-width:640px){.eligibility-rule-grid{grid-template-columns:1fr}.eligibility-summary-stats{grid-template-columns:1fr}.eligibility-current{width:100%;margin-left:0}.eligibility-rule-footer{align-items:stretch;flex-direction:column}.eligibility-rule-footer .eligibility-logic-field{min-width:0}.eligibility-rule-footer .toggle-row{justify-content:space-between}}
