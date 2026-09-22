@@ -876,5 +876,5 @@
 .team-invite-modal{width:min(520px,calc(100vw - 32px));padding:0;overflow:hidden}
 .team-invite-modal .card-header{padding:22px 24px;border-bottom:1px solid #eceef1}
 .team-invite-modal .detail-form{padding:20px 24px 24px}
-.team-invite-modal .detail-form-footer{justify-content:flex-end}
+.team-invite-modal .detail-form-footer{justify-content:flex-end;align-items:center;gap:12px;padding-top:8px;margin-top:2px;border-top:1px solid #eef0f3}.team-invite-footer .secondary-button,.team-invite-footer .primary-button{min-width:118px}.team-invite-footer .secondary-button{background:#fff}.team-role-field{gap:8px!important}.team-role-field>span{font-size:10px;font-weight:600;color:#4c5564}.team-role-field select{width:100%;min-height:42px;border:1px solid #dfe3e8;border-radius:9px;padding:10px 12px;background:#fff;color:#222b39;font-size:11px;outline:none;appearance:auto}.team-role-field select:focus{border-color:#7b82d5;box-shadow:0 0 0 3px rgba(91,99,198,.09)}.team-role-help{display:block;color:#98a0ac;font-size:10px;font-weight:400;line-height:1.5}
 @media(max-width:700px){.review-assignment-toolbar{align-items:stretch}.review-assignee-field{max-width:none;min-width:0}.review-selection-meta{padding-bottom:0}.review-assignment-toolbar .primary-button{width:100%}}
