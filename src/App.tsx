@@ -498,6 +498,7 @@ function App() {
   const [organization, setOrganization] = useState<Organization | null>(null)
     const [applications, setApplications] = useState<Application[]>([])
   const [deletingApplicationId, setDeletingApplicationId] = useState('')
+  const [active, setActive] = useState(initialRoute.active)
   const [routeRestored, setRouteRestored] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [query, setQuery] = useState('')
