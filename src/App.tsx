@@ -97,6 +97,8 @@ function InviteSetupScreen({ email, onComplete }: { email: string; onComplete: (
     try {
       const { error: updateError } = await supabase.auth.updateUser({ password })
       if (updateError) throw updateError
+      const { error: profileError } = await supabase.from('profiles').update({ invitation_status:'active' }).eq('id', (await supabase.auth.getUser()).data.user?.id)
+      if (profileError) throw profileError
       await onComplete()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not finish setting up your account.')
@@ -297,8 +299,7 @@ function App() {
       const [{ data: org, error: oError }, { data: apps, error: aError }] = await Promise.all([
         supabase.from('organizations').select('id,name,slug').eq('id', p.organization_id).single(),
         supabase.from('applications').select('id,name,description,status,deadline,target_count,created_at').eq('organization_id', p.organization_id).order('created_at', { ascending: false }),
-      ])
-      if (oError) setError(oError.message); else setOrganization(org)
+      ])      if (oError) setError(oError.message); else setOrganization(org)
       if (aError) setError(aError.message); else setApplications(apps ?? [])
     }
     setLoading(false)
@@ -473,7 +474,7 @@ function App() {
           <section className="page-heading"><div><p className="eyebrow">Your workspace</p><h1>Good evening, {firstName}.</h1><p className="subtitle">Here’s what is happening across your programmes.</p></div><button className="primary-button" onClick={()=>openCreate()}><Plus size={17}/> New application</button></section>
           <section className="stats-grid"><StatCard label="Programmes" value={applications.length.toLocaleString()} note="In your workspace" icon={FolderKanban}/><StatCard label="Targets" value={totalTarget.toLocaleString()} note="Across programmes" icon={FileCheck2}/><StatCard label="Published" value={applications.filter(a=>a.status==='published').length.toLocaleString()} note="Currently accepting" icon={ShieldCheck}/><StatCard label="Screening" value={applications.filter(a=>a.status==='screening').length.toLocaleString()} note="In review" icon={Users}/></section>
           <section className="dashboard-grid"><div className="card table-card"><div className="card-header"><div><h2>Programmes</h2><p>Your application programmes from Supabase.</p></div><button className="text-button" onClick={()=>setActive('Applications')}>View all</button></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th></tr></thead><tbody>{applications.length===0?<tr><td colSpan={4}><div className="table-empty">No programmes yet. Create your first application programme.</div></td></tr>:applications.map(item=><tr key={item.id}><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td></tr>)}</tbody></table></div></div><div className="card funnel-card"><div className="card-header"><div><h2>Workspace health</h2><p>Live database connection</p></div><span className="status green">Connected</span></div><div className="connection-list"><div><span>Organisation</span><strong>{organization?.name || '—'}</strong></div><div><span>Role</span><strong>{profile?.role || '—'}</strong></div><div><span>Programmes</span><strong>{applications.length}</strong></div></div></div></section>
-        </> : selectedApplication ? <ApplicationDetails application={selectedApplication} settings={applicationSettings} tab={detailTab} setTab={setDetailTab} loading={detailLoading} saving={detailSaving} error={detailError} onBack={closeApplication} onSave={saveApplicationDetails}/> : active==='Analytics' ? <AnalyticsPanel applications={applications}/> : active==='Applications' ? <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>Applications</h1><p className="subtitle">Manage your application programmes.</p></div><button className="primary-button" onClick={()=>openCreate()}><Plus size={17}/> New application</button></div><div className="card table-card"><div className="toolbar"><div className="search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applications…"/></div><button className="secondary-button">All status <ChevronDown size={15}/></button></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th></tr></thead><tbody>{filtered.map(item=><tr key={item.id} onClick={()=>openApplication(item)} className="clickable-row"><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td></tr>)}</tbody></table></div></div></section> : active==='Forms' ? <FormsWorkspace applications={applications} onOpen={a=>openWorkspaceModule(a,'Form')} onCreate={()=>openCreate('form')}/> : active==='Screening' ? <ScreeningWorkspace applications={applications} role={profile?.role} onOpen={a=>openWorkspaceModule(a,'Screening')}/> : active==='Reviews' ? <ReviewsWorkspace applications={applications} organizationId={organization!.id} onOpen={a=>openWorkspaceModule(a,'Reviews')}/> : active==='Participants' ? <ParticipantsPanel organizationId={organization!.id} applications={applications}/> : active==='Team' ? <TeamWorkspace organizationId={organization!.id}/> : active==='Settings' ? <SettingsWorkspace organization={organization} onSaved={name=>setOrganization(x=>x?{...x,name}:x)}/> : <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>{active}</h1><p className="subtitle">This module is ready for implementation.</p></div></div><div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>No records yet</h2><p>Create a programme to start using this workspace.</p></div></section>}
+        </> : selectedApplication ? <ApplicationDetails application={selectedApplication} settings={applicationSettings} tab={detailTab} setTab={setDetailTab} loading={detailLoading} saving={detailSaving} error={detailError} onBack={closeApplication} onSave={saveApplicationDetails}/> : active==='Analytics' ? <AnalyticsPanel applications={applications}/> : active==='Applications' ? <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>Applications</h1><p className="subtitle">Manage your application programmes.</p></div><button className="primary-button" onClick={()=>openCreate()}><Plus size={17}/> New application</button></div><div className="card table-card"><div className="toolbar"><div className="search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applications…"/></div><button className="secondary-button">All status <ChevronDown size={15}/></button></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th></tr></thead><tbody>{filtered.map(item=><tr key={item.id} onClick={()=>openApplication(item)} className="clickable-row"><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td></tr>)}</tbody></table></div></div></section> : active==='Forms' ? <FormsWorkspace applications={applications} onOpen={a=>openWorkspaceModule(a,'Form')} onCreate={()=>openCreate('form')}/> : active==='Screening' ? <ScreeningWorkspace applications={applications} role={profile?.role} onOpen={a=>openWorkspaceModule(a,'Screening')}/> : active==='Reviews' ? <ReviewsWorkspace applications={applications} organizationId={organization!.id} onOpen={a=>openWorkspaceModule(a,'Reviews')}/> : active==='Participants' ? <ParticipantsPanel organizationId={organization!.id} applications={applications}/> : active==='Team' ? <TeamWorkspace organizationId={organization!.id} role={profile?.role}/> : active==='Settings' ? <SettingsWorkspace organization={organization} onSaved={name=>setOrganization(x=>x?{...x,name}:x)}/> : <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>{active}</h1><p className="subtitle">This module is ready for implementation.</p></div></div><div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>No records yet</h2><p>Create a programme to start using this workspace.</p></div></section>}
       </div>
     </main>
     {createOpen && <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setCreateOpen(false)}}>
@@ -597,8 +598,7 @@ function EligibilityBuilder({applicationId}:{applicationId:string}) {
     if(!questions.length){setNotice('Add questions to the form before creating eligibility rules.');return}
     setBusy(true);setNotice('')
     const q=questions[0]
-    const {data,error}=await supabase.from('eligibility_rules').insert({
-      application_id:applicationId,question_id:q.id,operator:'=',value:defaultValue(q),logic:'AND',position:rules.length,enabled:true
+    const {data,error}=await supabase.from('eligibility_rules').insert({      application_id:applicationId,question_id:q.id,operator:'=',value:defaultValue(q),logic:'AND',position:rules.length,enabled:true
     }).select('id,application_id,question_id,operator,value,logic,position,enabled').single()
     if(error)setNotice(error.message);else setRules(x=>[...x,data as EligibilityRule])
     setBusy(false)
@@ -898,77 +898,3 @@ function FormBuilder({applicationId}:{applicationId:string}) {
     const n=selected.options.length+1, value=`option-${n}`
     const {data,error}=await supabase.from('question_options').insert({question_id:selected.id,label:`Option ${n}`,value,position:n-1}).select('id,label,value,position').single()
     if(!error&&data)setQuestions(x=>x.map(q=>q.id===selected.id?{...q,options:[...q.options,data as BuilderOption]}:q))
-    if(error)showNotice(error.message);setBusy(false)
-  }
-  async function updateOption(id:string,patch:Partial<BuilderOption>){
-    setBusy(true);const {data,error}=await supabase.from('question_options').update(patch).eq('id',id).select('id,label,value,position').single()
-    if(!error&&data)setQuestions(x=>x.map(q=>q.id===selected?.id?{...q,options:q.options.map(o=>o.id===id?data as BuilderOption:o)}:q))
-    if(error)showNotice(error.message);setBusy(false)
-  }
-  async function removeOption(id:string){
-    setBusy(true);const {error}=await supabase.from('question_options').delete().eq('id',id)
-    if(!error&&selected)setQuestions(x=>x.map(q=>q.id===selected.id?{...q,options:q.options.filter(o=>o.id!==id)}:q))
-    if(error)showNotice(error.message);setBusy(false)
-  }
-  async function moveQuestion(index:number,direction:number){
-    const next=index+direction;if(next<0||next>=questions.length)return
-    const copy=[...questions];[copy[index],copy[next]]=[copy[next],copy[index]]
-    setBusy(true)
-    try{for(let i=0;i<copy.length;i++){const {error}=await supabase.from('questions').update({position:i}).eq('id',copy[i].id);if(error)throw error}setQuestions(copy.map((q,i)=>({...q,position:i})))}catch(e){showNotice(e instanceof Error?e.message:'Could not reorder questions.')}finally{setBusy(false)}
-  }
-  async function removeQuestion(){if(!selected)return;setBusy(true);const {error}=await supabase.from('questions').delete().eq('id',selected.id);if(!error){const left=questions.filter(q=>q.id!==selected.id).map((q,i)=>({...q,position:i}));for(const q of left)await supabase.from('questions').update({position:q.position}).eq('id',q.id);setQuestions(left);setSelectedId(left[0]?.id||null)}else showNotice(error.message);setBusy(false)}
-  async function publish(){
-    if(!versionId)return
-    setBusy(true);setNotice('')
-    try{
-      const publishedVersionId=versionId
-      const {error}=await supabase.from('form_versions').update({status:'published',published_at:new Date().toISOString()}).eq('id',publishedVersionId)
-      if(error)throw error
-
-      // Keep the published version immutable, but immediately create the next draft
-      // from it so the just-published questions remain visible on the canvas and can
-      // be edited without leaving or refreshing the form builder.
-      const {data:published}=await supabase.from('form_versions').select('version_number,title').eq('id',publishedVersionId).single()
-      if(!published)throw new Error('Published form could not be loaded.')
-      const userId=(await supabase.auth.getUser()).data.user?.id
-      const {data:newVersion,error:versionError}=await supabase.from('form_versions').insert({
-        application_id:applicationId,
-        version_number:published.version_number+1,
-        created_by:userId,
-        title:published.title||'Application form',
-        status:'draft'
-      }).select('id,version_number').single()
-      if(versionError)throw versionError
-
-      const {data:sourceQuestions,error:questionsError}=await supabase.from('questions').select('id,type,label,description,required,placeholder,position,config,conditional_rules').eq('form_version_id',publishedVersionId).order('position')
-      if(questionsError)throw questionsError
-      for(const source of sourceQuestions||[]){
-        const {data:cloned,error:cloneError}=await supabase.from('questions').insert({
-          form_version_id:newVersion.id,type:source.type,label:source.label,description:source.description,required:source.required,
-          placeholder:source.placeholder,position:source.position,config:source.config,conditional_rules:source.conditional_rules
-        }).select('id').single()
-        if(cloneError)throw cloneError
-        const {data:opts,error:optionsError}=await supabase.from('question_options').select('label,value,position').eq('question_id',source.id).order('position')
-        if(optionsError)throw optionsError
-        if(opts?.length){const {error}=await supabase.from('question_options').insert(opts.map(o=>({question_id:cloned.id,label:o.label,value:o.value,position:o.position})));if(error)throw error}
-      }
-
-      setVersionId(newVersion.id)
-      setVersion(newVersion.version_number)
-      await loadQuestions(newVersion.id)
-      showNotice('Form published successfully.','success')
-    }catch(e){showNotice(e instanceof Error?e.message:'Could not publish form.')}finally{setBusy(false)}
-  }
-
-  return <div className="form-builder">
-    <div className="builder-top"><div><p className="eyebrow">Form builder · Version {version}</p><h2>Application form</h2><p>Build the questions applicants will answer.</p></div><div className="builder-actions">{notice&&<div className={`toast-notification ${noticeType}`} role="status" aria-live="polite"><span className="toast-icon">{noticeType==='success'?<CheckCircle2 size={17}/>:<X size={17}/>}</span><span>{notice}</span><button className="toast-close" onClick={()=>setNotice('')} aria-label="Dismiss notification"><X size={14}/></button></div>}<button className="secondary-button" disabled={busy||!questions.length} onClick={()=>showNotice('Draft saved.','success')}>Save draft</button><button className="secondary-button" disabled={!questions.length} onClick={()=>setPreview(true)}>Preview</button><button className="primary-button" disabled={busy||!questions.length} onClick={publish}>Publish form</button></div></div>
-    <div className="builder-layout"><aside className="builder-palette card"><div className="builder-section-title">Question types</div>{questionTypes.map(q=><button key={q.type} className="question-type" disabled={busy} onClick={()=>addQuestion(q.type)}><span className="type-icon">{q.icon}</span><span>{q.label}</span></button>)}</aside>
-      <main className="builder-canvas"><div className="canvas-label">FORM CANVAS</div>{!questions.length?<div className="builder-empty card"><FileText size={24}/><h3>Start building your form</h3><p>Select a question type from the left to add your first question.</p></div>:questions.map((q,i)=><div key={q.id} className={selectedId===q.id?'question-card card selected':'question-card card'} onClick={()=>setSelectedId(q.id)}><div className="question-card-top"><span className="drag-handle">⋮⋮</span><span className="question-number">{i+1}</span><span className="question-kind">{questionTypes.find(x=>x.type===q.type)?.label}</span><button className="icon-button question-delete" onClick={e=>{e.stopPropagation();setSelectedId(q.id);removeQuestion()}}><X size={15}/></button></div><h3>{q.label}{q.required&&<span className="required-star">*</span>}</h3>{q.description&&<p>{q.description}</p>}{optionTypes.includes(q.type)&&q.options.length?<div className="choice-preview">{q.options.map(o=><span key={o.id}>○ {o.label}</span>)}</div>:<div className="fake-input">{q.type==='long_text'?'Applicant response…':q.type==='dropdown'?'Select an option…':q.type==='rating'?'☆ ☆ ☆ ☆ ☆':'Applicant response…'}</div>}<div className="question-move"><button disabled={i===0||busy} onClick={e=>{e.stopPropagation();moveQuestion(i,-1)}}>↑ Move up</button><button disabled={i===questions.length-1||busy} onClick={e=>{e.stopPropagation();moveQuestion(i,1)}}>↓ Move down</button></div></div>)}</main>
-      <aside className="builder-settings card">{selected?<><div className="builder-section-title">Question settings</div><label>Question<input value={selected.label} onChange={e=>updateQuestion({label:e.target.value})}/></label><label>Description<textarea rows={3} value={selected.description||''} onChange={e=>updateQuestion({description:e.target.value||null})}/></label><label>Placeholder<input value={selected.placeholder||''} onChange={e=>updateQuestion({placeholder:e.target.value||null})}/></label><label className="toggle-row"><span>Required</span><input type="checkbox" checked={selected.required} onChange={e=>updateQuestion({required:e.target.checked})}/></label><div className="condition-editor"><div className="options-title"><span>Conditional question</span><span className="optional">Optional</span></div><select value={conditionQuestionId(selected)} onChange={e=>{const id=e.target.value;updateCondition(id,conditionValue(selected))}}><option value="">Always show</option>{questions.filter(q=>q.id!==selected.id).map(q=><option key={q.id} value={q.id}>{q.label}</option>)}</select>{conditionQuestionId(selected)&&<select value={conditionValue(selected)} onChange={e=>updateCondition(conditionQuestionId(selected),e.target.value)}><option value="">Choose answer…</option>{conditionOptions(conditionQuestionId(selected)).map(o=><option key={o.id} value={o.value}>{o.label}</option>)}</select>}</div>{optionTypes.includes(selected.type)&&<div className="options-editor"><div className="options-title"><span>Options</span><button onClick={addOption} disabled={busy}>+ Add</button></div>{selected.options.map(o=><div className="option-row" key={o.id}><input value={o.label} onChange={e=>updateOption(o.id,{label:e.target.value})}/><button className="icon-button" onClick={()=>removeOption(o.id)} aria-label="Remove option"><X size={13}/></button></div>)}</div>}<button className="delete-question" onClick={removeQuestion}>Delete question</button></>:<div className="settings-empty"><Settings size={20}/><p>Select a question to edit its settings.</p></div>}</aside>
-    </div>
-    {preview&&<div className="preview-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setPreview(false)}}><div className="preview-panel card"><div className="preview-header"><div><p className="eyebrow">Applicant preview</p><h2>Application form</h2><p>Preview what applicants will see.</p></div><button className="icon-button" onClick={()=>setPreview(false)}><X size={18}/></button></div><div className="preview-form">{questions.map((q,i)=><div key={q.id} className="preview-question"><label>{i+1}. {q.label}{q.required&&<span className="required-star">*</span>}{q.description&&<small>{q.description}</small>}</label>{q.type==='nigeria_state'?<select value={previewAnswers[q.id]||''} onChange={e=>{setPreviewAnswers(x=>{const next={...x,[q.id]:e.target.value};if(previewLgaQuestion)delete next[previewLgaQuestion.id];return next})}}><option value="">Select your state of origin</option>{NIGERIAN_STATES.map(state=><option key={state} value={state}>{state}</option>)}</select>:q.type==='nigeria_lga'?<select value={previewAnswers[q.id]||''} onChange={e=>setPreviewAnswers(x=>({...x,[q.id]:e.target.value}))} disabled={!previewSelectedState||previewLgaLoading}><option value="">{!previewSelectedState?'Select your state first':previewLgaLoading?'Loading local governments…':'Select your local government'}</option>{previewLgas.map(lga=><option key={lga} value={lga}>{lga}</option>)}</select>:optionTypes.includes(q.type)?<div className="preview-options">{q.options.map(o=><label key={o.id}><input type={q.type==='multiple_choice'?'checkbox':'radio'} name={q.id}/><span>{o.label}</span></label>)}</div>:q.type==='long_text'?<textarea placeholder={q.placeholder||'Your answer'}/>:q.type==='date'?<input type="date"/>:q.type==='number'?<input type="number" placeholder={q.placeholder||''}/>:q.type==='rating'?<div className="preview-rating">☆ ☆ ☆ ☆ ☆</div>:q.type==='file'||q.type==='image'?<input type="file"/>:<input type={q.type==='email'?'email':q.type==='phone'?'tel':'text'} placeholder={q.placeholder||'Your answer'}/>}</div>)}</div><div className="preview-footer"><button className="secondary-button" onClick={()=>{setPreview(false);setPreviewAnswers({});setPreviewLgas([])}}>Close preview</button></div></div></div>}
-  </div>
-}
-
-function StatCard({label,value,note,icon:Icon}:{label:string;value:string;note:string;icon:typeof Users}){return <div className="card stat-card"><div className="stat-icon"><Icon size={18}/></div><div><p className="eyebrow">{label}</p><div className="stat-value">{value}</div><p className="muted">{note}</p></div></div>}
-export default App
