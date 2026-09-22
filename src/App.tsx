@@ -44,6 +44,11 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
     setBusy(true); setError(''); setMessage('')
     try {
       if (mode === 'signup') {
+        if (!orgName.trim()) {
+          setError('Enter your organisation name first, then continue with Google.')
+          setBusy(false)
+          return
+        }
         localStorage.setItem('applyflow-google-signup', JSON.stringify({
           full_name: name.trim(),
           organization_name: orgName.trim(),
@@ -386,6 +391,7 @@ function App() {
       localStorage.removeItem('applyflow-google-signup')
     }
     setProfile(p)
+    localStorage.removeItem('applyflow-google-signup')
     if (p.organization_id) {
       const [{ data: org, error: oError }, { data: apps, error: aError }] = await Promise.all([
         supabase.from('organizations').select('id,name,slug').eq('id', p.organization_id).single(),
