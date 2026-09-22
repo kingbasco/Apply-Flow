@@ -290,6 +290,7 @@ function App() {
   const [newDescription, setNewDescription] = useState('')
   const [newDeadline, setNewDeadline] = useState('')
   const [newTarget, setNewTarget] = useState('')
+  const [newParticipantCode, setNewParticipantCode] = useState('APP')
   const [importOpen, setImportOpen] = useState(false)
 
   async function loadWorkspace(currentSession = session) {
