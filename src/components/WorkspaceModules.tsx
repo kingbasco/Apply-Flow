@@ -882,14 +882,14 @@ export function SettingsWorkspace({organization,profile,onSaved,onProfileSaved}:
    setProfileSaving(true)
    try{
      const extension=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg'
-     const path=`${profile.id}/${crypto.randomUUID()}.${extension}`
-     const {error:uploadError}=await supabase.storage.from('avatars').upload(path,file,{contentType:file.type,upsert:false,cacheControl:'3600'})
-     if(uploadError)throw uploadError
+     const path=`${profile.id}/avatar.${extension}`
+     const {error:uploadError}=await supabase.storage.from('avatars').upload(path,file,{contentType:file.type,upsert:true,cacheControl:'3600'})
+     if(uploadError)throw new Error(`Storage upload failed: ${uploadError.message}`)
      const {data}=supabase.storage.from('avatars').getPublicUrl(path)
-     const {error:profileError}=await supabase.from('profiles').update({avatar_url:data.publicUrl,updated_at:new Date().toISOString()}).eq('id',profile.id)
-     if(profileError){await supabase.storage.from('avatars').remove([path]);throw profileError}
-     if(avatarUrl){try{const marker='/avatars/';const oldPath=decodeURIComponent(avatarUrl.split(marker)[1]||'');if(oldPath&&oldPath.startsWith(profile.id+'/'))await supabase.storage.from('avatars').remove([oldPath])}catch{}}
-     setAvatarUrl(data.publicUrl);onProfileSaved({full_name:profileName.trim()||null,avatar_url:data.publicUrl});flash('Profile photo updated.')
+     const publicUrl=`${data.publicUrl}?v=${Date.now()}`
+     const {error:profileError}=await supabase.from('profiles').update({avatar_url:publicUrl,updated_at:new Date().toISOString()}).eq('id',profile.id)
+     if(profileError)throw new Error(`Profile update failed: ${profileError.message}`)
+     setAvatarUrl(publicUrl);onProfileSaved({full_name:profileName.trim()||null,avatar_url:publicUrl});flash('Profile photo updated.')
    }catch(e){setError(e instanceof Error?e.message:'Could not upload your profile image.')}
    finally{setProfileSaving(false)}
  }
