@@ -322,7 +322,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
  </>
 }
 
-type ScreeningReviewData={submission:any;applicant:any;answers:any[];questions:any[];eligibility:any;score:any;criteria:any[];ai:any;documents:any[]}
+type ScreeningReviewData={submission:any;applicant:any;answers:any[];questions:any[];eligibility:any;score:any;criteria:any[];ai:any;documents:any[];options:any[]}
 function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose:()=>void;onDecision:(row:ScreeningRow,decision:'approved'|'rejected')=>Promise<void>}) {
  const [data,setData]=useState<ScreeningReviewData|null>(null)
  const [extractingId,setExtractingId]=useState('')
@@ -369,8 +369,14 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
     const {data:questions,error:qErr}=await supabase.from('questions').select('id,label,description,type,position').eq('form_version_id',s?.form_version_id||'').order('position')
     if(qErr)throw qErr
 
+    const questionIds=(questions||[]).map(question=>question.id)
+    const {data:options,error:optionsError}=questionIds.length
+      ? await supabase.from('question_options').select('id,question_id,label,value,position').in('question_id',questionIds).order('position')
+      : {data:[],error:null}
+    if(optionsError)throw optionsError
+
     if(active){
-      setData({submission:s,applicant,answers:ans||[],questions:questions||[],eligibility:e,score:sc,criteria:cr||[],ai,documents:documents||[]})
+      setData({submission:s,applicant,answers:ans||[],questions:questions||[],eligibility:e,score:sc,criteria:cr||[],ai,documents:documents||[],options:options||[]})
       setManualScore(sc?.overall_score==null?'':String(sc.overall_score))
     }
    }catch(e){
@@ -439,11 +445,23 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
   }finally{setScoreSaving(false)}
  }
 
- const formatValue=(value:any)=>{
+ const optionLabelMap=new Map<string,string>((data?.options||[]).flatMap((option:any)=>[
+  [`${option.question_id}:${String(option.value)}`,option.label],
+  [`${option.question_id}:${String(option.id)}`,option.label]
+ ]))
+ const formatValue=(value:any,questionId:string)=>{
+  const formatItem=(item:any):string=>{
+   if(item===null||item===undefined||item==='')return 'Not provided'
+   if(typeof item==='object'){
+    const raw=item.value??item.id??item.label
+    if(raw!==undefined&&optionLabelMap.has(`${questionId}:${String(raw)}`))return optionLabelMap.get(`${questionId}:${String(raw)}`)||String(raw)
+    return Object.entries(item).map(([key,val])=>`${key}: ${typeof val==='object'?JSON.stringify(val):String(val)}`).join(' · ')
+   }
+   return optionLabelMap.get(`${questionId}:${String(item)}`)||String(item)
+  }
   if(value===null||value===undefined||value==='')return 'Not provided'
-  if(Array.isArray(value))return value.length?value.map(item=>typeof item==='object'?JSON.stringify(item):String(item)).join(', '):'Not provided'
-  if(typeof value==='object')return Object.entries(value).map(([key,val])=>`${key}: ${typeof val==='object'?JSON.stringify(val):String(val)}`).join(' · ')
-  return String(value)
+  if(Array.isArray(value))return value.length?value.map(formatItem).join(', '):'Not provided'
+  return formatItem(value)
  }
 
  const answerMap=new Map((data?.answers||[]).map(answer=>[answer.question_id,answer.value]))
@@ -494,7 +512,7 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
            <div className="screening-answer-number">{index+1}</div>
            <div className="screening-answer-content">
             <div className="screening-answer-question">{question.label}{question.description&&<span className="screening-answer-description">{question.description}</span>}</div>
-            <div className="screening-answer-value">{formatValue(answerMap.get(question.id))}</div>
+            <div className="screening-answer-value">{formatValue(answerMap.get(question.id),question.id)}</div>
            </div>
           </article>
          )) : <p className="muted screening-empty-answer">No answers were found for this submission.</p>}
