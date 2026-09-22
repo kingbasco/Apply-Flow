@@ -663,7 +663,7 @@ function ScreeningReviewModal({row,role,onClose,onDecision}:{row:ScreeningRow;ro
           {data.documents.map((document:any)=>(
            <div className="screening-document" key={document.id}>
             <div className="screening-document-copy"><strong>{document.original_name}</strong><p>{document.mime_type||'File'} · {document.file_size?Math.round(document.file_size/1024)+' KB':'Size unavailable'} · {document.extraction_status||'pending'}</p>{document.extracted_text&&<div className="screening-document-text">{document.extracted_text}</div>}</div>
-            <button className="secondary-button" onClick={()=>extractDocument(document.id)} disabled={extractingId===document.id||document.extraction_status==='processing'}>{extractingId===document.id?'Extracting…':document.extraction_status==='completed'?'Re-extract':'Extract text'}</button>
+            {role!=='reviewer'&&<button className="secondary-button" onClick={()=>extractDocument(document.id)} disabled={extractingId===document.id||document.extraction_status==='processing'}>{extractingId===document.id?'Extracting…':document.extraction_status==='completed'?'Re-extract':'Extract text'}</button>}
            </div>
           ))}
          </div>
@@ -681,14 +681,14 @@ function ScreeningReviewModal({row,role,onClose,onDecision}:{row:ScreeningRow;ro
          </label>
          {role==='reviewer'&&<label className="screening-score-notes"><span>Review notes</span><textarea rows={4} value={manualNotes} onChange={e=>setManualNotes(e.target.value)} placeholder="Add your review notes for the programme team…"/></label>}
          <button className="primary-button" onClick={saveScore} disabled={scoreSaving}>{scoreSaving?'Saving…':role==='reviewer'?'Save review':'Save score'}</button>
-         {scoreNotice&&<span className={scoreNotice==='Score saved.'?'screening-score-success':'screening-score-error'}>{scoreNotice}</span>}
+         {scoreNotice&&<span className={scoreNotice==='Score saved.'||scoreNotice==='Review saved.'?'screening-score-success':'screening-score-error'}>{scoreNotice}</span>}
         </div>
        </section>
 
        <section className="screening-review-section screening-ai-section">
         <div className="screening-section-heading">
          <div><span className="screening-section-kicker">Optional</span><h3>AI recommendation</h3><p>AI reviews the complete application and gives you a recommendation.</p></div>
-         <button className="secondary-button" onClick={runAiScreening} disabled={aiRunning}>{aiRunning?'Screening…':data.ai?'Run again':'Screen with AI'}</button>
+         {role!=='reviewer'&&<button className="secondary-button" onClick={runAiScreening} disabled={aiRunning}>{aiRunning?'Screening…':data.ai?'Run again':'Screen with AI'}</button>}
         </div>
         {aiError&&<div className="form-error screening-inline-error">{aiError}</div>}
         {data.ai ? (
