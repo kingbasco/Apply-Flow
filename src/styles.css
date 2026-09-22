@@ -1128,3 +1128,8 @@
 .import-summary span{display:block;color:#8b93a0;font-size:9px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 .import-summary strong{display:block;margin-top:5px;font-size:18px}
 @media(max-width:700px){.import-modal{width:calc(100vw - 18px)}.import-summary{grid-template-columns:1fr}.import-dropzone{min-height:110px}}
+.import-validation-warning{margin-top:12px;padding:12px 14px;border:1px solid #f0d58a;background:#fff9e8;border-radius:10px;color:#6f5a1f;font-size:11px}
+.import-validation-warning>div{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.import-validation-warning strong{font-size:12px}
+.import-validation-warning span{color:#8a7440}
+.import-validation-warning ul{margin:8px 0 0 18px;padding:0;line-height:1.6}
