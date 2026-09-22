@@ -243,7 +243,7 @@ export function GoogleFormImport({
       setDone(true)
       onComplete?.()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save this import.')
+      setError(err instanceof Error ? err.message : (typeof err === 'object' && err !== null && 'message' in err ? String((err as { message?: unknown }).message || 'Could not save this import.') : 'Could not save this import.'))
     } finally {
       setBusy(false)
     }
