@@ -250,7 +250,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
       </div>
     </footer>
    </div>
-  </div>
+  </div>}
   {historyFor&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setHistoryFor(null)}}>
    <div className="modal card" style={{maxWidth:720}}>
     <div className="modal-header"><div><p className="eyebrow">Version history</p><h2>{historyFor.application.name}</h2><p>Published versions stay tied to the submissions that used them.</p></div><button type="button" className="icon-button" onClick={()=>setHistoryFor(null)} aria-label="Close"><MoreHorizontal size={18}/></button></div>
