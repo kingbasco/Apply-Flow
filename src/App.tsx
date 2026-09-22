@@ -187,12 +187,17 @@ function PublicApplication({slug}:{slug:string}) {
     for(const q of questions.filter(q=>(q.type==='file'||q.type==='image')&&files[q.id])){
       const file=files[q.id]!, meta=answerPayload.find(x=>x.question_id===q.id)?.value as {path:string}
       const {error:uploadError}=await supabase.storage.from('application-files').upload(meta.path,file,{contentType:file.type||'application/octet-stream',upsert:false})
-      if(uploadError)throw uploadError
-
+      if(uploadError){
+        throw new Error(`Application was submitted, but the file "${file.name}" could not be uploaded. Please try again or contact the programme team. (${uploadError.message})`)
+      }
     }
     setUniqueId(assignedId)
     setSubmitted(true)
-  }catch(e){setError(e instanceof Error?e.message:'Could not submit application.')}finally{setLoading(false)}}
+  }catch(e){
+    const err=e as any
+    const message=err?.message||err?.error_description||err?.details||err?.hint||'Could not submit application. Please try again.'
+    setError(message)
+  }finally{setLoading(false)}}
   if(loading&&!app)return <div className="public-shell"><div className="public-card card">Loading application…</div></div>
   if(error&&!app)return <div className="public-shell"><div className="public-card card"><div className="empty-icon"><FileText size={22}/></div><h1>Application unavailable</h1><p>{error}</p></div></div>
   if(submitted)return <div className="public-shell"><div className="public-card card public-success"><div className="success-mark">✓</div><p className="eyebrow">Application submitted</p><h1>Thank you.</h1><p>{settings?.confirmation_message}</p><div className="card" style={{marginTop:20,padding:20}}><p className="eyebrow">Your unique application ID</p><h2 style={{margin:"6px 0"}}>{uniqueId}</h2><p className="muted">This ID has been assigned to your application. Please copy it and keep it somewhere safe. You can use this ID when referencing your application or contacting the programme team.</p></div></div></div>
