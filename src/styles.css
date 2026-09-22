@@ -2214,3 +2214,27 @@ html.dark-theme,html.dark-theme body{background:#0f1117;color:#e7eaf0}
   border-color:#454d5c;
 }
 .dark-theme .google-mark{background:#f7f8fa}
+
+
+/* Account and security settings */
+.settings-account-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:16px;align-items:start}
+.settings-workspace-card{margin-top:16px}
+.settings-avatar-row{display:flex;align-items:center;gap:16px;padding:4px 0 6px}
+.settings-avatar-large,.settings-profile-avatar{width:64px;height:64px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:var(--accent,#6d5dfc);color:#fff;font-weight:800;letter-spacing:.02em;flex:none}
+.settings-avatar-large img,.settings-profile-avatar img,.profile-avatar img,.top-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.settings-profile-avatar{width:48px;height:48px;font-size:13px}
+.settings-avatar-large{font-size:18px}
+.settings-upload-label{display:inline-flex!important;align-items:center;justify-content:center;min-height:38px;padding:0 12px;border:1px solid #d9dde5;border-radius:9px;background:#fff;color:#303640;font-size:11px;font-weight:700;cursor:pointer}
+.settings-upload-label:hover{background:#f7f8fa;border-color:#c8cdd6}
+.settings-upload-label input{display:none}
+.security-danger-zone{margin-top:8px;padding:14px;border:1px solid #ead6d8;border-radius:10px;background:#fff8f8;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.security-danger-zone strong{font-size:11px;color:#9f313b}
+.security-danger-zone p{margin:4px 0 0;font-size:10px;color:#777f8b;line-height:1.45}
+.security-danger-zone .secondary-button{white-space:nowrap}
+.profile-avatar,.top-avatar{overflow:hidden}
+@media(max-width:900px){.settings-account-grid{grid-template-columns:1fr}.security-danger-zone{align-items:flex-start;flex-direction:column}}
+.dark-theme .settings-upload-label{background:#171b23;border-color:#343a47;color:#e4e8ee}
+.dark-theme .settings-upload-label:hover{background:#1d222b;border-color:#454d5c}
+.dark-theme .security-danger-zone{background:rgba(190,68,80,.08);border-color:rgba(190,68,80,.28)}
+.dark-theme .security-danger-zone strong{color:#f0a1ab}
+.dark-theme .security-danger-zone p{color:#858e9d}
