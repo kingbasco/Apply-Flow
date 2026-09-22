@@ -1213,3 +1213,21 @@
  .participant-profile-stats{grid-template-columns:1fr}
  .participant-contact-grid{grid-template-columns:1fr}
 }
+
+
+/* Attendance layout polish */
+.attendance-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+.attendance-column{min-width:0}
+.attendance-session-card,.attendance-record-card{height:100%}
+.attendance-session-form{gap:12px}
+.attendance-field{display:flex;flex-direction:column;gap:6px}
+.attendance-field .participant-select-wrap select{min-height:44px}
+.attendance-import-box{margin:18px;padding:18px;border:1px solid #e1e4eb;border-radius:14px;background:#fafbfc}
+.attendance-import-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px}
+.attendance-import-heading h3{margin:3px 0 4px;font-size:15px}
+.attendance-import-heading p:not(.eyebrow){margin:0;color:#737b89;font-size:11px;line-height:1.55}
+.attendance-import-heading>svg{color:#5968d5;flex:0 0 auto}
+.attendance-import-box textarea{min-height:150px;resize:vertical;background:#fff;border-color:#dfe3ea}
+.attendance-import-box .primary-button{width:100%;margin-top:10px;justify-content:center}
+.attendance-import-box>.muted{margin:8px 0 0;font-size:10px}
+@media(max-width:900px){.attendance-layout{grid-template-columns:1fr}}
