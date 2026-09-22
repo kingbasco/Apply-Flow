@@ -440,7 +440,7 @@ function App() {
   async function loadWorkspace(currentSession = session) {
     if (!currentSession?.user) return
     setLoading(true); setError('')
-    let { data: p, error: pError } = await supabase.from('profiles').select('id,full_name,avatar_url,organization_id,role').eq('id', currentSession.user.id).maybeSingle()
+    let { data: p, error: pError } = await supabase.from('profiles').select('id,full_name,username,birth_month,birth_day,avatar_url,organization_id,role').eq('id', currentSession.user.id).maybeSingle()
     if (pError) { setError(pError.message); setLoading(false); return }
     if (!p) {
       const metadata = currentSession.user.user_metadata || {}
