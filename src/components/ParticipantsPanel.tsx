@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { BadgeCheck, CalendarCheck2, Gift, Upload, Plus, Search, X, Users, CheckCircle2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
@@ -99,7 +99,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     }catch(e){setError(e instanceof Error?e.message:'Could not load session attendance.')}finally{setAttendanceLoading(false)}
   }
 
-  async function createSession(e:React.FormEvent){
+  async function createSession(e:FormEvent){
     e.preventDefault();if(!sessionForm.application_id||!sessionForm.title.trim())return
     setSaving(true);setError('');setNotice('')
     try{
@@ -149,7 +149,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     }catch(e){setError(e instanceof Error?e.message:'Could not update attendance.')}finally{setSaving(false)}
   }
 
-  async function createBenefit(e:React.FormEvent){
+  async function createBenefit(e:FormEvent){
     e.preventDefault();if(!benefitForm.application_id||!benefitForm.name.trim())return
     setSaving(true);setError('');setNotice('')
     try{
