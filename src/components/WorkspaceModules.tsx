@@ -295,6 +295,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
  const [reviewing,setReviewing]=useState<ScreeningRow|null>(null)
  const [aiBulkRunning,setAiBulkRunning]=useState(false)
  const [decisionNotice,setDecisionNotice]=useState<{decision:'approved'|'rejected';applicantName:string;uniqueId:string}|null>(null)
+ const [selectedSubmissionIds,setSelectedSubmissionIds]=useState<string[]>([])
 
  async function load(){
   setLoading(true);setError('')
@@ -425,7 +426,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
   <section>
    <div className="page-heading compact">
     <div><p className="eyebrow">Application screening</p><h1>Screening</h1><p className="subtitle">Open one application at a time. Applicants and screening results stay separated by programme.</p></div>
-    <div className="detail-actions"><button className="secondary-button" onClick={exportApplicants} disabled={loading||!rows.length}><Download size={16}/> Export applicants</button>{role!=='reviewer'&&<button className="primary-button" onClick={screenWithAI} disabled={aiBulkRunning||loading||!rows.length}>{aiBulkRunning?'Screening with AI…':'Screen with AI'}</button>}<button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
+    <div className="detail-actions"><button className="secondary-button" onClick={exportApplicants} disabled={loading||selectedSubmissionIds.length===0}><Download size={16}/> Export selected{selectedSubmissionIds.length?` (${selectedSubmissionIds.length})`:``}</button>{role!=='reviewer'&&<button className="primary-button" onClick={screenWithAI} disabled={aiBulkRunning||loading||!rows.length}>{aiBulkRunning?'Screening with AI…':'Screen with AI'}</button>}<button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
    </div>
    {error&&<div className="form-error page-error">{error}</div>}
    <div className="card screening-application-picker">
@@ -451,13 +452,13 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
     <div className="card stat-card"><div className="stat-icon"><ArrowRight size={18}/></div><div className="stat-content"><p className="eyebrow">AI recommended</p><div className="stat-value">{counts.recommended}</div></div></div>
    </div>
    <div className="card table-card">
-    <div className="card-header"><div><h2>Applicants</h2><p>Review the application, then approve or reject.</p></div></div>
+    <div className="card-header"><div><h2>Applicants</h2><p>Review the application, then approve or reject.</p></div><div className="detail-actions"><span className="muted">{selectedSubmissionIds.length} selected</span><button className="secondary-button" onClick={exportApplicants} disabled={loading||selectedSubmissionIds.length===0}><Download size={16}/> Export selected</button></div></div>
     <div className="forms-toolbar">
      <div className="forms-search"><Search size={16}/><input aria-label="Search applicants" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search name, email or unique ID…" /></div>
      <div className="forms-filters" role="group" aria-label="Filter applicants">{(['all','pending','approved','rejected','recommended'] as const).map(f=><button key={f} className={filter===f?'filter-button active':'filter-button'} onClick={()=>setFilter(f)}>{f==='all'?'All':f==='pending'?'Pending':f==='approved'?'Approved':f==='rejected'?'Rejected':'AI recommended'}<span>{f==='all'?counts.total:f==='pending'?counts.pending:f==='approved'?counts.approved:f==='rejected'?counts.rejected:counts.recommended}</span></button>)}</div>
     </div>
-    <div className="table-wrap"><table><thead><tr><th>Applicant</th><th>Unique ID</th><th>Score</th><th>Eligibility</th><th>AI</th><th>Status</th><th></th></tr></thead><tbody>
-     {loading?<tr><td colSpan={7}><div className="loading-card">Loading applicants…</div></td></tr>:!filtered.length?<tr><td colSpan={7}><div className="table-empty"><h3>{rows.length?'No applicants match your filters':'No submitted applications yet'}</h3><p>{rows.length?'Try another filter or search.':'Applications will appear here after applicants submit a form.'}</p></div></td></tr>:
+    <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label={allFilteredSelected?"Deselect all visible applicants":"Select all visible applicants"} checked={allFilteredSelected} onChange={toggleAllFiltered} disabled={!filtered.length}/></th><th>Applicant</th><th>Unique ID</th><th>Score</th><th>Eligibility</th><th>AI</th><th>Status</th><th></th></tr></thead><tbody>
+     {loading?<tr><td colSpan={8}><div className="loading-card">Loading applicants…</div></td></tr>:!filtered.length?<tr><td colSpan={8}><div className="table-empty"><h3>{rows.length?'No applicants match your filters':'No submitted applications yet'}</h3><p>{rows.length?'Try another filter or search.':'Applications will appear here after applicants submit a form.'}</p></div></td></tr>:
      filtered.map(row=><tr key={row.submissionId}>
       <td><strong>{row.applicantName}</strong><span className="table-sub">{row.email||'No email'}</span></td>
       <td><strong>{row.uniqueId}</strong></td><td>{row.score==null?'—':row.score.toFixed(1)}</td>
