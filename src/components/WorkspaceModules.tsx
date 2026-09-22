@@ -849,14 +849,14 @@ export function TeamWorkspace({organizationId,role:workspaceRole}:{organizationI
  async function manageMember(member:Profile,action:'resend'|'delete'){if(!isOwner)return;if(action==='delete'&&!window.confirm('Remove '+(member.full_name||member.email||'this team member')+' from the workspace? This will also remove their ApplyFlow account access.'))return;setBusyId(member.id);setError('');setNotice('');try{const {data,error}=await supabase.functions.invoke('manage-team-member',{body:{organization_id:organizationId,member_id:member.id,action}});if(error)throw error;if(data?.error)throw new Error(data.error);setNotice(action==='resend'?'A new invitation has been sent to '+(member.email||'the team member')+'.':'Team member removed.');await load()}catch(e:any){setError(e.message||'Could not update this team member.')}finally{setBusyId('')}}
  return <section><div className="page-heading compact"><div><p className="eyebrow">Manage</p><h1>Team</h1><p className="subtitle">Invite people into this workspace so they can review assigned applicants.</p></div><div className="detail-actions">{isOwner&&<button className="primary-button" onClick={()=>setShowInvite(true)}><Plus size={16}/> Invite member</button>}</div></div>{error&&<div className="form-error page-error">{error}</div>}{notice&&<div className="form-message page-message">{notice}</div>}<div className="card table-card"><div className="card-header"><div><h2>Workspace members</h2><p>Reviewers can work on assigned applicants. Admins can manage the workspace and assignments.</p></div><Users size={20}/></div>{loading?<div className="loading-card">Loading team…</div>:<div className="table-wrap"><table><thead><tr><th>Member</th><th>Email</th><th>Role</th><th>Status</th>{isOwner&&<th></th>}</tr></thead><tbody>{people.map(p=>{const busy=busyId===p.id;return <tr key={p.id}><td><strong>{p.full_name||'Unnamed member'}</strong></td><td>{p.email||'—'}</td><td><span className="status blue">{p.role}</span></td><td><span className={'status '+(p.invitation_status==='pending'?'amber':'green')}>{p.invitation_status==='pending'?'Invitation pending':'Active'}</span></td>{isOwner&&<td><div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>{p.invitation_status==='pending'&&<button className="secondary-button" disabled={busy} onClick={()=>manageMember(p,'resend')}>{busy?'Working…':'Resend invitation'}</button>}{p.role!=='owner'&&<button className="icon-button" title="Remove team member" aria-label={'Remove '+(p.full_name||p.email||'team member')} disabled={busy} onClick={()=>manageMember(p,'delete')}><X size={16}/></button>}</div></td>}</tr>})}</tbody></table></div>}</div>{showInvite&&<div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Invite team member"><div className="modal card team-invite-modal"><div className="card-header"><div><p className="eyebrow">Workspace access</p><h2>Invite a team member</h2><p>They will receive an email invitation and be added to this workspace.</p></div><button className="icon-button" onClick={()=>setShowInvite(false)} aria-label="Close invite"><X size={18}/></button></div><div className="detail-form"><label>Full name <span className="optional">Optional</span><input value={name} onChange={e=>setName(e.target.value)} placeholder="Jane Doe"/></label><label>Email address<input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="jane@organisation.com"/></label><label className="team-role-field"><span>Role</span><select value={memberRole} onChange={e=>setMemberRole(e.target.value as 'reviewer'|'admin')}><option value="reviewer">Reviewer</option><option value="admin">Admin</option></select><small className="team-role-help">{memberRole==='reviewer'?'Can work on assigned applicants.':'Can manage the workspace and assignments.'}</small></label><div className="detail-form-footer team-invite-footer"><button className="secondary-button" type="button" onClick={()=>setShowInvite(false)}>Cancel</button><button className="primary-button" type="button" onClick={invite} disabled={inviting||!email.trim()}>{inviting?'Sending…':'Send invitation'}</button></div></div></div></div>}</section>
 }
-export function SettingsWorkspace({organization,profile,onSaved,onProfileSaved}:{organization:{id:string;name:string;slug:string}|null;profile:{id:string;full_name:string|null;avatar_url:string|null;role:string;organization_id:string|null}|null;onSaved:(name:string)=>void;onProfileSaved:(profile:{full_name:string|null;avatar_url:string|null})=>void}){
+export function SettingsWorkspace({organization,profile,onSaved,onProfileSaved}:{organization:{id:string;name:string;slug:string}|null;profile:{id:string;full_name:string|null;username:string|null;birth_month:number|null;birth_day:number|null;avatar_url:string|null;role:string;organization_id:string|null}|null;onSaved:(name:string)=>void;onProfileSaved:(profile:{full_name:string|null;username:string|null;birth_month:number|null;birth_day:number|null;avatar_url:string|null})=>void}){
  const [name,setName]=useState(organization?.name||''); const [slug,setSlug]=useState(organization?.slug||'')
- const [profileName,setProfileName]=useState(profile?.full_name||''); const [email,setEmail]=useState(''); const [avatarUrl,setAvatarUrl]=useState(profile?.avatar_url||'')
+ const [profileName,setProfileName]=useState(profile?.full_name||''); const [username,setUsername]=useState(profile?.username||''); const [birthMonth,setBirthMonth]=useState(profile?.birth_month?String(profile.birth_month):''); const [birthDay,setBirthDay]=useState(profile?.birth_day?String(profile.birth_day):''); const [email,setEmail]=useState(''); const [avatarUrl,setAvatarUrl]=useState(profile?.avatar_url||'')
  const [currentPassword,setCurrentPassword]=useState(''); const [newPassword,setNewPassword]=useState(''); const [confirmPassword,setConfirmPassword]=useState('')
  const [saving,setSaving]=useState(false); const [profileSaving,setProfileSaving]=useState(false); const [passwordSaving,setPasswordSaving]=useState(false); const [emailSaving,setEmailSaving]=useState(false); const [signingOut,setSigningOut]=useState(false)
  const [notice,setNotice]=useState(''); const [error,setError]=useState(''); const [emailNotice,setEmailNotice]=useState('')
  useEffect(()=>{setName(organization?.name||'');setSlug(organization?.slug||'')},[organization])
- useEffect(()=>{setProfileName(profile?.full_name||'');setAvatarUrl(profile?.avatar_url||'')},[profile])
+ useEffect(()=>{setProfileName(profile?.full_name||'');setUsername(profile?.username||'');setBirthMonth(profile?.birth_month?String(profile.birth_month):'');setBirthDay(profile?.birth_day?String(profile.birth_day):'');setAvatarUrl(profile?.avatar_url||'')},[profile])
  useEffect(()=>{(async()=>{const {data}=await supabase.auth.getUser();setEmail(data.user?.email||'')})()},[])
  function flash(message:string){setNotice(message);setError('')}
  async function saveWorkspace(){
@@ -869,10 +869,15 @@ export function SettingsWorkspace({organization,profile,onSaved,onProfileSaved}:
  async function saveProfile(){
    if(!profile)return
    setProfileSaving(true);setError('');setNotice('')
-   const {error}=await supabase.from('profiles').update({full_name:profileName.trim()||null,updated_at:new Date().toISOString()}).eq('id',profile.id)
-   if(error)setError(error.message)
-   else{onProfileSaved({full_name:profileName.trim()||null,avatar_url:avatarUrl||null});flash('Profile updated.')}
-   setProfileSaving(false)
+   try{
+    const normalizedUsername=username.trim().toLowerCase()
+    if(!/^[a-z0-9_]{3,30}$/.test(normalizedUsername))throw new Error('Username must be 3–30 characters and use only letters, numbers, or underscores.')
+    if(!birthMonth||!birthDay)throw new Error('Please select your date of birth.')
+    const {error}=await supabase.from('profiles').update({full_name:profileName.trim()||null,username:normalizedUsername,birth_month:Number(birthMonth),birth_day:Number(birthDay),updated_at:new Date().toISOString()}).eq('id',profile.id)
+    if(error)throw error
+    onProfileSaved({full_name:profileName.trim()||null,username:normalizedUsername,birth_month:Number(birthMonth),birth_day:Number(birthDay),avatar_url:avatarUrl||null});flash('Profile updated.')
+   }catch(e){setError(e instanceof Error?e.message:'Could not update your profile.')}
+   finally{setProfileSaving(false)}
  }
  async function uploadAvatar(file:File){
    if(!profile)return
@@ -889,7 +894,7 @@ export function SettingsWorkspace({organization,profile,onSaved,onProfileSaved}:
      const publicUrl=`${data.publicUrl}?v=${Date.now()}`
      const {error:profileError}=await supabase.from('profiles').update({avatar_url:publicUrl,updated_at:new Date().toISOString()}).eq('id',profile.id)
      if(profileError)throw new Error(`Profile update failed: ${profileError.message}`)
-     setAvatarUrl(publicUrl);onProfileSaved({full_name:profileName.trim()||null,avatar_url:publicUrl});flash('Profile photo updated.')
+     setAvatarUrl(publicUrl);onProfileSaved({full_name:profileName.trim()||null,username:username.trim().toLowerCase()||null,birth_month:birthMonth?Number(birthMonth):null,birth_day:birthDay?Number(birthDay):null,avatar_url:publicUrl});flash('Profile photo updated.')
    }catch(e){setError(e instanceof Error?e.message:'Could not upload your profile image.')}
    finally{setProfileSaving(false)}
  }
@@ -925,7 +930,7 @@ export function SettingsWorkspace({organization,profile,onSaved,onProfileSaved}:
    setSigningOut(true);setError('')
    try{const {error}=await supabase.auth.signOut({scope:'global'});if(error)throw error}catch(e){setError(e instanceof Error?e.message:'Could not sign out all sessions.')}finally{setSigningOut(false)}
  }
- const initials=(profileName||email||'U').split(/\\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'U'
+ const initials=(profileName||username||email||'U').split(/\\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'U'
  return <section>
   <div className="page-heading compact"><div><p className="eyebrow">Manage</p><h1>Settings</h1><p className="subtitle">Manage your workspace and personal account.</p></div></div>
   {error&&<div className="form-error page-error">{error}</div>}{notice&&<div className="form-message page-message">{notice}</div>}
@@ -935,6 +940,8 @@ export function SettingsWorkspace({organization,profile,onSaved,onProfileSaved}:
     <div className="detail-form">
       <div className="settings-avatar-row"><div className="settings-avatar-large">{avatarUrl?<img src={avatarUrl} alt="Profile" />:<span>{initials}</span>}</div><div><label className="settings-upload-label"><input type="file" accept="image/jpeg,image/png,image/webp" disabled={profileSaving} onChange={e=>{const file=e.target.files?.[0];if(file)uploadAvatar(file);e.currentTarget.value=''}}/><span>{profileSaving?'Uploading…':'Upload profile image'}</span></label><small className="field-help">JPG, PNG or WebP · maximum 5 MB</small></div></div>
       <label>Full name<input value={profileName} onChange={e=>setProfileName(e.target.value)} placeholder="Your full name"/></label>
+      <label>Username<input value={username} onChange={e=>setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g,''))} placeholder="yourusername" minLength={3} maxLength={30} autoComplete="username"/><small className="field-help">Used to sign in · 3–30 characters · letters, numbers and underscores</small></label>
+      <div className="form-grid"><label>Date of birth <span className="optional">Month and day only</span><div className="form-grid"><select value={birthMonth} onChange={e=>setBirthMonth(e.target.value)}><option value="">Month</option>{['January','February','March','April','May','June','July','August','September','October','November','December'].map((month,index)=><option key={month} value={index+1}>{month}</option>)}</select><select value={birthDay} onChange={e=>setBirthDay(e.target.value)}><option value="">Day</option>{Array.from({length:31},(_,i)=>i+1).map(day=><option key={day} value={day}>{day}</option>)}</select></div></label><div></div></div>
       <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} /><small className="field-help">Changing your email requires confirmation.</small></label>
       {emailNotice&&<div className="form-message">{emailNotice}</div>}
       <div className="detail-form-footer"><button className="secondary-button" onClick={changeEmail} disabled={emailSaving}>{emailSaving?'Updating…':'Change email'}</button><button className="primary-button" onClick={saveProfile} disabled={profileSaving}>Save profile</button></div>
