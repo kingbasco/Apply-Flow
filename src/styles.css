@@ -1128,3 +1128,6 @@
 .import-summary span{display:block;color:#8b93a0;font-size:9px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 .import-summary strong{display:block;margin-top:5px;font-size:18px}
 @media(max-width:700px){.import-modal{width:calc(100vw - 18px)}.import-summary{grid-template-columns:1fr}.import-dropzone{min-height:110px}}
+
+/* Google Form import — validation */
+.import-validation{padding:14px 16px;border-top:1px solid #e8ebef;background:#fbfcfd;display:grid;gap:8px}.import-validation>div:first-child{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.import-validation>div:first-child strong{font-size:11px;color:#303846}.import-validation>div:first-child span{font-size:10px;color:#8a929f;text-align:right}.import-validation-row{display:flex;justify-content:space-between;gap:12px;font-size:10px;padding-top:3px}.import-validation-row span{color:#8a929f}.import-validation-row strong{color:#56606e;font-weight:700}.import-validation-warning{padding:8px 10px;border-radius:8px;background:#fff8e8;color:#94650e;font-size:10px;line-height:1.45}.import-validation-ok{padding:8px 10px;border-radius:8px;background:#eef8f2;color:#2d8256;font-size:10px}
