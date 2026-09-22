@@ -679,7 +679,7 @@ function App() {
     if(deletingApplicationId)return
     setDeletingApplicationId(application.id)
     try{
-      const {error}=await supabase.from('applications').delete().eq('id',application.id)
+      const {error}=await supabase.rpc('delete_application',{p_application_id:application.id})
       if(error)throw error
       setApplications(current=>current.filter(item=>item.id!==application.id))
       if(selectedApplication?.id===application.id)closeApplication()
