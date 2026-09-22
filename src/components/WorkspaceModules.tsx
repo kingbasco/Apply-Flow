@@ -717,7 +717,7 @@ function ScreeningReviewModal({row,role,onClose,onDecision}:{row:ScreeningRow;ro
  )
 }
 export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{applications:Application[];organizationId:string;onOpen:(a:Application)=>void;role?:Profile['role']}){
- const [rows,setRows]=useState<any[]>([]),[reviewers,setReviewers]=useState<Profile[]>([]),[audit,setAudit]=useState<any[]>([]),[loading,setLoading]=useState(true),[auditLoading,setAuditLoading]=useState(true),[error,setError]=useState(''),[auditError,setAuditError]=useState(''),[query,setQuery]=useState(''),[status,setStatus]=useState('all'),[selectedIds,setSelectedIds]=useState<string[]>([]),[assignmentReviewer,setAssignmentReviewer]=useState(''),[assigning,setAssigning]=useState(false),[assignmentNotice,setAssignmentNotice]=useState(''),[reviewing,setReviewing]=useState<any|null>(null);
+ const [rows,setRows]=useState<any[]>([]),[reviewers,setReviewers]=useState<Profile[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[status,setStatus]=useState('all'),[selectedIds,setSelectedIds]=useState<string[]>([]),[assignmentReviewer,setAssignmentReviewer]=useState(''),[assigning,setAssigning]=useState(false),[assignmentNotice,setAssignmentNotice]=useState(''),[reviewing,setReviewing]=useState<any|null>(null);
 
  async function load(){
   setLoading(true);setError('');
@@ -729,12 +729,12 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
    let visibleSubs=subs||[];
    const submissionIds=(subs||[]).map(s=>s.id);
    if(!submissionIds.length){setRows([]);setReviewers([]);setLoading(false);return}
-   let assignmentQuery=supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,decision,updated_at').in('submission_id',submissionIds);
+   let assignmentQuery=supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,updated_at').in('submission_id',submissionIds);
    if(role==='reviewer'){
     const {data:authData}=await supabase.auth.getUser();
     const reviewerId=authData.user?.id;
     if(reviewerId){
-     const {data:mine,error:mineError}=await supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,decision,updated_at').in('submission_id',submissionIds).eq('reviewer_id',reviewerId);
+     const {data:mine,error:mineError}=await supabase.from('review_assignments').select('submission_id').in('submission_id',submissionIds).eq('reviewer_id',reviewerId);
      if(mineError)throw mineError;
      const assignedIds=new Set((mine||[]).map(x=>x.submission_id));
      visibleSubs=visibleSubs.filter(s=>assignedIds.has(s.id));
@@ -743,7 +743,7 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
    const visibleIds=visibleSubs.map(s=>s.id);
    const [{data:assignments,error:ae},{data:people,error:pe},{data:applicants,error:apE}]=await Promise.all([
     role==='reviewer'
-     ? supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,decision,updated_at').in('submission_id',visibleIds)
+     ? supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,updated_at').in('submission_id',visibleIds)
      : assignmentQuery,
     supabase.from('profiles').select('id,full_name,role,organization_id').eq('organization_id',organizationId).in('role',['reviewer','admin','owner']).order('full_name'),
     supabase.from('applicants').select('id,full_name,email').in('id',(subs||[]).map(s=>s.applicant_id).filter(Boolean))
@@ -755,46 +755,28 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
    for(const a of assignments||[])grouped.set(a.submission_id,[...(grouped.get(a.submission_id)||[]),a]);
    setRows(visibleSubs.map(s=>{
     const as=grouped.get(s.id)||[],p=applicantMap.get(s.applicant_id),app=appMap.get(s.application_id),reviewerList=as.map(x=>reviewerMap.get(x.reviewer_id)).filter(Boolean);
-    const aggregateStatus=as.length===0?'unassigned':as.every(x=>x.status==='completed')?'completed':as.some(x=>x.status==='in_progress')?'in_progress':'assigned';
-    return{submissionId:s.id,applicationId:s.application_id,applicantName:p?.full_name||'Unnamed applicant',email:p?.email||null,programmeName:app?.name||'Programme',reviewers:reviewerList,status:aggregateStatus,assignments:as,decision:as.find(x=>x.decision)?.decision||null,score:as.find(x=>x.score!=null)?.score??null,updatedAt:as.reduce((latest,x)=>!latest||x.updated_at>latest?x.updated_at:latest,s.created_at)}
+    const workflowStatus=as.length===0?'unassigned':as.some(x=>x.status==='in_progress')?'in_progress':as.every(x=>x.status==='completed')?'reviewed':'assigned';
+    const displayStatus=s.decision==='approved'?'approved':s.decision==='rejected'?'rejected':workflowStatus;
+    return{submissionId:s.id,applicationId:s.application_id,applicantName:p?.full_name||'Unnamed applicant',email:p?.email||null,programmeName:app?.name||'Programme',reviewers:reviewerList,status:displayStatus,decision:s.decision||null,updatedAt:as.reduce((latest,x)=>!latest||x.updated_at>latest?x.updated_at:latest,s.created_at)}
    }))
    setSelectedIds([]);
-  }catch(e:any){setError(e.message||'Unable to load review operations.')}finally{setLoading(false)}
+  }catch(e:any){setError(e.message||'Unable to load reviews.')}finally{setLoading(false)}
  }
- async function loadAudit(){
-  setAuditLoading(true);setAuditError('');
-  try{
-   const ids=applications.map(a=>a.id);if(!ids.length){setAudit([]);return}
-   const {data:subs,error:se}=await supabase.from('submissions').select('id,application_id,applicant_id').in('application_id',ids);if(se)throw se;
-   const sids=(subs||[]).map(s=>s.id);if(!sids.length){setAudit([]);return}
-   const {data:assignments,error:ae}=await supabase.from('review_assignments').select('id,submission_id').in('submission_id',sids);if(ae)throw ae;
-   const aids=(assignments||[]).map(x=>x.id);if(!aids.length){setAudit([]);return}
-   const {data:logs,error:le}=await supabase.from('review_audit_logs').select('id,review_assignment_id,action,from_status,to_status,previous_score,new_score,actor_id,metadata,created_at,organization_id').eq('organization_id',organizationId).in('review_assignment_id',aids).order('created_at',{ascending:false}).limit(500);if(le)throw le;
-   const actorIds=[...new Set((logs||[]).map(x=>x.actor_id).filter(Boolean))],applicantIds=[...new Set((subs||[]).map(x=>x.applicant_id).filter(Boolean))];
-   const [{data:people,error:pe},{data:applicants,error:apE}]=await Promise.all([
-    actorIds.length?supabase.from('profiles').select('id,full_name,organization_id').eq('organization_id',organizationId).in('id',actorIds):Promise.resolve({data:[],error:null}),
-    applicantIds.length?supabase.from('applicants').select('id,full_name,email').in('id',applicantIds):Promise.resolve({data:[],error:null})
-   ]);if(pe)throw pe;if(apE)throw apE;
-   const subMap=new Map((subs||[]).map(x=>[x.id,x])),assignMap=new Map((assignments||[]).map(x=>[x.id,x])),actorMap=new Map((people||[]).map(x=>[x.id,x])),applicantMap=new Map((applicants||[]).map(x=>[x.id,x])),appMap=new Map(applications.map(x=>[x.id,x]));
-   setAudit((logs||[]).map(x=>{const s=subMap.get(assignMap.get(x.review_assignment_id)?.submission_id),p=s?applicantMap.get(s.applicant_id):null;return{...x,applicantName:p?.full_name||'Unknown applicant',programmeName:s?appMap.get(s.application_id)?.name||'Programme':'Programme',actorName:actorMap.get(x.actor_id)?.full_name||'System'}}))
-  }catch(e:any){setAuditError(e.message||'Unable to load audit history.')}finally{setAuditLoading(false)}
- }
- useEffect(()=>{load();loadAudit()},[applications.map(a=>a.id).join(',')])
+ useEffect(()=>{load()},[applications.map(a=>a.id).join(','),role])
+
  const filtered=useMemo(()=>rows.filter(r=>(status==='all'||r.status===status)&&(!query||r.applicantName.toLowerCase().includes(query.toLowerCase())||r.email?.toLowerCase().includes(query.toLowerCase())||r.programmeName.toLowerCase().includes(query.toLowerCase()))),[rows,status,query])
- const filteredAudit=useMemo(()=>audit.filter(r=>!query||r.applicantName.toLowerCase().includes(query.toLowerCase())||r.actorName.toLowerCase().includes(query.toLowerCase())||r.action.toLowerCase().includes(query.toLowerCase())||r.programmeName.toLowerCase().includes(query.toLowerCase())),[audit,query])
- const stats=useMemo(()=>({total:rows.length,unassigned:rows.filter(r=>r.status==='unassigned').length,assigned:rows.filter(r=>r.status==='assigned').length,inProgress:rows.filter(r=>r.status==='in_progress').length,completed:rows.filter(r=>r.status==='completed').length}),[rows])
+ const statusLabel=(value:string)=>({unassigned:'Unassigned',assigned:'Assigned',in_progress:'In review',reviewed:'Reviewed',approved:'Approved',rejected:'Rejected'}[value]||value)
+ const statusClass=(value:string)=>value==='approved'||value==='reviewed'?'green':value==='rejected'?'red':value==='in_progress'?'amber':value==='assigned'?'blue':'neutral'
  const setReviewDecision=async(row:any,decision:'approved'|'rejected')=>{
   setError('');
   const result=role==='reviewer'
    ? await supabase.rpc('reviewer_set_submission_decision',{p_submission_id:row.submissionId,p_decision:decision})
    : await supabase.from('submissions').update({decision}).eq('id',row.submissionId);
   if(result.error){setError(result.error.message);return}
-  setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision}:r));
+  setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision,status:decision}:r));
   setReviewing((current:any)=>current?.submissionId===row.submissionId?{...current,decision}:current);
   setAssignmentNotice(decision==='approved'?'Applicant approved.':'Applicant rejected.');
- };
-
- const reviewerCounts=useMemo(()=>reviewers.map(p=>({name:p.full_name||'Unnamed reviewer',count:rows.reduce((sum,r)=>sum+r.reviewers.filter((x:any)=>x.id===p.id).length,0)})).filter(x=>x.count>0),[reviewers,rows])
+ }
  const allFilteredSelected=filtered.length>0&&filtered.every(r=>selectedIds.includes(r.submissionId))
  const toggleSelected=(id:string)=>setSelectedIds(current=>current.includes(id)?current.filter(x=>x!==id):[...current,id])
  const toggleAll=()=>setSelectedIds(allFilteredSelected?[]:filtered.map(r=>r.submissionId))
@@ -806,37 +788,34 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
     const {error}=await supabase.rpc('assign_review_submission',{p_submission_id:submissionId,p_reviewer_id:assignmentReviewer});
     if(error)throw error;
    }
-   const name=reviewers.find(x=>x.id===assignmentReviewer)?.full_name||'reviewer';
+   const name=reviewers.find(x=>x.id===assignmentReviewer)?.full_name||'team member';
    setAssignmentNotice(selectedIds.length===1?'Applicant assigned to '+name+'.':selectedIds.length+' applicants assigned to '+name+'.');
-   setSelectedIds([]);setAssignmentReviewer('');await load();await loadAudit();
+   setSelectedIds([]);setAssignmentReviewer('');await load();
   }catch(e:any){setError(e.message||'Could not assign the selected applicants.')}finally{setAssigning(false)}
  }
- const exportAudit=()=>{const header=['Date','Action','Applicant','Programme','Actor','From status','To status','Previous score','New score'];const body=filteredAudit.map(r=>[r.created_at,r.action,r.applicantName,r.programmeName,r.actorName,r.from_status||'',r.to_status||'',r.previous_score??'',r.new_score??'']);const csv=[header,...body].map(row=>row.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='applyflow-review-audit.csv';a.click();URL.revokeObjectURL(url)}
+
  return <section>
-  <div className="page-heading compact"><div><p className="eyebrow">Human review</p><h1>Reviews & audit</h1><p className="subtitle">Assign applicants to reviewers, manage workload and trace screening decisions.</p></div><div className="detail-actions"><button className="secondary-button" onClick={load}>Refresh reviews</button><button className="secondary-button" onClick={loadAudit}>Refresh audit</button><button className="secondary-button" onClick={exportAudit} disabled={!filteredAudit.length}><Download size={15}/> Export CSV</button></div></div>
-  {(error||auditError)&&<div className="form-error page-error">{error||auditError}</div>}{assignmentNotice&&<div className="form-message page-message">{assignmentNotice}</div>}
-  <div className="review-stats">
-   <div className="review-stat-card total"><div className="review-stat-icon"><ClipboardList size={17}/></div><div><span>Total reviews</span><strong>{stats.total}</strong><small>All submitted applications</small></div></div>
-   <div className="review-stat-card unassigned"><div className="review-stat-icon"><UserRoundPlus size={17}/></div><div><span>Unassigned</span><strong>{stats.unassigned}</strong><small>Waiting for a reviewer</small></div></div>
-   <div className="review-stat-card assigned"><div className="review-stat-icon"><UserCheck size={17}/></div><div><span>Assigned</span><strong>{stats.assigned}</strong><small>Ready for review</small></div></div>
-   <div className="review-stat-card progress"><div className="review-stat-icon"><Clock3 size={17}/></div><div><span>In progress</span><strong>{stats.inProgress}</strong><small>Currently being reviewed</small></div></div>
-   <div className="review-stat-card completed"><div className="review-stat-icon"><CheckCircle2 size={17}/></div><div><span>Completed</span><strong>{stats.completed}</strong><small>Review finished</small></div></div>
+  <div className="page-heading compact">
+   <div><p className="eyebrow">Human review</p><h1>{role==='reviewer'?'My reviews':'Reviews'}</h1><p className="subtitle">{role==='reviewer'?'Review the applications assigned to you.':'Assign submitted applications to team members and track their review status.'}</p></div>
+   <div className="detail-actions"><button className="secondary-button" onClick={load}>Refresh</button></div>
   </div>
+  {error&&<div className="form-error page-error">{error}</div>}{assignmentNotice&&<div className="form-message page-message">{assignmentNotice}</div>}
   <div className="card table-card">
-   <div className="card-header"><div><h2>{role==='reviewer'?'My assigned reviews':'Assign applicants'}</h2><p>{role==='reviewer'?'Review the applicants assigned to you and open each application to complete the review.':'Select the applicants you want to give to one team member. You can assign the same applicant to more than one reviewer.'}</p></div><Users size={20}/></div>
+   <div className="card-header"><div><h2>{role==='reviewer'?'Assigned applications':'Assign applications'}</h2><p>{role==='reviewer'?'Only applications assigned to you are shown here.':'Select applications and assign them to a team member.'}</p></div><Users size={20}/></div>
    {role!=='reviewer'&&<div className="review-assignment-toolbar">
     <label className="review-assignee-field"><span>Assign selected to</span><div className="review-select-wrap"><Users size={15}/><select value={assignmentReviewer} onChange={e=>setAssignmentReviewer(e.target.value)}><option value="">Choose a team member…</option>{reviewers.map(p=><option key={p.id} value={p.id}>{p.full_name||'Unnamed member'} · {p.role}</option>)}</select><ArrowRight size={14} className="review-select-chevron"/></div></label>
     <div className="review-selection-meta"><strong>{selectedIds.length}</strong><span>selected</span></div>
     <button className="primary-button review-assign-button" onClick={assignSelected} disabled={!assignmentReviewer||!selectedIds.length||assigning}>{assigning?'Assigning…':'Assign '+(selectedIds.length||'')+' applicant'+(selectedIds.length===1?'':'s')}</button>
    </div>}
-   <div className="forms-toolbar review-filter-toolbar"><div className="forms-search"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applicant, programme or email…"/></div><label className="review-status-filter"><span>Status</span><div className="review-select-wrap"><span className="status-dot"/><select aria-label="Filter reviews by status" value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses</option><option value="unassigned">Unassigned</option><option value="assigned">Assigned</option><option value="in_progress">In progress</option><option value="completed">Completed</option></select><ArrowRight size={14} className="review-select-chevron"/></div></label></div>
-   <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label="Select all visible applicants" checked={allFilteredSelected} onChange={toggleAll}/></th><th>Applicant</th><th>Programme</th><th>Reviewer(s)</th><th>Status</th><th>Score</th><th></th></tr></thead><tbody>
-    {loading?<tr><td colSpan={7}><div className="loading-card">Loading review operations…</div></td></tr>:filtered.length===0?<tr><td colSpan={7}><div className="table-empty">No review records match your filters.</div></td></tr>:filtered.map(r=><tr key={r.submissionId}><td><input type="checkbox" aria-label={'Select '+r.applicantName} checked={selectedIds.includes(r.submissionId)} onChange={()=>toggleSelected(r.submissionId)}/></td><td><strong>{r.applicantName}</strong><span className="table-sub">{r.email||'No email'}</span></td><td>{r.programmeName}</td><td>{r.reviewers.length?r.reviewers.map((x:any)=>x.full_name||'Unnamed').join(', '):<span className="muted">Unassigned</span>}</td><td><span className={'status '+(r.status==='completed'?'green':r.status==='in_progress'?'amber':r.status==='assigned'?'blue':'neutral')}>{r.status.replace('_',' ')}</span></td><td>{r.score==null?'—':r.score}</td><td><button className="text-button" onClick={()=>setReviewing({...r,uniqueId:r.uniqueId||'—',submittedAt:r.submittedAt||null,email:r.email||null,eligibility:'pending',aiStatus:'pending',aiRecommendation:'Not screened',decision:r.decision==='approved'||r.decision==='rejected'?r.decision:'pending'})}>Review</button></td></tr>)}
+   <div className="forms-toolbar review-filter-toolbar">
+    <div className="forms-search"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applicant, programme or email…"/></div>
+    <label className="review-status-filter"><span>Status</span><div className="review-select-wrap"><span className="status-dot"/><select aria-label="Filter reviews by status" value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses</option><option value="unassigned">Unassigned</option><option value="assigned">Assigned</option><option value="in_progress">In review</option><option value="reviewed">Reviewed</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select><ArrowRight size={14} className="review-select-chevron"/></div></label>
+   </div>
+   <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label="Select all visible applicants" checked={allFilteredSelected} onChange={toggleAll}/></th><th>Applicant</th><th>Programme</th><th>Assigned to</th><th>Status</th><th></th></tr></thead><tbody>
+    {loading?<tr><td colSpan={6}><div className="loading-card">Loading reviews…</div></td></tr>:filtered.length===0?<tr><td colSpan={6}><div className="table-empty">No applications match your filters.</div></td></tr>:filtered.map(r=><tr key={r.submissionId}><td><input type="checkbox" aria-label={'Select '+r.applicantName} checked={selectedIds.includes(r.submissionId)} onChange={()=>toggleSelected(r.submissionId)}/></td><td><strong>{r.applicantName}</strong><span className="table-sub">{r.email||'No email'}</span></td><td>{r.programmeName}</td><td>{r.reviewers.length?r.reviewers.map((x:any)=>x.full_name||'Unnamed').join(', '):<span className="muted">Unassigned</span>}</td><td><span className={'status '+statusClass(r.status)}>{statusLabel(r.status)}</span></td><td><button className="text-button" onClick={()=>setReviewing({...r,uniqueId:r.uniqueId||'—',submittedAt:r.submittedAt||null,email:r.email||null,eligibility:'pending',aiStatus:'pending',aiRecommendation:'Not screened',decision:r.decision==='approved'||r.decision==='rejected'?r.decision:'pending'})}>Review</button></td></tr>)}
    </tbody></table></div>
   </div>
   {reviewing&&<ScreeningReviewModal row={reviewing} role={role} onClose={()=>setReviewing(null)} onDecision={setReviewDecision}/>}
-  {role!=='reviewer'&&reviewerCounts.length>0&&<div className="card table-card" style={{marginTop:16}}><div className="card-header"><div><h2>Reviewer workload</h2><p>Number of current applicant assignments per team member.</p></div><Users size={20}/></div><div className="table-wrap"><table><thead><tr><th>Reviewer</th><th>Assigned applicants</th></tr></thead><tbody>{reviewerCounts.map(r=><tr key={r.name}><td><strong>{r.name}</strong></td><td>{r.count}</td></tr>)}</tbody></table></div></div>}
-  {role!=='reviewer'&&<div className="card table-card" style={{marginTop:16}}><div className="card-header"><div><h2>Decision & override history</h2><p>Audit trail of reviewer status and score changes.</p></div><ClipboardList size={20}/></div><div className="table-wrap"><table><thead><tr><th>Date</th><th>Action</th><th>Applicant</th><th>Actor</th><th>Status change</th><th>Score change</th></tr></thead><tbody>{auditLoading?<tr><td colSpan={6}><div className="loading-card">Loading audit history…</div></td></tr>:filteredAudit.length===0?<tr><td colSpan={6}><div className="table-empty">No audit events found.</div></td></tr>:filteredAudit.map(r=><tr key={r.id}><td>{r.created_at?new Date(r.created_at).toLocaleString():'—'}</td><td>{r.action}</td><td><strong>{r.applicantName}</strong><span className="table-sub">{r.programmeName}</span></td><td>{r.actorName}</td><td>{r.from_status||'—'} {r.to_status?'→ '+r.to_status:''}</td><td>{r.previous_score==null&&r.new_score==null?'—':String(r.previous_score??'—')+' → '+String(r.new_score??'—')}</td></tr>)}</tbody></table></div></div>}}
  </section>
 }
 export function TeamWorkspace({organizationId,role:workspaceRole}:{organizationId:string;role?:'owner'|'admin'|'reviewer'}){
