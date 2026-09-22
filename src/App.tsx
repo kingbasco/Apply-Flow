@@ -7,7 +7,7 @@ import {
 import { supabase } from './lib/supabase'
 import { NIGERIAN_STATES, getNigerianLgas } from './lib/nigeria'
 import ParticipantsPanel from './components/ParticipantsPanel'
-import { FormsWorkspace, ScreeningWorkspace, ReviewsWorkspace, TeamWorkspace, SettingsWorkspace, ScreeningReviewModal, ScreeningRow } from './components/WorkspaceModules'
+import { FormsWorkspace, ScreeningWorkspace, ReviewsWorkspace, TeamWorkspace, SettingsWorkspace, ScreeningReviewModal } from './components/WorkspaceModules'\nimport type { ScreeningRow } from './components/WorkspaceModules'
 import { GoogleFormImport } from './components/GoogleFormImport'
 
 type AppStatus = 'draft' | 'published' | 'screening' | 'closed' | 'completed'
