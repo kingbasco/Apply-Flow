@@ -15,7 +15,11 @@ type Benefit = {
 }
 type AttendanceRow = {
   participant_id:string; status:'present'|'absent'; marked_at:string
-  participants?:{participant_code:string;full_name:string|null;email:string|null;application_id:string}
+  participants?:{participant_code:string;application_id:string;applicants?:{full_name:string|null;email:string|null}}
+}
+type ParticipantAttendance = {
+  id:string; status:'present'|'absent'; marked_at:string
+  attendance_sessions?:{title:string;session_date:string;application_id:string}
 }
 
 export default function ParticipantsPanel({organizationId,applications}:{organizationId:string;applications:Application[]}) {
@@ -24,6 +28,8 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   const [sessions,setSessions]=useState<Session[]>([])
   const [benefits,setBenefits]=useState<Benefit[]>([])
   const [selectedParticipant,setSelectedParticipant]=useState<Participant|null>(null)
+  const [participantAttendance,setParticipantAttendance]=useState<ParticipantAttendance[]>([])
+  const [participantAttendanceLoading,setParticipantAttendanceLoading]=useState(false)
   const [selectedSession,setSelectedSession]=useState<Session|null>(null)
   const [sessionAttendance,setSessionAttendance]=useState<AttendanceRow[]>([])
   const [attendanceLoading,setAttendanceLoading]=useState(false)
@@ -105,6 +111,19 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     withdrawn:scopedParticipants.filter(p=>p.status==='withdrawn').length
   }),[scopedParticipants])
 
+  async function openParticipant(participant:Participant){
+    setSelectedParticipant(participant);setParticipantAttendance([]);setParticipantAttendanceLoading(true);setError('')
+    try{
+      const {data,error}=await supabase.from('attendance_records')
+        .select('id,status,marked_at,attendance_sessions!inner(title,session_date,application_id)')
+        .eq('participant_id',participant.id)
+        .eq('attendance_sessions.application_id',participant.application_id)
+        .order('marked_at',{ascending:false})
+      if(error)throw error
+      setParticipantAttendance((data||[]) as ParticipantAttendance[])
+    }catch(e){setError(e instanceof Error?e.message:'Could not load participant attendance history.')}finally{setParticipantAttendanceLoading(false)}
+  }
+
   async function updateParticipantStatus(participantId:string,status:Participant['status']){
     setSaving(true);setError('');setNotice('')
     try{
@@ -120,12 +139,12 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     setSelectedSession(session);setAttendanceLoading(true);setError('')
     try{
       const {data,error}=await supabase.from('attendance_records')
-        .select('participant_id,status,marked_at,participants!inner(participant_code,full_name,email,application_id)')
+        .select('participant_id,status,marked_at,participants!inner(participant_code,application_id,applicants(full_name,email))')
         .eq('attendance_session_id',session.id)
       if(error)throw error
       setSessionAttendance((data||[]).map((row:any)=>({
         ...row,
-        participants:Array.isArray(row.participants)?row.participants[0]:row.participants
+        participants:Array.isArray(row.participants)?{...row.participants[0],applicants:row.participants[0]?.applicants}:row.participants
       })) as AttendanceRow[])
     }catch(e){setError(e instanceof Error?e.message:'Could not load session attendance.')}finally{setAttendanceLoading(false)}
   }
@@ -203,7 +222,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   return <section>
     <div className="page-heading compact">
       <div><p className="eyebrow">Programme management</p><h1>Participants</h1><p className="subtitle">Manage selected applicants after selection: permanent IDs, attendance and programme benefits.</p></div>
-      <div className="status green"><BadgeCheck size={15}/> Applicant IDs active</div>
+      <div className="status green"><BadgeCheck size={15}/> Participant IDs active</div>
     </div>
 
     {error&&<div className="form-error page-error">{error}</div>}
@@ -212,7 +231,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     <div className="card" style={{padding:16,marginBottom:18}}>
       <div style={{display:'flex',gap:12,alignItems:'flex-start'}}>
         <div className="stat-icon"><CheckCircle2 size={18}/></div>
-        <div><strong>How participants are created</strong><p className="muted" style={{margin:'4px 0 0'}}>Applicants become participants automatically when their application is <strong>Approved</strong> during screening. ApplyFlow records them as <strong>Selected</strong> and assigns a permanent participant ID immediately.</p></div>
+        <div><strong>How participants are created</strong><p className="muted" style={{margin:'4px 0 0'}}>Applicants become participants automatically when their application is <strong>Approved</strong> during screening. ApplyFlow records them as <strong>Selected / Enrolled</strong> and assigns a participant ID immediately.</p></div>
       </div>
     </div>
 
@@ -245,15 +264,15 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
           <div className="search"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search participants…"/></div>
         </div>
         <div style={{display:'flex',gap:10,padding:'0 18px 16px',flexWrap:'wrap'}}>
-                    <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value as any)}><option value="all">All statuses</option><option value="active">Active</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select>
+                    <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value as any)}><option value="all">All statuses</option><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select>
         </div>
-        <div className="table-wrap"><table><thead><tr><th>Applicant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
-          {filtered.length?filtered.map(p=><tr key={p.id} className="clickable-row" onClick={()=>setSelectedParticipant(p)}>
+        <div className="table-wrap"><table><thead><tr><th>Participant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
+          {filtered.length?filtered.map(p=><tr key={p.id} className="clickable-row" onClick={()=>openParticipant(p)}>
             <td><strong>{p.participant_code}</strong></td>
             <td><strong>{p.full_name||'Unnamed participant'}</strong><span className="table-sub">{p.email||'No email'}</span></td>
             <td>{appName(p.application_id)}</td>
             <td>{p.attendance_count||0} present</td>
-            <td><span className={'status '+(p.status==='active'?'green':p.status==='completed'?'blue':'neutral')}>{p.status}</span></td>
+            <td><span className={'status '+(p.status==='active'?'green':p.status==='completed'?'blue':'neutral')}{p.status==='active'?'Active / Enrolled':p.status}</span></td>
             <td>{new Date(p.joined_at).toLocaleDateString()}</td>
           </tr>):<tr><td colSpan={6}><div className="table-empty">{participants.length?'No participants match these filters.':'No participants yet. Select an applicant in Selection to create their participant record.'}</div></td></tr>}
         </tbody></table></div>
@@ -311,9 +330,13 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
       <div className="preview-panel card" style={{maxWidth:720}}>
         <div className="preview-header"><div><p className="eyebrow">Participant profile</p><h2>{selectedParticipant.participant_code}</h2><p>{selectedParticipant.full_name||'Unnamed participant'} · {appName(selectedParticipant.application_id)}</p></div><button className="icon-button" onClick={()=>setSelectedParticipant(null)} aria-label="Close"><X size={18}/></button></div>
         <div className="dashboard-grid" style={{marginBottom:16}}>
-          <div className="card"><p className="eyebrow">Status</p><select value={selectedParticipant.status} disabled={saving} onChange={e=>updateParticipantStatus(selectedParticipant.id,e.target.value as Participant['status'])}><option value="active">Active — enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select></div>
+          <div className="card"><p className="eyebrow">Status</p><select value={selectedParticipant.status} disabled={saving} onChange={e=>updateParticipantStatus(selectedParticipant.id,e.target.value as Participant['status'])}><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select></div>
           <div className="card"><p className="eyebrow">Attendance</p><strong>{selectedParticipant.attendance_count||0} present</strong></div>
           <div className="card"><p className="eyebrow">Joined</p><strong>{new Date(selectedParticipant.joined_at).toLocaleDateString()}</strong></div>
+        </div>
+        <div className="card" style={{padding:16,marginBottom:16}}>
+          <div className="card-header" style={{padding:0,marginBottom:12}}><div><h3 style={{margin:0}}>Attendance history</h3><p className="muted" style={{margin:'4px 0 0'}}>Attendance records for this participant in this application.</p></div></div>
+          {participantAttendanceLoading?<div className="loading-card">Loading attendance history…</div>:participantAttendance.length?<div className="table-wrap"><table><thead><tr><th>Session</th><th>Date</th><th>Status</th><th>Recorded</th></tr></thead><tbody>{participantAttendance.map(r=><tr key={r.id}><td><strong>{r.attendance_sessions?.title||'Session'}</strong></td><td>{r.attendance_sessions?.session_date?new Date(r.attendance_sessions.session_date).toLocaleDateString():'—'}</td><td><span className={'status '+(r.status==='present'?'green':'neutral')}>{r.status}</span></td><td>{new Date(r.marked_at).toLocaleString()}</td></tr>)}</tbody></table></div>:<div className="table-empty">No attendance history yet.</div>}
         </div>
         <div className="card" style={{padding:16}}>
           <p className="eyebrow">Contact</p><p style={{margin:'4px 0'}}><strong>{selectedParticipant.full_name||'Unnamed participant'}</strong></p><p className="muted" style={{margin:0}}>{selectedParticipant.email||'No email available'}</p>
