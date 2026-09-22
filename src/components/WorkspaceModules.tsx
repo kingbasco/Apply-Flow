@@ -54,7 +54,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
  const [versions,setVersions]=useState<VersionRecord[]>([]); const [historyFor,setHistoryFor]=useState<FormSummary|null>(null); const [historyLoading,setHistoryLoading]=useState(false); const [busyId,setBusyId]=useState(''); const [settingsFor,setSettingsFor]=useState<FormSummary|null>(null); const [settingsDraft,setSettingsDraft]=useState<FormSettings>({start_date:null,deadline:null,submission_limit:null,confirmation_message:'Thank you. Your application has been received.',applicant_instructions:null}); const [settingsSaving,setSettingsSaving]=useState(false)
 
  async function load(){setLoading(true);setError('');try{setSummaries(await loadFormSummaries(applications))}catch(e){setError(e instanceof Error?e.message:'Could not load forms.')}finally{setLoading(false)}}
- useEffect(()=>{load()},[applications])
+ useEffect(()=>{load()},[applications,role])
 
  const filtered=useMemo(()=>summaries.filter(s=>{const q=query.trim().toLowerCase();const status=formWorkspaceStatus(s);return(!q||s.application.name.toLowerCase().includes(q))&&(filter==='all'||status===filter)}),[summaries,query,filter])
  const counts=useMemo(()=>({published:summaries.filter(s=>formWorkspaceStatus(s)==='published').length,draft:summaries.filter(s=>formWorkspaceStatus(s)==='draft').length,closed:summaries.filter(s=>formWorkspaceStatus(s)==='closed').length}),[summaries])
@@ -328,7 +328,8 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
    const scoreMap=new Map((scoreResult.data||[]).map(s=>[s.submission_id,s]))
    const aiMap=new Map((aiResult.data||[]).map(a=>[a.submission_id,a]))
    const applicantMap=new Map((applicantResult.data||[]).map(a=>[a.id,a]))
-   setRows((subs||[]).map(s=>{
+   const assignmentMap=new Map(assignmentRows.map(a=>[a.submission_id,a]))
+   setRows(visibleSubs.map(s=>{
     const applicant=applicantMap.get(s.applicant_id)
     const ai=aiMap.get(s.id)
     const score=scoreMap.get(s.id)
