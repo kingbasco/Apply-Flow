@@ -691,21 +691,35 @@ function EligibilityBuilder({applicationId}:{applicationId:string}) {
 
   if(loading)return <div className="loading-card card">Loading eligibility rules…</div>
 
+  const enabledRules=rules.filter(rule=>rule.enabled).length
   return <div className="eligibility-builder">
-    <div className="builder-top"><div><p className="eyebrow">Eligibility</p><h2>Eligibility rules</h2><p>Set deterministic rules that are evaluated automatically when an application is submitted.</p></div><div className="builder-actions">{notice&&<span className="builder-notice">{notice}</span>}<button className="primary-button" disabled={busy||!questions.length} onClick={addRule}><Plus size={14}/> Add rule</button></div></div>
-    <div className="card" style={{padding:20}}>
-      {!rules.length?<div className="builder-empty"><ShieldCheck size={24}/><h3>No eligibility rules yet</h3><p>For example: Age ≥ 18, Location = Kaduna, or Business type = Artisan.</p><button className="secondary-button" disabled={!questions.length||busy} onClick={addRule}>Create first rule</button></div>:
-      <div className="eligibility-list">{rules.map((rule,index)=>{const q=questions.find(x=>x.id===rule.question_id);return <div className="eligibility-rule" key={rule.id}>
-        <div className="question-card-top"><span className="question-number">{index+1}</span><span className="question-kind">{rule.logic} condition</span><button className="icon-button question-delete" onClick={()=>removeRule(rule.id)}><X size={15}/></button></div>
-        <div className="form-grid">
-          <label>Question<select value={rule.question_id} onChange={e=>{const next=questions.find(x=>x.id===e.target.value);updateRule(rule.id,{question_id:e.target.value,value:next?defaultValue(next):''})}}>{questions.map(x=><option key={x.id} value={x.id}>{x.label}</option>)}</select></label>
-          <label>Operator<select value={rule.operator} onChange={e=>updateRule(rule.id,{operator:e.target.value as EligibilityOperator,value:(e.target.value==='IN'||e.target.value==='NOT IN')?[]:rule.value})}><option value="=">= Equals</option><option value="!=">≠ Does not equal</option><option value=">">&gt; Greater than</option><option value="<">&lt; Less than</option><option value=">=">≥ At least</option><option value="<=">≤ At most</option><option value="IN">In any of</option><option value="NOT IN">Not in</option></select></label>
+    <div className="builder-top"><div><p className="eyebrow">Eligibility</p><h2>Eligibility rules</h2><p>Define the conditions an applicant must meet before they move into screening.</p></div><div className="builder-actions">{notice&&<span className="builder-notice">{notice}</span>}<button className="primary-button" disabled={busy||!questions.length} onClick={addRule}><Plus size={14}/> Add rule</button></div></div>
+    <div className="eligibility-layout">
+      <div className="eligibility-column">
+        <div className="card eligibility-rules-card">
+          <div className="card-header"><div><p className="eyebrow">Rule builder</p><h2>{rules.length?rules.length+' rule'+(rules.length===1?'':'s'):'No rules yet'}</h2><p>Each rule checks one answer from the application form.</p></div><ShieldCheck size={20}/></div>
+          {!rules.length?<div className="builder-empty eligibility-empty"><ShieldCheck size={24}/><h3>No eligibility rules yet</h3><p>Start by adding a rule based on one of the questions in your application form.</p><button className="secondary-button" disabled={!questions.length||busy} onClick={addRule}>Create first rule</button></div>:
+          <div className="eligibility-list">{rules.map((rule,index)=>{const q=questions.find(x=>x.id===rule.question_id);return <div className="eligibility-rule" key={rule.id}>
+            <div className="eligibility-rule-header"><div className="eligibility-rule-title"><span className="question-number">{index+1}</span><div><strong>Rule {index+1}</strong><span>{rule.enabled?'Enabled':'Disabled'} · {rule.logic} logic</span></div></div><button className="icon-button question-delete" onClick={()=>removeRule(rule.id)} aria-label={'Delete rule '+(index+1)}><X size={15}/></button></div>
+            <div className="eligibility-rule-grid">
+              <label>Question<div className="eligibility-field"><select value={rule.question_id} onChange={e=>{const next=questions.find(x=>x.id===e.target.value);updateRule(rule.id,{question_id:e.target.value,value:next?defaultValue(next):''})}}>{questions.map(x=><option key={x.id} value={x.id}>{x.label}</option>)}</select><ChevronDown size={15}/></div></label>
+              <label>Operator<div className="eligibility-field"><select value={rule.operator} onChange={e=>updateRule(rule.id,{operator:e.target.value as EligibilityOperator,value:(e.target.value==='IN'||e.target.value==='NOT IN')?[]:rule.value})}><option value="=">= Equals</option><option value="!=">≠ Does not equal</option><option value=">">&gt; Greater than</option><option value="<">&lt; Less than</option><option value=">=">≥ At least</option><option value="<=">≤ At most</option><option value="IN">In any of</option><option value="NOT IN">Not in</option></select><ChevronDown size={15}/></div></label>
+            </div>
+            {q&&<label className="eligibility-value-field">Expected answer{valueEditor(rule,q)}</label>}
+            <div className="eligibility-rule-footer"><label className="toggle-row"><span>Enabled</span><input type="checkbox" checked={rule.enabled} onChange={e=>updateRule(rule.id,{enabled:e.target.checked})}/></label><label className="eligibility-logic-field">Next rule logic<div className="eligibility-field"><select value={rule.logic} onChange={e=>updateRule(rule.id,{logic:e.target.value as 'AND'|'OR'})}><option value="AND">AND — must also pass</option><option value="OR">OR — alternative</option></select><ChevronDown size={15}/></div></label><span className="eligibility-current">Current answer: <strong>{displayValue(rule)||'No value set'}</strong></span></div>
+          </div>})}</div>}
         </div>
-        {q&&<label>Expected answer{valueEditor(rule,q)}</label>}
-        <div className="detail-form-footer"><label className="toggle-row"><span>Enabled</span><input type="checkbox" checked={rule.enabled} onChange={e=>updateRule(rule.id,{enabled:e.target.checked})}/></label><label>Next rule logic<select value={rule.logic} onChange={e=>updateRule(rule.id,{logic:e.target.value as 'AND'|'OR'})}><option value="AND">AND — this must also pass</option><option value="OR">OR — this can satisfy the alternative</option></select></label><span className="muted">Current: {displayValue(rule)||'No value set'}</span></div>
-      </div>})}</div>}
+      </div>
+      <aside className="eligibility-column">
+        <div className="card eligibility-summary-card">
+          <div className="card-header"><div><p className="eyebrow">Rule summary</p><h2>Eligibility setup</h2><p>A quick view of the rules currently configured.</p></div><ShieldCheck size={20}/></div>
+          <div className="eligibility-summary-stats"><div><span>Total rules</span><strong>{rules.length}</strong></div><div><span>Active rules</span><strong>{enabledRules}</strong></div><div><span>Form questions</span><strong>{questions.length}</strong></div></div>
+          <div className="eligibility-info-box"><div className="eligibility-info-icon"><ShieldCheck size={16}/></div><div><strong>Automatic evaluation</strong><p>When eligibility is evaluated, ApplyFlow compares submitted answers against the rules you configure here.</p></div></div>
+          <div className="eligibility-info-box"><div className="eligibility-info-icon"><CheckCircle2 size={16}/></div><div><strong>Possible outcomes</strong><p>Applicants can be recorded as <strong>Eligible</strong>, <strong>Ineligible</strong>, or <strong>Pending</strong>.</p></div></div>
+          <div className="eligibility-help"><p className="eyebrow">Before adding rules</p><p>Make sure the questions you want to use for eligibility already exist in the form. Rule logic can be refined after the UI is set up.</p></div>
+        </div>
+      </aside>
     </div>
-    <div className="card" style={{padding:18,marginTop:14}}><p className="eyebrow">How it works</p><p className="muted" style={{margin:0}}>Eligibility is deterministic: ApplyFlow checks the applicant's submitted answers against these rules and records Eligible, Ineligible, or Pending. Missing information is not inferred.</p></div>
   </div>
 }
 
