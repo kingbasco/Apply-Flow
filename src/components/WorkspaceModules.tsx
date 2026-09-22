@@ -162,40 +162,93 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
   </div>
 
   {settingsFor&&<div className="form-settings-overlay" role="dialog" aria-modal="true" aria-label="Form settings">
-   <div className="form-settings-shell">
+   <div className="form-settings-page">
     <header className="form-settings-header">
-      <div className="form-settings-title">
+      <div className="form-settings-heading">
         <button type="button" className="back-link" onClick={()=>setSettingsFor(null)}>← Back to forms</button>
-        <div><p className="eyebrow">Form settings</p><h2>{settingsFor.application.name}</h2><p>Set availability and control what applicants see after they open the form.</p></div>
+        <div className="form-settings-heading-copy">
+          <div className="form-settings-icon"><SlidersHorizontal size={20}/></div>
+          <div>
+            <p className="eyebrow">Form settings</p>
+            <h2>{settingsFor.application.name}</h2>
+            <p>Control when this form is available and what applicants see after submitting it.</p>
+          </div>
+        </div>
       </div>
       <button type="button" className="icon-button" onClick={()=>setSettingsFor(null)} aria-label="Close settings"><X size={18}/></button>
     </header>
-    <div className="form-settings-body">
+
+    <div className="form-settings-layout">
       <aside className="form-settings-nav">
-        <div className="settings-nav-label">Settings</div>
-        <a href="#form-availability">Availability</a>
-        <a href="#form-applicant-experience">Applicant experience</a>
+        <div className="settings-nav-label">FORM SETTINGS</div>
+        <a href="#form-availability" className="settings-nav-link"><span>1</span><div><strong>Availability</strong><small>Opening, deadline and limit</small></div></a>
+        <a href="#form-applicant-experience" className="settings-nav-link"><span>2</span><div><strong>Applicant experience</strong><small>Instructions and confirmation</small></div></a>
+        <div className="form-settings-help"><FileText size={17}/><div><strong>Form vs programme</strong><p>A programme is the application campaign. The form is the questionnaire applicants complete.</p></div></div>
       </aside>
+
       <main className="form-settings-content">
-        <section id="form-availability" className="settings-section">
-          <div className="settings-section-heading"><div><p className="eyebrow">Availability</p><h3>Form availability</h3><p>Choose when the form opens, when it closes, and whether there is a submission limit.</p></div></div>
+        <section id="form-availability" className="settings-card">
+          <div className="settings-card-heading">
+            <div>
+              <p className="eyebrow">Availability</p>
+              <h3>When can applicants submit?</h3>
+              <p>Set the window for this form. Leave a field empty when you do not need that restriction.</p>
+            </div>
+          </div>
           <div className="settings-fields">
-            <label className="field"><span>Application start date</span><input type="date" value={settingsDraft.start_date||''} onChange={e=>setSettingsDraft(d=>({...d,start_date:e.target.value||null}))}/><small className="muted">Applicants cannot submit before this date.</small></label>
-            <label className="field"><span>Application deadline</span><input type="date" value={settingsDraft.deadline||''} onChange={e=>setSettingsDraft(d=>({...d,deadline:e.target.value||null}))}/><small className="muted">Applicants cannot submit after this date.</small></label>
-            <label className="field"><span>Submission limit <span className="optional">Optional</span></span><input type="number" min="1" step="1" value={settingsDraft.submission_limit??''} onChange={e=>setSettingsDraft(d=>({...d,submission_limit:e.target.value?Number(e.target.value):null}))}/><small className="muted">Maximum number of submitted applications.</small></label>
+            <label className="field settings-field-card">
+              <span>Form opens</span>
+              <input type="date" value={settingsDraft.start_date||''} onChange={e=>setSettingsDraft(d=>({...d,start_date:e.target.value||null}))}/>
+              <small className="muted">Applicants cannot submit before this date.</small>
+            </label>
+            <label className="field settings-field-card">
+              <span>Application deadline</span>
+              <input type="date" value={settingsDraft.deadline||''} onChange={e=>setSettingsDraft(d=>({...d,deadline:e.target.value||null}))}/>
+              <small className="muted">Applicants cannot submit after this date.</small>
+            </label>
+            <label className="field settings-field-card">
+              <span>Submission limit <span className="optional">Optional</span></span>
+              <input type="number" min="1" step="1" value={settingsDraft.submission_limit??''} onChange={e=>setSettingsDraft(d=>({...d,submission_limit:e.target.value?Number(e.target.value):null}))} placeholder="e.g. 500"/>
+              <small className="muted">Maximum number of submitted applications.</small>
+            </label>
           </div>
         </section>
-        <section id="form-applicant-experience" className="settings-section">
-          <div className="settings-section-heading"><div><p className="eyebrow">Applicant experience</p><h3>What applicants see</h3><p>Keep the instructions and confirmation message clear and useful.</p></div></div>
-          <div className="settings-fields single">
-            <label className="field"><span>Applicant instructions <span className="optional">Optional</span></span><textarea rows={7} value={settingsDraft.applicant_instructions||''} onChange={e=>setSettingsDraft(d=>({...d,applicant_instructions:e.target.value||null}))} placeholder="Tell applicants what they need before they start…"/></label>
-            <label className="field"><span>Confirmation message</span><textarea rows={6} value={settingsDraft.confirmation_message} onChange={e=>setSettingsDraft(d=>({...d,confirmation_message:e.target.value}))} placeholder="Thank you. Your application has been received."/></label>
+
+        <section id="form-applicant-experience" className="settings-card">
+          <div className="settings-card-heading">
+            <div>
+              <p className="eyebrow">Applicant experience</p>
+              <h3>What applicants see</h3>
+              <p>Give applicants clear instructions before they start and a useful message after they submit.</p>
+            </div>
           </div>
-          <div className="settings-preview-note"><FileText size={17}/><div><strong>After submission</strong><p>Applicants will also receive a unique application ID on the success screen.</p></div></div>
+          <div className="settings-fields single">
+            <label className="field">
+              <span>Applicant instructions <span className="optional">Optional</span></span>
+              <textarea rows={7} value={settingsDraft.applicant_instructions||''} onChange={e=>setSettingsDraft(d=>({...d,applicant_instructions:e.target.value||null}))} placeholder="Tell applicants what they need before they start…"/>
+              <small className="muted">Shown above the form before applicants begin.</small>
+            </label>
+            <label className="field">
+              <span>Confirmation message</span>
+              <textarea rows={6} value={settingsDraft.confirmation_message} onChange={e=>setSettingsDraft(d=>({...d,confirmation_message:e.target.value}))} placeholder="Thank you. Your application has been received."/>
+              <small className="muted">Shown after a successful submission, together with the applicant's unique ID.</small>
+            </label>
+          </div>
+          <div className="settings-preview-note">
+            <CheckCircle2 size={17}/>
+            <div><strong>Unique application ID</strong><p>ApplyFlow automatically gives every submitted application a unique ID and shows it on the success screen.</p></div>
+          </div>
         </section>
       </main>
     </div>
-    <footer className="form-settings-footer"><button className="secondary-button" onClick={()=>setSettingsFor(null)}>Cancel</button><button className="primary-button" disabled={settingsSaving} onClick={saveSettings}>{settingsSaving?'Saving…':'Save settings'}</button></footer>
+
+    <footer className="form-settings-footer">
+      <div><span className="settings-save-state">Unsaved changes are only applied when you save.</span></div>
+      <div className="form-settings-footer-actions">
+        <button className="secondary-button" onClick={()=>setSettingsFor(null)}>Cancel</button>
+        <button className="primary-button" disabled={settingsSaving} onClick={saveSettings}>{settingsSaving?'Saving…':'Save settings'}</button>
+      </div>
+    </footer>
    </div>
   </div>
   {historyFor&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setHistoryFor(null)}}>
