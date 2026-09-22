@@ -207,6 +207,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
   </div>}
  </section>
 }
+}
 type ScreeningDecision='pending'|'approved'|'rejected'
 type ScreeningRow={
  submissionId:string
