@@ -28,7 +28,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   const [sessionAttendance,setSessionAttendance]=useState<AttendanceRow[]>([])
   const [attendanceLoading,setAttendanceLoading]=useState(false)
   const [query,setQuery]=useState('')
-  const [applicationFilter,setApplicationFilter]=useState('all')
+  const [applicationFilter,setApplicationFilter]=useState(applications[0]?.id||'')
   const [statusFilter,setStatusFilter]=useState<'all'|'active'|'completed'|'withdrawn'>('all')
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState('')
@@ -39,6 +39,17 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   const [saving,setSaving]=useState(false)
 
   const appName=(id:string)=>applications.find(a=>a.id===id)?.name||'Programme'
+
+  useEffect(()=>{
+    setApplicationFilter(current=>applications.some(a=>a.id===current)?current:(applications[0]?.id||''))
+  },[applications])
+
+  useEffect(()=>{
+    if(applicationFilter){
+      setSessionForm(current=>({...current,application_id:current.application_id||applicationFilter}))
+      setBenefitForm(current=>({...current,application_id:current.application_id||applicationFilter}))
+    }
+  },[applicationFilter])
 
   async function load(){
     setLoading(true);setError('')
@@ -81,12 +92,26 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
       && (statusFilter==='all'||p.status===statusFilter)
   }),[participants,query,applicationFilter,statusFilter,applications])
 
+  const scopedParticipants=useMemo(()=>participants.filter(p=>!applicationFilter||p.application_id===applicationFilter),[participants,applicationFilter])
+  const scopedSessions=useMemo(()=>sessions.filter(s=>!applicationFilter||s.application_id===applicationFilter),[sessions,applicationFilter])
+  const scopedBenefits=useMemo(()=>benefits.filter(b=>!applicationFilter||b.application_id===applicationFilter),[benefits,applicationFilter])
   const stats=useMemo(()=>({
-    total:participants.length,
-    active:participants.filter(p=>p.status==='active').length,
-    completed:participants.filter(p=>p.status==='completed').length,
-    withdrawn:participants.filter(p=>p.status==='withdrawn').length
-  }),[participants])
+    total:scopedParticipants.length,
+    active:scopedParticipants.filter(p=>p.status==='active').length,
+    completed:scopedParticipants.filter(p=>p.status==='completed').length,
+    withdrawn:scopedParticipants.filter(p=>p.status==='withdrawn').length
+  }),[scopedParticipants])
+
+  async function updateParticipantStatus(participantId:string,status:Participant['status']){
+    setSaving(true);setError('');setNotice('')
+    try{
+      const {data,error}=await supabase.from('participants').update({status,updated_at:new Date().toISOString()}).eq('id',participantId).select('id,participant_code,full_name,email,application_id,status,joined_at').single()
+      if(error)throw error
+      setParticipants(current=>current.map(p=>p.id===participantId?{...p,...data}:p))
+      setSelectedParticipant(current=>current?.id===participantId?{...current,...data}:current)
+      setNotice(status==='active'?'Participant enrolled.':status==='completed'?'Participant marked completed.':'Participant withdrawn.')
+    }catch(e){setError(e instanceof Error?e.message:'Could not update participant status.')}finally{setSaving(false)}
+  }
 
   async function openSession(session:Session){
     setSelectedSession(session);setAttendanceLoading(true);setError('')
@@ -188,6 +213,13 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
       </div>
     </div>
 
+    <div className="card" style={{padding:14,marginBottom:18,display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+      <div><p className="eyebrow" style={{marginBottom:3}}>Current application</p><strong>{appName(applicationFilter)}</strong><p className="muted" style={{margin:0}}>Participants, attendance and benefits below are scoped to this application.</p></div>
+      <select aria-label="Select application" value={applicationFilter} onChange={e=>setApplicationFilter(e.target.value)} style={{marginLeft:'auto',minWidth:240}}>
+        {applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+      </select>
+    </div>
+
     <div className="tabs" style={{display:'flex',gap:8,marginBottom:18}}>
       {[
         ['participants','Participants'],
@@ -206,12 +238,11 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
 
       <div className="card table-card">
         <div className="card-header">
-          <div><h2>Participant directory</h2><p>Search by participant ID, name, email or programme.</p></div>
+          <div><h2>Participant directory</h2><p>Showing participants selected and enrolled for the current application.</p></div>
           <div className="search"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search participants…"/></div>
         </div>
         <div style={{display:'flex',gap:10,padding:'0 18px 16px',flexWrap:'wrap'}}>
-          <select value={applicationFilter} onChange={e=>setApplicationFilter(e.target.value)}><option value="all">All programmes</option>{applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>
-          <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value as any)}><option value="all">All statuses</option><option value="active">Active</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select>
+                    <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value as any)}><option value="all">All statuses</option><option value="active">Active</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select>
         </div>
         <div className="table-wrap"><table><thead><tr><th>Participant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
           {filtered.length?filtered.map(p=><tr key={p.id} className="clickable-row" onClick={()=>setSelectedParticipant(p)}>
@@ -236,7 +267,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
           <button className="primary-button" disabled={saving}><Plus size={16}/> Create session</button>
         </form>
         <div className="table-wrap" style={{marginTop:18}}><table><thead><tr><th>Session</th><th>Programme</th><th>Date</th></tr></thead><tbody>
-          {sessions.length?sessions.map(s=><tr key={s.id} className={selectedSession?.id===s.id?'clickable-row selected-row':'clickable-row'} onClick={()=>openSession(s)}><td><strong>{s.title}</strong></td><td>{appName(s.application_id)}</td><td>{new Date(s.session_date).toLocaleDateString()}</td></tr>):<tr><td colSpan={3}><div className="table-empty">No attendance sessions yet.</div></td></tr>}
+          {scopedSessions.length?scopedSessions.map(s=><tr key={s.id} className={selectedSession?.id===s.id?'clickable-row selected-row':'clickable-row'} onClick={()=>openSession(s)}><td><strong>{s.title}</strong></td><td>{appName(s.application_id)}</td><td>{new Date(s.session_date).toLocaleDateString()}</td></tr>):<tr><td colSpan={3}><div className="table-empty">No attendance sessions for this application yet.</div></td></tr>}
         </tbody></table></div>
       </div>
       <div className="card table-card">
@@ -268,7 +299,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
       <div className="card table-card">
         <div className="card-header"><div><h2>Upcoming / recent</h2><p>Recipient preparation can be added after the distribution is created.</p></div></div>
         <div className="table-wrap"><table><thead><tr><th>Benefit</th><th>Programme</th><th>Date</th><th>Recipients</th><th>Status</th></tr></thead><tbody>
-          {benefits.length?benefits.map(b=><tr key={b.id}><td><strong>{b.name}</strong><span className="table-sub">{b.description||'—'}</span></td><td>{appName(b.application_id)}</td><td>{b.distribution_date?new Date(b.distribution_date).toLocaleDateString():'—'}</td><td>{b.recipient_count||0}</td><td><span className="status neutral">{b.status}</span></td></tr>):<tr><td colSpan={5}><div className="table-empty">No benefit distributions yet.</div></td></tr>}
+          {scopedBenefits.length?scopedBenefits.map(b=><tr key={b.id}><td><strong>{b.name}</strong><span className="table-sub">{b.description||'—'}</span></td><td>{appName(b.application_id)}</td><td>{b.distribution_date?new Date(b.distribution_date).toLocaleDateString():'—'}</td><td>{b.recipient_count||0}</td><td><span className="status neutral">{b.status}</span></td></tr>):<tr><td colSpan={5}><div className="table-empty">No benefit distributions for this application yet.</div></td></tr>}
         </tbody></table></div>
       </div>
     </div>}
@@ -277,7 +308,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
       <div className="preview-panel card" style={{maxWidth:720}}>
         <div className="preview-header"><div><p className="eyebrow">Participant profile</p><h2>{selectedParticipant.participant_code}</h2><p>{selectedParticipant.full_name||'Unnamed participant'} · {appName(selectedParticipant.application_id)}</p></div><button className="icon-button" onClick={()=>setSelectedParticipant(null)} aria-label="Close"><X size={18}/></button></div>
         <div className="dashboard-grid" style={{marginBottom:16}}>
-          <div className="card"><p className="eyebrow">Status</p><strong>{selectedParticipant.status}</strong></div>
+          <div className="card"><p className="eyebrow">Status</p><select value={selectedParticipant.status} disabled={saving} onChange={e=>updateParticipantStatus(selectedParticipant.id,e.target.value as Participant['status'])}><option value="active">Active — enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select></div>
           <div className="card"><p className="eyebrow">Attendance</p><strong>{selectedParticipant.attendance_count||0} present</strong></div>
           <div className="card"><p className="eyebrow">Joined</p><strong>{new Date(selectedParticipant.joined_at).toLocaleDateString()}</strong></div>
         </div>
