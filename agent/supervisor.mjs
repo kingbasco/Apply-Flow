@@ -72,13 +72,17 @@ async function browserCheck(url){
 }
 
 async function askModel(evidence,attempt){
-  if(!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is missing.');
+  if(!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is missing.');
   const s=await json('agent/state.json',{});
   const prompt='You are the senior coding agent for ApplyFlow.\nRepository: '+repo+'\nBranch: '+branch+'\nAttempt: '+attempt+'/'+MAX_ATTEMPTS+'\nCurrent phase: '+(s.currentPhase||'unknown')+'\n\nRules: diagnose the real root cause; make the smallest safe code fix; never remove auth, RLS or security controls; never expose secrets; do not change production infrastructure settings. Return JSON with diagnosis, action (patch|permission|blocked), patch (a unified git diff directly applicable with git apply, or empty), commitMessage, nextCheck.\n\nEvidence:\n'+JSON.stringify(evidence,null,2);
-  const r=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.SUPERVISOR_MODEL||'gpt-5',input:prompt,text:{format:{type:'json_object'}}})});
-  if(!r.ok) throw new Error('OpenAI API '+r.status+': '+await r.text());
+  const model=process.env.SUPERVISOR_MODEL||'gemini-3.8-flash';
+  const u=new URL('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent');
+  u.searchParams.set('key',process.env.GEMINI_API_KEY);
+  const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json'}})});
+  if(!r.ok) throw new Error('Gemini API '+r.status+': '+await r.text());
   const d=await r.json();
-  const out=d.output_text||d.output?.flatMap(x=>x.content||[]).map(x=>x.text||'').join('')||'';
+  const out=d.candidates?.[0]?.content?.parts?.map(x=>x.text||'').join('')||'';
+  if(!out) throw new Error('Gemini returned no text. '+JSON.stringify(d));
   return JSON.parse(out);
 }
 
