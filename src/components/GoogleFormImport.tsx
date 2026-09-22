@@ -97,6 +97,9 @@ export function GoogleFormImport({applications,organizationId,onClose,onComplete
         const {error}=await supabase.from('form_import_rows').insert(chunk)
         if(error)throw error
       }
+      const {data:importResult,error:importError}=await supabase.rpc('import_google_form_batch',{p_batch_id:batch.id})
+      if(importError)throw importError
+      if(importResult?.status!=='imported')throw new Error('The import did not complete.')
       setDone(true)
       onComplete?.()
     }catch(e){setError(e instanceof Error?e.message:'Could not save this import.')}
@@ -118,7 +121,7 @@ export function GoogleFormImport({applications,organizationId,onClose,onComplete
         <div className="success-mark"><CheckCircle2 size={24}/></div>
         <p className="eyebrow">Import saved</p>
         <h3>{parsed.rows.length.toLocaleString()} responses are ready.</h3>
-        <p>The questions and raw responses have been saved for this programme. No applicant IDs or submissions were created yet.</p>
+        <p>The questions and responses have been imported into the programme. Applicant records and submissions are now ready for the next screening steps.</p>
         <div className="import-summary">
           <div><span>Questions</span><strong>{questionHeaders.length}</strong></div>
           <div><span>Responses</span><strong>{parsed.rows.length}</strong></div>
