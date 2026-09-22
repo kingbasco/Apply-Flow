@@ -279,35 +279,38 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
       </div>
     </>}
 
-    {tab==='attendance'&&<div className="dashboard-grid">
-      <div className="card table-card">
-        <div className="card-header"><div><h2>Attendance sessions</h2><p>Create a class, then select it to manage attendance.</p></div></div>
-        <form className="modal-form" onSubmit={createSession}>
-          <label>Programme<select value={sessionForm.application_id} onChange={e=>setSessionForm(x=>({...x,application_id:e.target.value}))} required><option value="">Select programme</option>{applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
-          <label>Session title<input value={sessionForm.title} onChange={e=>setSessionForm(x=>({...x,title:e.target.value}))} placeholder="Class 1 — Introduction" required/></label>
-          <label>Date<input type="date" value={sessionForm.session_date} onChange={e=>setSessionForm(x=>({...x,session_date:e.target.value}))} required/></label>
-          <button className="primary-button" disabled={saving}><Plus size={16}/> Create session</button>
-        </form>
-        <div className="table-wrap" style={{marginTop:18}}><table><thead><tr><th>Session</th><th>Programme</th><th>Date</th></tr></thead><tbody>
-          {scopedSessions.length?scopedSessions.map(s=><tr key={s.id} className={selectedSession?.id===s.id?'clickable-row selected-row':'clickable-row'} onClick={()=>openSession(s)}><td><strong>{s.title}</strong></td><td>{appName(s.application_id)}</td><td>{new Date(s.session_date).toLocaleDateString()}</td></tr>):<tr><td colSpan={3}><div className="table-empty">No attendance sessions for this application yet.</div></td></tr>}
-        </tbody></table></div>
-      </div>
-      <div className="card table-card">
-        <div className="card-header"><div><h2>{selectedSession?selectedSession.title:'Session attendance'}</h2><p>{selectedSession?appName(selectedSession.application_id):'Select a session from the list.'}</p></div><CalendarCheck2 size={20}/></div>
-        {!selectedSession?<div className="table-empty">Select an attendance session to see participants.</div>:attendanceLoading?<div className="loading-card">Loading attendance…</div>:<>
-          <div className="table-wrap"><table><thead><tr><th>Participant</th><th>ID</th><th>Status</th><th></th></tr></thead><tbody>
-            {selectedAttendance.length?selectedAttendance.map(r=><tr key={r.participant_id}><td><strong>{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.full_name:r.participants?.applicants?.full_name||'Unnamed participant'}</strong><span className="table-sub">{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.email:r.participants?.applicants?.email||''}</span></td><td>{r.participants?.participant_code}</td><td><span className={'status '+(r.status==='present'?'green':'neutral')}>{r.status}</span></td><td>{r.status==='present'?<button className="text-button" disabled={saving} onClick={()=>markAbsent(r.participant_id)}>Mark absent</button>:null}</td></tr>):<tr><td colSpan={4}><div className="table-empty">No attendance recorded for this session.</div></td></tr>}
+    {tab==='attendance'&&<div className="attendance-layout">
+      <div className="attendance-column">
+        <div className="card table-card attendance-session-card">
+          <div className="card-header"><div><p className="eyebrow">Attendance setup</p><h2>Attendance sessions</h2><p>Create a class, then select it to manage attendance.</p></div></div>
+          <form className="modal-form attendance-session-form" onSubmit={createSession}>
+            <label className="attendance-field">Programme<div className="participant-select-wrap"><select value={sessionForm.application_id} onChange={e=>setSessionForm(x=>({...x,application_id:e.target.value}))} required><option value="">Select programme</option>{applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select><ChevronDown size={16}/></div></label>
+            <label>Session title<input value={sessionForm.title} onChange={e=>setSessionForm(x=>({...x,title:e.target.value}))} placeholder="Class 1 — Introduction" required/></label>
+            <label>Date<input type="date" value={sessionForm.session_date} onChange={e=>setSessionForm(x=>({...x,session_date:e.target.value}))} required/></label>
+            <button className="primary-button" disabled={saving}><Plus size={16}/> Create session</button>
+          </form>
+          <div className="table-wrap" style={{marginTop:18}}><table><thead><tr><th>Session</th><th>Programme</th><th>Date</th></tr></thead><tbody>
+            {scopedSessions.length?scopedSessions.map(s=><tr key={s.id} className={selectedSession?.id===s.id?'clickable-row selected-row':'clickable-row'} onClick={()=>openSession(s)}><td><strong>{s.title}</strong></td><td>{appName(s.application_id)}</td><td>{new Date(s.session_date).toLocaleDateString()}</td></tr>):<tr><td colSpan={3}><div className="table-empty">No attendance sessions for this application yet.</div></td></tr>}
           </tbody></table></div>
-          <div style={{padding:16,borderTop:'1px solid var(--border,#e8e8e8)'}}>
-            <textarea rows={5} value={ids} onChange={e=>setIds(e.target.value)} placeholder={'Paste participant IDs from Google Meet\nHC2-2026-0001\nHC2-2026-0007'} />
-            <button className="primary-button" style={{marginTop:10}} onClick={importAttendance} disabled={saving}>{saving?'Importing…':'Import attendance IDs'}</button>
-            <p className="muted" style={{marginTop:8}}>Only IDs belonging to this session’s programme are accepted.</p>
-          </div>
-        </>}
+        </div>
       </div>
-    </div>}
-
-    {tab==='benefits'&&<div className="dashboard-grid">
+      <div className="attendance-column">
+        <div className="card table-card attendance-record-card">
+          <div className="card-header"><div><p className="eyebrow">Selected session</p><h2>{selectedSession?selectedSession.title:'Session attendance'}</h2><p>{selectedSession?appName(selectedSession.application_id):'Select a session from the list.'}</p></div><CalendarCheck2 size={20}/></div>
+          {!selectedSession?<div className="table-empty">Select an attendance session to see participants.</div>:attendanceLoading?<div className="loading-card">Loading attendance…</div>:<>
+            <div className="table-wrap"><table><thead><tr><th>Participant</th><th>ID</th><th>Status</th><th></th></tr></thead><tbody>
+              {selectedAttendance.length?selectedAttendance.map(r=><tr key={r.participant_id}><td><strong>{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.full_name:r.participants?.applicants?.full_name||'Unnamed participant'}</strong><span className="table-sub">{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.email:r.participants?.applicants?.email||''}</span></td><td>{r.participants?.participant_code}</td><td><span className={'status '+(r.status==='present'?'green':'neutral')}>{r.status}</span></td><td>{r.status==='present'?<button className="text-button" disabled={saving} onClick={()=>markAbsent(r.participant_id)}>Mark absent</button>:null}</td></tr>):<tr><td colSpan={4}><div className="table-empty">No attendance recorded for this session.</div></td></tr>}
+            </tbody></table></div>
+            <div className="attendance-import-box">
+              <div className="attendance-import-heading"><div><p className="eyebrow">Import attendance</p><h3>Participant IDs</h3><p>Paste participant IDs from Google Meet, one per line or separated by commas.</p></div><Upload size={19}/></div>
+              <textarea rows={7} value={ids} onChange={e=>setIds(e.target.value)} placeholder={'HC2-2026-0001\nHC2-2026-0007'} />
+              <button className="primary-button" onClick={importAttendance} disabled={saving}>{saving?'Importing…':'Import attendance IDs'}</button>
+              <p className="muted">Only IDs belonging to this session’s programme are accepted.</p>
+            </div>
+          </>}
+        </div>
+      </div>
+    </div>}{tab==='benefits'&&<div className="dashboard-grid">
       <div className="card table-card">
         <div className="card-header"><div><h2>Benefit distributions</h2><p>Create and track data, stipends, devices or other programme benefits.</p></div><Gift size={20}/></div>
         <form className="modal-form" onSubmit={createBenefit}>
