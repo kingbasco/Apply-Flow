@@ -261,7 +261,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
  </section>
 }
 type ScreeningDecision='pending'|'approved'|'rejected'
-interface ScreeningRow {
+export interface ScreeningRow {
  submissionId:string
  applicationId:string
  assignmentId?:string
@@ -471,7 +471,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
 }
 
 type ScreeningReviewData={submission:any;applicant:any;answers:any[];questions:any[];eligibility:any;score:any;criteria:any[];ai:any;documents:any[];options:any[]}
-function ScreeningReviewModal({row,role,onClose,onDecision}:{row:ScreeningRow;role?:Profile['role'];onClose:()=>void;onDecision:(row:ScreeningRow,decision:'approved'|'rejected')=>Promise<void>}) {
+export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:ScreeningRow;role?:Profile['role'];onClose:()=>void;onDecision:(row:ScreeningRow,decision:'approved'|'rejected')=>Promise<void>}) {
  const [data,setData]=useState<ScreeningReviewData|null>(null)
  const [extractingId,setExtractingId]=useState('')
  const [loading,setLoading]=useState(true)
