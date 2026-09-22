@@ -2347,3 +2347,14 @@ html.dark-theme,html.dark-theme body{background:#0f1117;color:#e7eaf0}
 .dark-theme .settings-profile-card .card-header{border-color:#292f3a}
 .dark-theme .settings-dob-field>span:first-child{color:#c8ced8}
 .dark-theme .settings-dob-fields select{background-color:#12161d;border-color:#343a47;color:#e4e8ee}
+
+
+/* Settings profile action spacing */
+.settings-profile-card .detail-form-footer{
+  margin-top:6px;
+  gap:12px;
+}
+.settings-profile-card .detail-form-footer .secondary-button,
+.settings-profile-card .detail-form-footer .primary-button{
+  min-width:112px;
+}
