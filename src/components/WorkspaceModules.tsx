@@ -3,7 +3,7 @@ import { ArrowRight, Users, Settings, FileText, ShieldCheck, ClipboardList, Save
 import { supabase } from '../lib/supabase'
 
 type Application={id:string;name:string;description:string|null;status:'draft'|'published'|'screening'|'closed'|'completed';deadline:string|null;target_count:number|null;created_at:string}
-type FormSummary={application:Application;version:number|null;versionStatus:'draft'|'published'|'none';questionCount:number;submissionCount:number;publicSlug:string|null;settings?:FormSettings}
+type FormSummary={application:Application;version:number|null;versionStatus:'draft'|'published'|'none';hasPublishedVersion:boolean;questionCount:number;submissionCount:number;publicSlug:string|null;settings?:FormSettings}
 async function loadFormSummaries(applications:Application[]):Promise<FormSummary[]>{
  if(!applications.length)return []
  const ids=applications.map(a=>a.id)
@@ -15,12 +15,12 @@ async function loadFormSummaries(applications:Application[]):Promise<FormSummary
  const versions=results[0].data||[];if(results[0].error)throw results[0].error
  const submissions=results[1].data||[];if(results[1].error)throw results[1].error
  const settings=results[2].data||[];if(results[2].error)throw results[2].error
- const latest=new Map<string,any>();for(const v of versions){if(!latest.has(v.application_id))latest.set(v.application_id,v)}
+ const latest=new Map<string,any>();const published=new Set<string>();for(const v of versions){if(!latest.has(v.application_id))latest.set(v.application_id,v);if(v.status==='published')published.add(v.application_id)}
  const latestIds=Array.from(latest.values()).map(v=>v.id);const counts=new Map<string,number>()
  if(latestIds.length){const {data,error}=await supabase.from('questions').select('id,form_version_id').in('form_version_id',latestIds);if(error)throw error;for(const q of data||[])counts.set(q.form_version_id,(counts.get(q.form_version_id)||0)+1)}
  const submissionCounts=new Map<string,number>();for(const s of submissions)submissionCounts.set(s.application_id,(submissionCounts.get(s.application_id)||0)+1)
  const slugs=new Map<string,string|null>();for(const s of settings)slugs.set(s.application_id,s.public_slug)
- return applications.map(application=>{const v=latest.get(application.id);const raw=(settings as any[]).find(s=>s.application_id===application.id);return {application,version:v?.version_number??null,versionStatus:v?.status??'none',questionCount:v?counts.get(v.id)||0:0,submissionCount:submissionCounts.get(application.id)||0,publicSlug:slugs.get(application.id)||null,settings:raw?{start_date:raw.start_date??null,deadline:application.deadline??null,submission_limit:raw.submission_limit??null,confirmation_message:raw.confirmation_message??'Thank you. Your application has been received.',applicant_instructions:raw.applicant_instructions??null}:undefined}})
+ return applications.map(application=>{const v=latest.get(application.id);const raw=(settings as any[]).find(s=>s.application_id===application.id);return {application,version:v?.version_number??null,versionStatus:v?.status??'none',hasPublishedVersion:published.has(application.id),questionCount:v?counts.get(v.id)||0:0,submissionCount:submissionCounts.get(application.id)||0,publicSlug:slugs.get(application.id)||null,settings:raw?{start_date:raw.start_date??null,deadline:application.deadline??null,submission_limit:raw.submission_limit??null,confirmation_message:raw.confirmation_message??'Thank you. Your application has been received.',applicant_instructions:raw.applicant_instructions??null}:undefined}})
 }
 type FormSettings={start_date:string|null;deadline:string|null;submission_limit:number|null;confirmation_message:string;applicant_instructions:string|null}
 type Profile={id:string;full_name:string|null;role:string;organization_id:string|null}
@@ -62,7 +62,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
  async function changeStatus(summary:FormSummary,next:'published'|'closed'){
    setBusyId(summary.application.id);setError('')
    try{
-     if(next==='published'&&summary.versionStatus!=='published') throw new Error('Publish the form in the Form Builder before opening applications.')
+     if(next==='published'&&!summary.hasPublishedVersion) throw new Error('Publish the form in the Form Builder before opening applications.')
      const {error}=await supabase.from('applications').update({status:next,updated_at:new Date().toISOString()}).eq('id',summary.application.id)
      if(error)throw error
      setSummaries(current=>current.map(s=>s.application.id===summary.application.id?{...s,application:{...s.application,status:next}}:s))
