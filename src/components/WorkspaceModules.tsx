@@ -23,7 +23,7 @@ async function loadFormSummaries(applications:Application[]):Promise<FormSummary
  return applications.map(application=>{const v=latest.get(application.id);const raw=(settings as any[]).find(s=>s.application_id===application.id);return {application,version:v?.version_number??null,versionStatus:v?.status??'none',hasPublishedVersion:published.has(application.id),questionCount:v?counts.get(v.id)||0:0,submissionCount:submissionCounts.get(application.id)||0,publicSlug:slugs.get(application.id)||null,settings:raw?{start_date:raw.start_date??null,deadline:application.deadline??null,submission_limit:raw.submission_limit??null,confirmation_message:raw.confirmation_message??'Thank you. Your application has been received.',applicant_instructions:raw.applicant_instructions??null}:undefined}})
 }
 type FormSettings={start_date:string|null;deadline:string|null;submission_limit:number|null;confirmation_message:string;applicant_instructions:string|null}
-type Profile={id:string;full_name:string|null;role:string;organization_id:string|null}
+type Profile={id:string;full_name:string|null;role:string;organization_id:string|null;email?:string|null;invitation_status?:'pending'|'active'}
 
 async function functionErrorMessage(error:unknown,fallback:string){
  const context=(error as any)?.context
@@ -297,8 +297,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
 
  async function load(){
   setLoading(true);setError('')
-  try{
-   if(!applications.length){setRows([]);return}
+  try{   if(!applications.length){setRows([]);return}
    const ids=applications.map(a=>a.id)
    const {data:subs,error:subsError}=await supabase.from('submissions').select('id,application_id,applicant_id,submitted_at,decision').in('application_id',ids).eq('status','submitted').order('submitted_at',{ascending:false})
    if(subsError)throw subsError
@@ -597,8 +596,7 @@ function ScreeningReviewModal({row,role,onClose,onDecision}:{row:ScreeningRow;ro
    }
    return optionLabelMap.get(`${questionId}:${String(item)}`)||String(item)
   }
-  if(value===null||value===undefined||value==='')return 'Not provided'
-  if(Array.isArray(value))return value.length?value.map(formatItem).join(', '):'Not provided'
+  if(value===null||value===undefined||value==='')return 'Not provided'  if(Array.isArray(value))return value.length?value.map(formatItem).join(', '):'Not provided'
   return formatItem(value)
  }
 
@@ -806,25 +804,35 @@ export function ReviewsWorkspace({applications,organizationId,onOpen}:{applicati
   <div className="card table-card" style={{marginTop:16}}><div className="card-header"><div><h2>Decision & override history</h2><p>Audit trail of reviewer status and score changes.</p></div><ClipboardList size={20}/></div><div className="table-wrap"><table><thead><tr><th>Date</th><th>Action</th><th>Applicant</th><th>Actor</th><th>Status change</th><th>Score change</th></tr></thead><tbody>{auditLoading?<tr><td colSpan={6}><div className="loading-card">Loading audit history…</div></td></tr>:filteredAudit.length===0?<tr><td colSpan={6}><div className="table-empty">No audit events found.</div></td></tr>:filteredAudit.map(r=><tr key={r.id}><td>{r.created_at?new Date(r.created_at).toLocaleString():'—'}</td><td>{r.action}</td><td><strong>{r.applicantName}</strong><span className="table-sub">{r.programmeName}</span></td><td>{r.actorName}</td><td>{r.from_status||'—'} {r.to_status?'→ '+r.to_status:''}</td><td>{r.previous_score==null&&r.new_score==null?'—':String(r.previous_score??'—')+' → '+String(r.new_score??'—')}</td></tr>)}</tbody></table></div></div>
  </section>
 }
-export function TeamWorkspace({organizationId}:{organizationId:string}){
- const [people,setPeople]=useState<Profile[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[showInvite,setShowInvite]=useState(false),[email,setEmail]=useState(''),[name,setName]=useState(''),[role,setRole]=useState<'reviewer'|'admin'>('reviewer'),[inviting,setInviting]=useState(false),[notice,setNotice]=useState('');
- async function load(){setLoading(true);setError('');const {data,error}=await supabase.from('profiles').select('id,full_name,role,organization_id').eq('organization_id',organizationId).order('full_name');if(error)setError(error.message);setPeople(data||[]);setLoading(false)}
+export function TeamWorkspace({organizationId,role:workspaceRole}:{organizationId:string;role?:'owner'|'admin'|'reviewer'}){
+ const isOwner=workspaceRole==='owner';
+ const [people,setPeople]=useState<Profile[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[showInvite,setShowInvite]=useState(false),[email,setEmail]=useState(''),[name,setName]=useState(''),[memberRole,setMemberRole]=useState<'reviewer'|'admin'>('reviewer'),[inviting,setInviting]=useState(false),[busyId,setBusyId]=useState(''),[notice,setNotice]=useState('');
+ async function load(){setLoading(true);setError('');const {data,error}=await supabase.from('profiles').select('id,full_name,role,organization_id,email,invitation_status').eq('organization_id',organizationId).order('full_name');if(error)setError(error.message);setPeople(data||[]);setLoading(false)}
  useEffect(()=>{load()},[organizationId])
  async function invite(){
   if(!email.trim())return;
   setInviting(true);setError('');setNotice('');
   try{
-   const {data,error}=await supabase.functions.invoke('invite-team-member',{body:{organization_id:organizationId,email:email.trim(),full_name:name.trim()||null,role}});
-   if(error)throw error;
-   if(data?.error)throw new Error(data.error);
-   setNotice('Invitation sent to '+email.trim()+'.');setEmail('');setName('');setRole('reviewer');setShowInvite(false);await load();
+   const {data,error}=await supabase.functions.invoke('invite-team-member',{body:{organization_id:organizationId,email:email.trim(),full_name:name.trim()||null,role:memberRole}});
+   if(error)throw error;if(data?.error)throw new Error(data.error);
+   setNotice('Invitation sent to '+email.trim()+'.');setEmail('');setName('');setMemberRole('reviewer');setShowInvite(false);await load();
   }catch(e:any){setError(e.message||'Could not send the invitation.')}finally{setInviting(false)}
  }
+ async function manageMember(member:Profile,action:'resend'|'delete'){
+  if(!isOwner)return;
+  if(action==='delete'&&!window.confirm('Remove '+(member.full_name||member.email||'this team member')+' from the workspace? This will also remove their ApplyFlow account access.'))return;
+  setBusyId(member.id);setError('');setNotice('');
+  try{
+   const {data,error}=await supabase.functions.invoke('manage-team-member',{body:{organization_id:organizationId,member_id:member.id,action}});
+   if(error)throw error;if(data?.error)throw new Error(data.error);
+   setNotice(action==='resend'?'A new invitation has been sent to '+(member.email||'the team member')+'.':'Team member removed.');await load();
+  }catch(e:any){setError(e.message||'Could not update this team member.')}finally{setBusyId('')}
+ }
  return <section>
-  <div className="page-heading compact"><div><p className="eyebrow">Manage</p><h1>Team</h1><p className="subtitle">Invite people into this workspace so they can review assigned applicants.</p></div><div className="detail-actions"><button className="primary-button" onClick={()=>setShowInvite(true)}><Plus size={16}/> Invite member</button></div></div>
+  <div className="page-heading compact"><div><p className="eyebrow">Manage</p><h1>Team</h1><p className="subtitle">Invite people into this workspace so they can review assigned applicants.</p></div><div className="detail-actions">{isOwner&&<button className="primary-button" onClick={()=>setShowInvite(true)}><Plus size={16}/> Invite member</button>}</div></div>
   {error&&<div className="form-error page-error">{error}</div>}{notice&&<div className="form-message page-message">{notice}</div>}
-  <div className="card table-card"><div className="card-header"><div><h2>Workspace members</h2><p>Reviewers can work on assigned applicants. Admins can manage the workspace and assignments.</p></div><Users size={20}/></div>{loading?<div className="loading-card">Loading team…</div>:<div className="table-wrap"><table><thead><tr><th>Member</th><th>Role</th><th>Access</th></tr></thead><tbody>{people.map(p=><tr key={p.id}><td><strong>{p.full_name||'Unnamed member'}</strong></td><td><span className="status blue">{p.role}</span></td><td>Workspace access</td></tr>)}</tbody></table></div>}</div>
-  {showInvite&&<div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Invite team member"><div className="modal card team-invite-modal"><div className="card-header"><div><p className="eyebrow">Workspace access</p><h2>Invite a team member</h2><p>They will receive an email invitation and be added to this workspace.</p></div><button className="icon-button" onClick={()=>setShowInvite(false)} aria-label="Close invite"><X size={18}/></button></div><div className="detail-form"><label>Full name <span className="optional">Optional</span><input value={name} onChange={e=>setName(e.target.value)} placeholder="Jane Doe"/></label><label>Email address<input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="jane@organisation.com"/></label><label className="team-role-field"><span>Role</span><select value={role} onChange={e=>setRole(e.target.value as 'reviewer'|'admin')}><option value="reviewer">Reviewer</option><option value="admin">Admin</option></select><small className="team-role-help">{role==='reviewer'?'Can work on assigned applicants.':'Can manage the workspace and assignments.'}</small></label><div className="detail-form-footer team-invite-footer"><button className="secondary-button" type="button" onClick={()=>setShowInvite(false)}>Cancel</button><button className="primary-button" type="button" onClick={invite} disabled={inviting||!email.trim()}>{inviting?'Sending…':'Send invitation'}</button></div></div></div></div>}
+  <div className="card table-card"><div className="card-header"><div><h2>Workspace members</h2><p>Reviewers can work on assigned applicants. Admins can manage the workspace and assignments.</p></div><Users size={20}/></div>{loading?<div className="loading-card">Loading team…</div>:<div className="table-wrap"><table><thead><tr><th>Member</th><th>Email</th><th>Role</th><th>Status</th>{isOwner&&<th></th>}</tr></thead><tbody>{people.map(p=>{const busy=busyId===p.id;const isSelf=p.role==='owner'&&p.id===undefined;return <tr key={p.id}><td><strong>{p.full_name||'Unnamed member'}</strong></td><td>{p.email||'—'}</td><td><span className="status blue">{p.role}</span></td><td><span className={'status '+(p.invitation_status==='pending'?'amber':'green')}>{p.invitation_status==='pending'?'Invitation pending':'Active'}</span></td>{isOwner&&<td><div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>{p.invitation_status==='pending'&&<button className="secondary-button" disabled={busy} onClick={()=>manageMember(p,'resend')}>{busy?'Working…':'Resend invitation'}</button>}{p.role!=='owner'&&<button className="icon-button" title="Remove team member" aria-label={'Remove '+(p.full_name||p.email||'team member')} disabled={busy} onClick={()=>manageMember(p,'delete')}><X size={16}/></button>}</div></td>}</tr>})}</tbody></table></div>}</div>
+  {showInvite&&<div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Invite team member"><div className="modal card team-invite-modal"><div className="card-header"><div><p className="eyebrow">Workspace access</p><h2>Invite a team member</h2><p>They will receive an email invitation and be added to this workspace.</p></div><button className="icon-button" onClick={()=>setShowInvite(false)} aria-label="Close invite"><X size={18}/></button></div><div className="detail-form"><label>Full name <span className="optional">Optional</span><input value={name} onChange={e=>setName(e.target.value)} placeholder="Jane Doe"/></label><label>Email address<input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="jane@organisation.com"/></label><label className="team-role-field"><span>Role</span><select value={memberRole} onChange={e=>setMemberRole(e.target.value as 'reviewer'|'admin')}><option value="reviewer">Reviewer</option><option value="admin">Admin</option></select><small className="team-role-help">{memberRole==='reviewer'?'Can work on assigned applicants.':'Can manage the workspace and assignments.'}</small></label><div className="detail-form-footer team-invite-footer"><button className="secondary-button" type="button" onClick={()=>setShowInvite(false)}>Cancel</button><button className="primary-button" type="button" onClick={invite} disabled={inviting||!email.trim()}>{inviting?'Sending…':'Send invitation'}</button></div></div></div></div>}
  </section>
 }
 export function SettingsWorkspace({organization,onSaved}:{organization:{id:string;name:string;slug:string}|null;onSaved:(name:string)=>void}){
