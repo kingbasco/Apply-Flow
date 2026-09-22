@@ -169,7 +169,11 @@ function PublicApplication({slug}:{slug:string}) {
     // If the ID is not in the RPC payload, use the returned submission ID to resolve it directly.
     const submissionId=Array.isArray(submissionPayload)
       ? submissionPayload[0]?.submission_id
-      : submissionPayload?.submission_id||submissionPayload?.data?.submission_id||submissionPayload?.result?.submission_id
+      : submissionPayload?.submission_id
+        ||submissionPayload?.data?.submission_id
+        ||submissionPayload?.data?.[0]?.submission_id
+        ||submissionPayload?.result?.submission_id
+        ||submissionPayload?.result?.data?.submission_id
     if(!assignedId&&submissionId){
       const {data:submittedRow,error:submittedRowError}=await supabase
         .from('submissions')
