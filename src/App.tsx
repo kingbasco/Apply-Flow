@@ -117,14 +117,14 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
         {error && <div className="form-error">{error}</div>}{message && <div className="form-message">{message}</div>}
         <button className="primary-button auth-submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'forgot' ? 'Send reset link' : mode === 'signin' ? 'Sign in' : 'Create workspace'}</button>
       </form>
-      {mode === 'forgot' ? <button className="auth-switch" onClick={()=>{setMode('signin');setError('');setMessage('')}}>← Back to sign in</button> : <>
+      {mode === 'forgot' ? <button className="auth-switch" onClick={()=>{setMode('signin');setError('');setMessage('')}}>← Back to sign in</button> : <div className="auth-secondary-actions">
         <div className="auth-divider"><span>OR</span></div>
         <button type="button" className="google-auth-button" onClick={signInWithGoogle} disabled={busy}>
           <span className="google-mark" aria-hidden="true">G</span>
           <span>{mode === 'signin' ? 'Continue with Google' : 'Sign up with Google'}</span>
         </button>
         <button className="auth-switch" onClick={()=>{setMode(mode==='signin'?'signup':'signin');setError('');setMessage('')}}>{mode==='signin' ? 'Need an account? Create a workspace' : 'Already have an account? Sign in'}</button>
-      </>}
+      </div>}
     </div>
     <div className="auth-aside"><div><span className="aside-kicker">APPLYFLOW</span><h2>{mode === 'forgot' ? 'Get back into your workspace.' : 'From applications to decisions, in one workspace.'}</h2><p>{mode === 'forgot' ? 'We’ll send a secure link to your email so you can choose a new password.' : 'Collect applications, evaluate eligibility, screen candidates and move the right people through your programme.'}</p></div><div className="aside-stat"><strong>{mode === 'forgot' ? 'Secure password recovery' : 'One source of truth'}</strong><span>{mode === 'forgot' ? 'Email link · New password · Sign in' : 'Forms · Eligibility · Screening · Reviews · Selection'}</span></div></div>
   </div>
