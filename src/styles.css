@@ -2243,3 +2243,12 @@ html.dark-theme,html.dark-theme body{background:#0f1117;color:#e7eaf0}
 /* Password recovery */
 .auth-forgot-link{display:block;width:max-content;margin:-4px 0 4px auto;padding:0;border:0;background:transparent;color:var(--accent,#6d5dfc);font:inherit;font-size:11px;font-weight:700;cursor:pointer}
 .auth-forgot-link:hover{text-decoration:underline}
+
+
+/* Refined signup date-of-birth UI */
+.signup-details-grid{align-items:start}
+.dob-fields{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(88px,.75fr);gap:10px;margin-top:8px}
+.dob-fields select{width:100%;min-width:0;height:42px;padding:0 34px 0 12px;border:1px solid #e0e4ea;border-radius:9px;outline:0;background:#fff;color:#222b39;font-size:12px;appearance:none;background-image:linear-gradient(45deg,transparent 50%,#8a929f 50%),linear-gradient(135deg,#8a929f 50%,transparent 50%);background-position:calc(100% - 16px) 18px,calc(100% - 11px) 18px;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+.dob-fields select:focus{border-color:#7b82d5;box-shadow:0 0 0 3px rgba(91,99,198,.09)}
+.dark-theme .dob-fields select{background-color:#12161d;border-color:#343a47;color:#e4e8ee}
+@media(max-width:640px){.signup-details-grid{grid-template-columns:1fr}.dob-fields{grid-template-columns:minmax(0,1.6fr) minmax(86px,.7fr)}}
