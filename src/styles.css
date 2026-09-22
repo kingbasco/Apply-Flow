@@ -2146,3 +2146,71 @@ html.dark-theme,html.dark-theme body{background:#0f1117;color:#e7eaf0}
   color:#e4e8ee;
 }
 .dark-theme .applicant-search input::placeholder{color:#697282}
+
+
+/* Google authentication */
+.auth-divider{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin:18px 0 12px;
+  color:#8b93a1;
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:.12em;
+}
+.auth-divider::before,.auth-divider::after{
+  content:"";
+  flex:1;
+  height:1px;
+  background:#e3e6eb;
+}
+.google-auth-button{
+  width:100%;
+  min-height:44px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  border:1px solid #d8dce3;
+  border-radius:10px;
+  background:#fff;
+  color:#20242b;
+  font:inherit;
+  font-size:12px;
+  font-weight:650;
+  cursor:pointer;
+  transition:.18s ease;
+}
+.google-auth-button:hover{
+  background:#f8f9fb;
+  border-color:#c7ccd5;
+}
+.google-auth-button:disabled{
+  opacity:.6;
+  cursor:not-allowed;
+}
+.google-mark{
+  width:20px;
+  height:20px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:#fff;
+  color:#4285f4;
+  font-family:Arial,sans-serif;
+  font-size:17px;
+  font-weight:700;
+}
+.dark-theme .auth-divider{color:#858e9d}
+.dark-theme .auth-divider::before,.dark-theme .auth-divider::after{background:#303642}
+.dark-theme .google-auth-button{
+  background:#171b23;
+  border-color:#343a47;
+  color:#e7ebf1;
+}
+.dark-theme .google-auth-button:hover{
+  background:#1d222b;
+  border-color:#454d5c;
+}
+.dark-theme .google-mark{background:#f7f8fa}
