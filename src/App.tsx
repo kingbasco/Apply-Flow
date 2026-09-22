@@ -7,7 +7,7 @@ import {
 import { supabase } from './lib/supabase'
 import { NIGERIAN_STATES, getNigerianLgas } from './lib/nigeria'
 import ParticipantsPanel from './components/ParticipantsPanel'
-import { FormsWorkspace, ScreeningWorkspace, ReviewsWorkspace, TeamWorkspace, SettingsWorkspace } from './components/WorkspaceModules'
+import { FormsWorkspace, ScreeningWorkspace, ReviewsWorkspace, TeamWorkspace, SettingsWorkspace, ScreeningReviewModal, ScreeningRow } from './components/WorkspaceModules'
 import { GoogleFormImport } from './components/GoogleFormImport'
 
 type AppStatus = 'draft' | 'published' | 'screening' | 'closed' | 'completed'
@@ -1125,25 +1125,76 @@ function ReviewsPanel({applicationId}:{applicationId:string}){
  </div>
 }
 function ScreeningPanel({applicationId}:{applicationId:string}){
- const [rows,setRows]=useState<any[]>([]),[selected,setSelected]=useState<any|null>(null),[loading,setLoading]=useState(true),[notice,setNotice]=useState(''),[running,setRunning]=useState(false)
- async function load(){setLoading(true);setNotice('');const {data,error}=await supabase.from('submissions').select('id,status,submitted_at,applicants!inner(full_name,email),ai_screenings(id,status,overall_assessment,eligibility_status,eligibility_assessment,criterion_assessments,strengths,concerns,missing_information,inconsistencies,evidence,suggested_score,confidence,model,updated_at,error_message)').eq('application_id',applicationId).order('submitted_at',{ascending:false});if(error)setNotice(error.message);else setRows(data||[]);setLoading(false)}
- useEffect(()=>{load()},[applicationId])
- async function runScreening(id:string){
-   setRunning(true);setNotice('');
-   const {data,error}=await supabase.functions.invoke('run-ai-screening',{body:{submission_id:id}});
-   if(error){setNotice(error.message||'Could not run AI screening.');setRunning(false);return}
-   if(data?.error){setNotice(data.error);setRunning(false);return}
-   await load();
-   const refreshed=rows.find(r=>r.id===id);
-   if(refreshed)setSelected(refreshed);
-   setRunning(false);
+ const [rows,setRows]=useState<ScreeningRow[]>([])
+ const [selected,setSelected]=useState<ScreeningRow|null>(null)
+ const [loading,setLoading]=useState(true)
+ const [notice,setNotice]=useState('')
+ const [running,setRunning]=useState(false)
+
+ async function load(){
+  setLoading(true);setNotice('')
+  try{
+   const {data:subs,error:se}=await supabase.from('submissions').select('id,application_id,applicant_id,submitted_at,decision').eq('application_id',applicationId).eq('status','submitted').order('submitted_at',{ascending:false})
+   if(se)throw se
+   const submissionIds=(subs||[]).map(s=>s.id)
+   if(!submissionIds.length){setRows([]);return}
+   const [{data:elig,error:ee},{data:scores,error:sce},{data:ai,error:ae},{data:applicants,error:ape}]=await Promise.all([
+    supabase.from('submission_eligibility').select('submission_id,status').in('submission_id',submissionIds),
+    supabase.from('submission_scores').select('submission_id,overall_score').in('submission_id',submissionIds),
+    supabase.from('ai_screenings').select('submission_id,status,overall_assessment').in('submission_id',submissionIds),
+    supabase.from('applicants').select('id,full_name,email,unique_id').in('id',(subs||[]).map(s=>s.applicant_id).filter(Boolean))
+   ])
+   if(ee)throw ee;if(sce)throw sce;if(ae)throw ae;if(ape)throw ape
+   const em=new Map((elig||[]).map(x=>[x.submission_id,x]))
+   const sm=new Map((scores||[]).map(x=>[x.submission_id,x]))
+   const am=new Map((ai||[]).map(x=>[x.submission_id,x]))
+   const pm=new Map((applicants||[]).map(x=>[x.id,x]))
+   setRows((subs||[]).map(s=>{
+    const p=pm.get(s.applicant_id),a=am.get(s.id),score=sm.get(s.id),e=em.get(s.id)
+    const assessment=String(a?.overall_assessment||'').toLowerCase()
+    const recommendation=assessment.includes('not recommended')||assessment.includes('poor match')?'Not recommended':assessment.includes('strong match')||assessment.includes('recommended')?'Recommended':a?.status==='completed'?'Reviewed':a?.status==='failed'?'Failed':'Not screened'
+    return {submissionId:s.id,applicationId:s.application_id,uniqueId:p?.unique_id||'—',applicantName:p?.full_name||'Unnamed applicant',email:p?.email||null,submittedAt:s.submitted_at||null,eligibility:e?.status==='eligible'?'eligible':e?.status==='ineligible'?'ineligible':'pending',score:score?.overall_score==null?null:Number(score.overall_score),aiStatus:a?.status||'pending',aiRecommendation:recommendation,decision:s.decision==='approved'||s.decision==='rejected'?s.decision:'pending'}
+   }))
+  }catch(e){setNotice(e instanceof Error?e.message:'Could not load screening data.')}finally{setLoading(false)}
  }
+
+ useEffect(()=>{load()},[applicationId])
+
+ async function runScreening(id:string){
+  setRunning(true);setNotice('')
+  try{
+   const {data,error}=await supabase.functions.invoke('run-ai-screening',{body:{submission_id:id}})
+   if(error)throw error
+   if(data?.error)throw new Error(data.error)
+   await load()
+   setSelected(current=>current?.submissionId===id?current:null)
+  }catch(e){setNotice(e instanceof Error?e.message:'Could not run AI screening.')}
+  finally{setRunning(false)}
+ }
+
+ async function setDecision(row:ScreeningRow,decision:'approved'|'rejected'){
+  const {error}=await supabase.from('submissions').update({decision}).eq('id',row.submissionId)
+  if(error){setNotice(error.message);return}
+  setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision}:r))
+  setSelected(current=>current?.submissionId===row.submissionId?{...current,decision}:current)
+ }
+
  if(loading)return <div className="loading-card card">Loading screening workspace…</div>
  return <div className="screening-panel">
-  <div className="builder-top"><div><p className="eyebrow">Screening</p><h2>Application screening</h2><p>Review applicants, screening status, and AI-assisted assessments. AI suggestions remain subject to human review.</p></div>{notice&&<span className="builder-notice">{notice}</span>}</div>
+  <div className="builder-top"><div><p className="eyebrow">Screening</p><h2>Application screening</h2><p>Review the complete application, eligibility, score and AI assessment in one place. Final decisions remain with your team.</p></div>{notice&&<span className="builder-notice">{notice}</span>}</div>
   {!rows.length?<div className="card builder-empty"><Sparkles size={24}/><h3>No submissions to screen yet</h3><p>Applications will appear here after applicants submit the published form.</p></div>:
-  <div className="screening-table card"><div className="screening-row screening-head"><span>Applicant</span><span>Status</span><span>AI screening</span><span>Score</span><span></span></div>{rows.map(r=>{const s=r.ai_screenings?.[0];return <button className="screening-row screening-body" key={r.id} onClick={()=>setSelected(r)}><span><strong>{r.applicants?.full_name||'Unnamed applicant'}</strong><small>{r.applicants?.email||'No email'}</small></span><span className="status-pill">{r.status}</span><span className="status-pill">{s?.status||'Not started'}</span><span>{s?.suggested_score!=null?s.suggested_score:'—'}</span><span>View →</span></button>})}</div>}
-  {selected&&<div className="screening-drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSelected(null)}}><aside className="screening-drawer card"><div className="preview-header"><div><p className="eyebrow">Screening review</p><h2>{selected.applicants?.full_name||'Applicant'}</h2><p>{selected.applicants?.email}</p></div><button className="icon-button" onClick={()=>setSelected(null)}><X size={18}/></button></div>{!selected.ai_screenings?.[0]?<div className="builder-empty"><Sparkles size={22}/><h3>AI screening not started</h3><p>Run an evidence-based assessment using the configured scoring criteria.</p><button className="primary-button" disabled={running} onClick={()=>runScreening(selected.id)}>{running?'Running screening…':'Run AI screening'}</button></div>:<div className="screening-detail"><div className="screening-status-card"><span>Status</span><strong>{selected.ai_screenings[0].status}</strong><small>{selected.ai_screenings[0].model||'AI model not assigned'}</small></div><div className="screening-eligibility-card"><div><p className="eyebrow">Eligibility</p><strong>{selected.ai_screenings[0].eligibility_status||'Pending'}</strong><p>{selected.ai_screenings[0].eligibility_assessment||'Eligibility assessment will appear here after screening.'}</p></div><ShieldCheck size={20}/></div>{selected.ai_screenings[0].status==='failed'&&selected.ai_screenings[0].error_message&&<div className="form-error">{selected.ai_screenings[0].error_message}</div>}<section><p className="eyebrow">Assessment</p><p>{selected.ai_screenings[0].overall_assessment||'No assessment available yet.'}</p></section><section><p className="eyebrow">Suggested score</p><strong className="screening-score">{selected.ai_screenings[0].suggested_score??'—'}</strong></section><div className="screening-columns"><section><p className="eyebrow">Strengths</p>{(selected.ai_screenings[0].strengths||[]).map((x:string,i:number)=><p key={i}>• {x}</p>)}</section><section><p className="eyebrow">Concerns</p>{(selected.ai_screenings[0].concerns||[]).map((x:string,i:number)=><p key={i}>• {x}</p>)}</section></div><section><p className="eyebrow">Missing information</p>{(selected.ai_screenings[0].missing_information||[]).length?(selected.ai_screenings[0].missing_information||[]).map((x:string,i:number)=><p key={i}>• {x}</p>):<p className="muted">None recorded.</p>}</section><section><p className="eyebrow">Criterion assessments</p>{(selected.ai_screenings[0].criterion_assessments||[]).length?(selected.ai_screenings[0].criterion_assessments||[]).map((c:any,i:number)=><div className="answer-item" key={c.criterion_id||i}><strong>{c.criterion_name}</strong><span>{c.assessment}</span>{c.suggested_score!=null&&<small>Suggested score: {c.suggested_score} · Confidence: {Math.round(Number(c.confidence||0)*100)}%</small>}</div>):<p className="muted">No criterion assessments recorded.</p>}</section><div className="screening-note">AI screening is advisory only. A reviewer must make the final decision.</div>{selected.ai_screenings[0].status!=='processing'&&<button className="secondary-button" disabled={running} onClick={()=>runScreening(selected.id)}>{running?'Running screening…':'Rerun AI screening'}</button>}</div>}</aside></div>}
+   <div className="screening-table card">
+    <div className="screening-row screening-head"><span>Applicant</span><span>Eligibility</span><span>Score</span><span>AI screening</span><span>Status</span><span></span></div>
+    {rows.map(r=><button className="screening-row screening-body" key={r.submissionId} onClick={()=>setSelected(r)}>
+     <span><strong>{r.applicantName}</strong><small>{r.email||'No email'}</small></span>
+     <span className="status-pill">{r.eligibility}</span>
+     <span>{r.score==null?'—':r.score.toFixed(1)+' / 100'}</span>
+     <span className="status-pill">{r.aiRecommendation}</span>
+     <span className="status-pill">{r.decision}</span>
+     <span>Review →</span>
+    </button>)}
+   </div>}
+  {selected&&<ScreeningReviewModal row={selected} onClose={()=>setSelected(null)} onDecision={setDecision}/>}
  </div>
 }
 function AnalyticsPanel({applications}:{applications:Application[]}) {
