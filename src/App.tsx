@@ -686,7 +686,7 @@ function App() {
       setDeleteCandidate(null)
       setDeleteError('')
     }catch(e){
-      setDeleteError(e instanceof Error?e.message:'Could not delete this application. Please try again.')
+      setDeleteError(String((e as any)?.message || (e as any)?.details || (e as any)?.hint || e || 'Could not delete this application. Please try again.'))
     }finally{setDeletingApplicationId('')}
   }
 
