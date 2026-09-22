@@ -1231,3 +1231,15 @@
 .attendance-import-box .primary-button{width:100%;margin-top:10px;justify-content:center}
 .attendance-import-box>.muted{margin:8px 0 0;font-size:10px}
 @media(max-width:900px){.attendance-layout{grid-template-columns:1fr}}
+
+
+/* Benefits layout polish */
+.benefits-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+.benefits-column{min-width:0}
+.benefits-setup-card,.benefits-list-card{height:100%}
+.benefits-form{gap:12px}
+.benefits-form .attendance-field .participant-select-wrap select{min-height:44px}
+.benefits-form textarea{min-height:118px;resize:vertical}
+.benefits-form .primary-button{width:100%;justify-content:center;margin-top:2px}
+.benefits-list-card .table-wrap{min-height:260px}
+@media(max-width:900px){.benefits-layout{grid-template-columns:1fr}}
