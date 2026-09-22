@@ -264,6 +264,7 @@ type ScreeningDecision='pending'|'approved'|'rejected'
 interface ScreeningRow {
  submissionId:string
  applicationId:string
+ assignmentId?:string
  uniqueId:string
  applicantName:string
  email:string|null
