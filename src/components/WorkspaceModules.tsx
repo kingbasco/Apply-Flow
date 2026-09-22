@@ -622,7 +622,7 @@ function ScreeningReviewModal({row,role,onClose,onDecision}:{row:ScreeningRow;ro
         <span>{row.submittedAt?new Date(row.submittedAt).toLocaleString():'Submitted date unavailable'}</span>
        </div>
       </div>
-      <button type="button" className="secondary-button screening-back-button" onClick={onClose} aria-label="Back to screening">← Back to screening</button>
+      <button type="button" className="secondary-button screening-back-button" onClick={onClose} aria-label={role==='reviewer'?'Back to reviews':'Back to screening'}>← Back to {role==='reviewer'?'reviews':'screening'}</button>
      </div>
     </header>
 
@@ -703,13 +703,13 @@ function ScreeningReviewModal({row,role,onClose,onDecision}:{row:ScreeningRow;ro
        </section>
       </main>
 
-      {role!=='reviewer'&&<footer className="screening-review-footer">
+      <footer className="screening-review-footer">
        <div className="screening-decision-copy"><span className="screening-summary-label">Final decision</span><strong>{currentDecision==='pending'?'Choose approve or reject after reviewing the application.':currentDecision==='approved'?'Applicant approved':'Applicant rejected'}</strong></div>
        <div className="screening-decision-actions">
         <button className="secondary-button screening-reject-button" onClick={()=>onDecision(row,'rejected')} disabled={currentDecision==='rejected'}>Reject</button>
         <button className="primary-button screening-approve-button" onClick={()=>onDecision(row,'approved')} disabled={currentDecision==='approved'}>Approve</button>
        </div>
-      </footer>}
+      </footer>
      </>
     ) : null}
    </div>
@@ -785,8 +785,10 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
  const stats=useMemo(()=>({total:rows.length,unassigned:rows.filter(r=>r.status==='unassigned').length,assigned:rows.filter(r=>r.status==='assigned').length,inProgress:rows.filter(r=>r.status==='in_progress').length,completed:rows.filter(r=>r.status==='completed').length}),[rows])
  const setReviewDecision=async(row:any,decision:'approved'|'rejected')=>{
   setError('');
-  const {error}=await supabase.from('submissions').update({decision}).eq('id',row.submissionId);
-  if(error){setError(error.message);return}
+  const result=role==='reviewer'
+   ? await supabase.rpc('reviewer_set_submission_decision',{p_submission_id:row.submissionId,p_decision:decision})
+   : await supabase.from('submissions').update({decision}).eq('id',row.submissionId);
+  if(result.error){setError(result.error.message);return}
   setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision}:r));
   setReviewing((current:any)=>current?.submissionId===row.submissionId?{...current,decision}:current);
   setAssignmentNotice(decision==='approved'?'Applicant approved.':'Applicant rejected.');
