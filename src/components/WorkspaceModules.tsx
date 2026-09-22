@@ -318,7 +318,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
     supabase.from('submission_eligibility').select('submission_id,status').in('submission_id',submissionIds),
     supabase.from('submission_scores').select('submission_id,overall_score').in('submission_id',submissionIds),
     supabase.from('ai_screenings').select('submission_id,status,overall_assessment').in('submission_id',submissionIds),
-    supabase.from('applicants').select('id,full_name,email,unique_id').in('id',(subs||[]).map(s=>s.applicant_id))
+    supabase.from('applicants').select('id,full_name,email,unique_id').in('id',visibleSubs.map(s=>s.applicant_id))
    ])
    if(eligResult.error)throw eligResult.error
    if(scoreResult.error)throw scoreResult.error
@@ -427,7 +427,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
     </tbody></table></div>
    </div>
   </section>
-  {reviewing&&<ScreeningReviewModal row={reviewing} onClose={()=>setReviewing(null)} onDecision={setDecision}/>}
+  {reviewing&&<ScreeningReviewModal row={reviewing} role={role} onClose={()=>setReviewing(null)} onDecision={setDecision}/>}
   {decisionNotice&&<div className="modal-backdrop screening-decision-result" role="dialog" aria-modal="true" aria-labelledby="decision-result-title">
    <div className="modal card" style={{maxWidth:460,textAlign:'center',padding:32}}>
     <div style={{width:58,height:58,borderRadius:'50%',margin:'0 auto 16px',display:'grid',placeItems:'center',fontSize:28,fontWeight:700,background:decisionNotice.decision==='approved'?'#ecfdf3':'#fef2f2',color:decisionNotice.decision==='approved'?'#15803d':'#b91c1c'}}>
@@ -514,7 +514,7 @@ function ScreeningReviewModal({row,role,onClose,onDecision}:{row:ScreeningRow;ro
    }
   })()
   return ()=>{active=false}
- },[row.submissionId,row.applicationId])
+ },[row.submissionId,row.applicationId,row.assignmentId,role])
 
  const refreshDocuments=async()=>{
   const {data:documents,error}=await supabase.from('uploaded_documents')
