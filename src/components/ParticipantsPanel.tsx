@@ -280,9 +280,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
             {selectedAttendance.length?selectedAttendance.map(r=><tr key={r.participant_id}><td><strong>{r.participants?.full_name||'Unnamed participant'}</strong><span className="table-sub">{r.participants?.email||''}</span></td><td>{r.participants?.participant_code}</td><td><span className={'status '+(r.status==='present'?'green':'neutral')}>{r.status}</span></td><td>{r.status==='present'?<button className="text-button" disabled={saving} onClick={()=>markAbsent(r.participant_id)}>Mark absent</button>:null}</td></tr>):<tr><td colSpan={4}><div className="table-empty">No attendance recorded for this session.</div></td></tr>}
           </tbody></table></div>
           <div style={{padding:16,borderTop:'1px solid var(--border,#e8e8e8)'}}>
-            <textarea rows={5} value={ids} onChange={e=>setIds(e.target.value)} placeholder={'Paste participant IDs from Google Meet
-HC2-2026-0001
-HC2-2026-0007'} />
+            <textarea rows={5} value={ids} onChange={e=>setIds(e.target.value)} placeholder={'Paste participant IDs from Google Meet\nHC2-2026-0001\nHC2-2026-0007'} />
             <button className="primary-button" style={{marginTop:10}} onClick={importAttendance} disabled={saving}>{saving?'Importing…':'Import attendance IDs'}</button>
             <p className="muted" style={{marginTop:8}}>Only IDs belonging to this session’s programme are accepted.</p>
           </div>
