@@ -15,11 +15,11 @@ type Benefit = {
 }
 type AttendanceRow = {
   participant_id:string; status:'present'|'absent'; marked_at:string
-  participants?:{participant_code:string;application_id:string;applicants?:{full_name:string|null;email:string|null}}
+  participants?:{participant_code:string;application_id:string;applicants?:{full_name:string|null;email:string|null}|{full_name:string|null;email:string|null}[]}
 }
 type ParticipantAttendance = {
   id:string; status:'present'|'absent'; marked_at:string
-  attendance_sessions?:{title:string;session_date:string;application_id:string}
+  attendance_sessions?:{title:string;session_date:string;application_id:string}|{title:string;session_date:string;application_id:string}[]
 }
 
 export default function ParticipantsPanel({organizationId,applications}:{organizationId:string;applications:Application[]}) {
@@ -296,7 +296,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
         <div className="card-header"><div><h2>{selectedSession?selectedSession.title:'Session attendance'}</h2><p>{selectedSession?appName(selectedSession.application_id):'Select a session from the list.'}</p></div><CalendarCheck2 size={20}/></div>
         {!selectedSession?<div className="table-empty">Select an attendance session to see participants.</div>:attendanceLoading?<div className="loading-card">Loading attendance…</div>:<>
           <div className="table-wrap"><table><thead><tr><th>Participant</th><th>ID</th><th>Status</th><th></th></tr></thead><tbody>
-            {selectedAttendance.length?selectedAttendance.map(r=><tr key={r.participant_id}><td><strong>{r.participants?.full_name||'Unnamed participant'}</strong><span className="table-sub">{r.participants?.email||''}</span></td><td>{r.participants?.participant_code}</td><td><span className={'status '+(r.status==='present'?'green':'neutral')}>{r.status}</span></td><td>{r.status==='present'?<button className="text-button" disabled={saving} onClick={()=>markAbsent(r.participant_id)}>Mark absent</button>:null}</td></tr>):<tr><td colSpan={4}><div className="table-empty">No attendance recorded for this session.</div></td></tr>}
+            {selectedAttendance.length?selectedAttendance.map(r=><tr key={r.participant_id}><td><strong>{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.full_name:r.participants?.applicants?.full_name||'Unnamed participant'}</strong><span className="table-sub">{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.email:r.participants?.applicants?.email||''}</span></td><td>{r.participants?.participant_code}</td><td><span className={'status '+(r.status==='present'?'green':'neutral')}>{r.status}</span></td><td>{r.status==='present'?<button className="text-button" disabled={saving} onClick={()=>markAbsent(r.participant_id)}>Mark absent</button>:null}</td></tr>):<tr><td colSpan={4}><div className="table-empty">No attendance recorded for this session.</div></td></tr>}
           </tbody></table></div>
           <div style={{padding:16,borderTop:'1px solid var(--border,#e8e8e8)'}}>
             <textarea rows={5} value={ids} onChange={e=>setIds(e.target.value)} placeholder={'Paste participant IDs from Google Meet\nHC2-2026-0001\nHC2-2026-0007'} />
