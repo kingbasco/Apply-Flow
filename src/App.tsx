@@ -224,6 +224,7 @@ function App() {
   const [detailSaving, setDetailSaving] = useState(false)
   const [detailError, setDetailError] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
+  const [createMode, setCreateMode] = useState<'application'|'form'>('application')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
   const [newName, setNewName] = useState('')
@@ -358,12 +359,12 @@ function App() {
     } finally { setDetailSaving(false) }
   }
 
-  function openCreate() { setCreateError(''); setNewName(''); setNewDescription(''); setNewDeadline(''); setNewTarget(''); setCreateOpen(true) }
+  function openCreate(mode: 'application'|'form' = 'application') { setCreateMode(mode); setCreateError(''); setNewName(''); setNewDescription(''); setNewDeadline(''); setNewTarget(''); setCreateOpen(true) }
 
   async function createApplication(e: React.FormEvent) {
     e.preventDefault()
     if (!session?.user || !profile?.organization_id) return
-    if (!newName.trim()) { setCreateError('Programme name is required.'); return }
+    if (!newName.trim()) { setCreateError(createMode==='form' ? 'Form name is required.' : 'Programme name is required.'); return }
     setCreating(true); setCreateError('')
     try {
       const { data: application, error: applicationError } = await supabase.from('applications')
@@ -390,7 +391,19 @@ function App() {
 
       setApplications(current => [application, ...current])
       setCreateOpen(false)
-      setActive('Applications')
+      if (createMode==='form') {
+        setActive('Forms')
+        setSelectedApplication(application)
+        setDetailTab('Form')
+        setDetailLoading(true)
+        setDetailError('')
+        const {data:createdSettings,error:createdSettingsError}=await supabase.from('application_settings').select('public_slug,confirmation_message').eq('application_id',application.id).single()
+        if(createdSettingsError) setDetailError(createdSettingsError.message)
+        setApplicationSettings(createdSettings)
+        setDetailLoading(false)
+      } else {
+        setActive('Applications')
+      }
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Could not create the application.')
     } finally {
@@ -412,19 +425,19 @@ function App() {
           <section className="page-heading"><div><p className="eyebrow">Your workspace</p><h1>Good evening, {firstName}.</h1><p className="subtitle">Here’s what is happening across your programmes.</p></div><button className="primary-button" onClick={openCreate}><Plus size={17}/> New application</button></section>
           <section className="stats-grid"><StatCard label="Programmes" value={applications.length.toLocaleString()} note="In your workspace" icon={FolderKanban}/><StatCard label="Targets" value={totalTarget.toLocaleString()} note="Across programmes" icon={FileCheck2}/><StatCard label="Published" value={applications.filter(a=>a.status==='published').length.toLocaleString()} note="Currently accepting" icon={ShieldCheck}/><StatCard label="Screening" value={applications.filter(a=>a.status==='screening').length.toLocaleString()} note="In review" icon={Users}/></section>
           <section className="dashboard-grid"><div className="card table-card"><div className="card-header"><div><h2>Programmes</h2><p>Your application programmes from Supabase.</p></div><button className="text-button" onClick={()=>setActive('Applications')}>View all</button></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th></tr></thead><tbody>{applications.length===0?<tr><td colSpan={4}><div className="table-empty">No programmes yet. Create your first application programme.</div></td></tr>:applications.map(item=><tr key={item.id}><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td></tr>)}</tbody></table></div></div><div className="card funnel-card"><div className="card-header"><div><h2>Workspace health</h2><p>Live database connection</p></div><span className="status green">Connected</span></div><div className="connection-list"><div><span>Organisation</span><strong>{organization?.name || '—'}</strong></div><div><span>Role</span><strong>{profile?.role || '—'}</strong></div><div><span>Programmes</span><strong>{applications.length}</strong></div></div></div></section>
-        </> : selectedApplication ? <ApplicationDetails application={selectedApplication} settings={applicationSettings} tab={detailTab} setTab={setDetailTab} loading={detailLoading} saving={detailSaving} error={detailError} onBack={closeApplication} onSave={saveApplicationDetails}/> : active==='Analytics' ? <AnalyticsPanel applications={applications}/> : active==='Applications' ? <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>Applications</h1><p className="subtitle">Manage your application programmes.</p></div><button className="primary-button" onClick={openCreate}><Plus size={17}/> New application</button></div><div className="card table-card"><div className="toolbar"><div className="search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applications…"/></div><button className="secondary-button">All status <ChevronDown size={15}/></button></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th></tr></thead><tbody>{filtered.map(item=><tr key={item.id} onClick={()=>openApplication(item)} className="clickable-row"><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td></tr>)}</tbody></table></div></div></section> : active==='Forms' ? <FormsWorkspace applications={applications} onOpen={a=>openWorkspaceModule(a,'Form')} onCreate={openCreate}/> : active==='Screening' ? <ScreeningWorkspace applications={applications} onOpen={a=>openWorkspaceModule(a,'Screening')}/> : active==='Reviews' ? <ReviewsWorkspace applications={applications} organizationId={organization!.id} onOpen={a=>openWorkspaceModule(a,'Reviews')}/> : active==='Participants' ? <ParticipantsPanel organizationId={organization!.id} applications={applications}/> : active==='Team' ? <TeamWorkspace organizationId={organization!.id}/> : active==='Settings' ? <SettingsWorkspace organization={organization} onSaved={name=>setOrganization(x=>x?{...x,name}:x)}/> : <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>{active}</h1><p className="subtitle">This module is ready for implementation.</p></div></div><div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>No records yet</h2><p>Create a programme to start using this workspace.</p></div></section>}
+        </> : selectedApplication ? <ApplicationDetails application={selectedApplication} settings={applicationSettings} tab={detailTab} setTab={setDetailTab} loading={detailLoading} saving={detailSaving} error={detailError} onBack={closeApplication} onSave={saveApplicationDetails}/> : active==='Analytics' ? <AnalyticsPanel applications={applications}/> : active==='Applications' ? <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>Applications</h1><p className="subtitle">Manage your application programmes.</p></div><button className="primary-button" onClick={openCreate}><Plus size={17}/> New application</button></div><div className="card table-card"><div className="toolbar"><div className="search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applications…"/></div><button className="secondary-button">All status <ChevronDown size={15}/></button></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th></tr></thead><tbody>{filtered.map(item=><tr key={item.id} onClick={()=>openApplication(item)} className="clickable-row"><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td></tr>)}</tbody></table></div></div></section> : active==='Forms' ? <FormsWorkspace applications={applications} onOpen={a=>openWorkspaceModule(a,'Form')} onCreate={()=>openCreate('form')}/> : active==='Screening' ? <ScreeningWorkspace applications={applications} onOpen={a=>openWorkspaceModule(a,'Screening')}/> : active==='Reviews' ? <ReviewsWorkspace applications={applications} organizationId={organization!.id} onOpen={a=>openWorkspaceModule(a,'Reviews')}/> : active==='Participants' ? <ParticipantsPanel organizationId={organization!.id} applications={applications}/> : active==='Team' ? <TeamWorkspace organizationId={organization!.id}/> : active==='Settings' ? <SettingsWorkspace organization={organization} onSaved={name=>setOrganization(x=>x?{...x,name}:x)}/> : <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>{active}</h1><p className="subtitle">This module is ready for implementation.</p></div></div><div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>No records yet</h2><p>Create a programme to start using this workspace.</p></div></section>}
       </div>
     </main>
     {createOpen && <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setCreateOpen(false)}}>
       <form className="modal card" onSubmit={createApplication}>
-        <div className="modal-header"><div><p className="eyebrow">New programme</p><h2>Create an application programme</h2><p>Start with the basic programme details. You can build the form after this.</p></div><button type="button" className="icon-button" onClick={()=>setCreateOpen(false)} aria-label="Close"><X size={18}/></button></div>
+        <div className="modal-header"><div><p className="eyebrow">{createMode==='form'?'New form':'New programme'}</p><h2>{createMode==='form'?'Create a form':'Create an application programme'}</h2><p>{createMode==='form'?'Set up the form and then add the questions applicants will answer.':'Start with the basic programme details. You can build the form after this.'}</p></div><button type="button" className="icon-button" onClick={()=>setCreateOpen(false)} aria-label="Close"><X size={18}/></button></div>
         <div className="modal-form">
-          <label>Programme name<input autoFocus value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Hertisan Women Artisans — Cohort 3" required /></label>
+          <label>{createMode==='form'?'Form name':'Programme name'}<input autoFocus value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Hertisan Women Artisans — Cohort 3" required /></label>
           <label>Description <span className="optional">Optional</span><textarea value={newDescription} onChange={e=>setNewDescription(e.target.value)} placeholder="Briefly describe who this programme is for and what it offers." rows={4}/></label>
           <div className="form-grid"><label>Application deadline <span className="optional">Optional</span><input type="date" value={newDeadline} onChange={e=>setNewDeadline(e.target.value)} /></label><label>Target number <span className="optional">Optional</span><input type="number" min="0" value={newTarget} onChange={e=>setNewTarget(e.target.value)} placeholder="150" /></label></div>
           {createError && <div className="form-error">{createError}</div>}
         </div>
-        <div className="modal-footer"><button type="button" className="secondary-button" onClick={()=>setCreateOpen(false)}>Cancel</button><button className="primary-button" disabled={creating}>{creating?'Creating…':'Create programme'}</button></div>
+        <div className="modal-footer"><button type="button" className="secondary-button" onClick={()=>setCreateOpen(false)}>Cancel</button><button className="primary-button" disabled={creating}>{creating?'Creating…':createMode==='form'?'Create form':'Create programme'}</button></div>
       </form>
     </div>}
   </div>
