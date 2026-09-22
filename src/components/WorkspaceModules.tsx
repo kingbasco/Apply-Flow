@@ -849,9 +849,111 @@ export function TeamWorkspace({organizationId,role:workspaceRole}:{organizationI
  async function manageMember(member:Profile,action:'resend'|'delete'){if(!isOwner)return;if(action==='delete'&&!window.confirm('Remove '+(member.full_name||member.email||'this team member')+' from the workspace? This will also remove their ApplyFlow account access.'))return;setBusyId(member.id);setError('');setNotice('');try{const {data,error}=await supabase.functions.invoke('manage-team-member',{body:{organization_id:organizationId,member_id:member.id,action}});if(error)throw error;if(data?.error)throw new Error(data.error);setNotice(action==='resend'?'A new invitation has been sent to '+(member.email||'the team member')+'.':'Team member removed.');await load()}catch(e:any){setError(e.message||'Could not update this team member.')}finally{setBusyId('')}}
  return <section><div className="page-heading compact"><div><p className="eyebrow">Manage</p><h1>Team</h1><p className="subtitle">Invite people into this workspace so they can review assigned applicants.</p></div><div className="detail-actions">{isOwner&&<button className="primary-button" onClick={()=>setShowInvite(true)}><Plus size={16}/> Invite member</button>}</div></div>{error&&<div className="form-error page-error">{error}</div>}{notice&&<div className="form-message page-message">{notice}</div>}<div className="card table-card"><div className="card-header"><div><h2>Workspace members</h2><p>Reviewers can work on assigned applicants. Admins can manage the workspace and assignments.</p></div><Users size={20}/></div>{loading?<div className="loading-card">Loading team…</div>:<div className="table-wrap"><table><thead><tr><th>Member</th><th>Email</th><th>Role</th><th>Status</th>{isOwner&&<th></th>}</tr></thead><tbody>{people.map(p=>{const busy=busyId===p.id;return <tr key={p.id}><td><strong>{p.full_name||'Unnamed member'}</strong></td><td>{p.email||'—'}</td><td><span className="status blue">{p.role}</span></td><td><span className={'status '+(p.invitation_status==='pending'?'amber':'green')}>{p.invitation_status==='pending'?'Invitation pending':'Active'}</span></td>{isOwner&&<td><div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>{p.invitation_status==='pending'&&<button className="secondary-button" disabled={busy} onClick={()=>manageMember(p,'resend')}>{busy?'Working…':'Resend invitation'}</button>}{p.role!=='owner'&&<button className="icon-button" title="Remove team member" aria-label={'Remove '+(p.full_name||p.email||'team member')} disabled={busy} onClick={()=>manageMember(p,'delete')}><X size={16}/></button>}</div></td>}</tr>})}</tbody></table></div>}</div>{showInvite&&<div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Invite team member"><div className="modal card team-invite-modal"><div className="card-header"><div><p className="eyebrow">Workspace access</p><h2>Invite a team member</h2><p>They will receive an email invitation and be added to this workspace.</p></div><button className="icon-button" onClick={()=>setShowInvite(false)} aria-label="Close invite"><X size={18}/></button></div><div className="detail-form"><label>Full name <span className="optional">Optional</span><input value={name} onChange={e=>setName(e.target.value)} placeholder="Jane Doe"/></label><label>Email address<input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="jane@organisation.com"/></label><label className="team-role-field"><span>Role</span><select value={memberRole} onChange={e=>setMemberRole(e.target.value as 'reviewer'|'admin')}><option value="reviewer">Reviewer</option><option value="admin">Admin</option></select><small className="team-role-help">{memberRole==='reviewer'?'Can work on assigned applicants.':'Can manage the workspace and assignments.'}</small></label><div className="detail-form-footer team-invite-footer"><button className="secondary-button" type="button" onClick={()=>setShowInvite(false)}>Cancel</button><button className="primary-button" type="button" onClick={invite} disabled={inviting||!email.trim()}>{inviting?'Sending…':'Send invitation'}</button></div></div></div></div>}</section>
 }
-export function SettingsWorkspace({organization,onSaved}:{organization:{id:string;name:string;slug:string}|null;onSaved:(name:string)=>void}){
- const [name,setName]=useState(organization?.name||''); const [slug,setSlug]=useState(organization?.slug||''); const [saving,setSaving]=useState(false); const [notice,setNotice]=useState(''); const [error,setError]=useState('')
+export function SettingsWorkspace({organization,profile,onSaved,onProfileSaved}:{organization:{id:string;name:string;slug:string}|null;profile:{id:string;full_name:string|null;avatar_url:string|null;role:string;organization_id:string|null}|null;onSaved:(name:string)=>void;onProfileSaved:(profile:{full_name:string|null;avatar_url:string|null})=>void}){
+ const [name,setName]=useState(organization?.name||''); const [slug,setSlug]=useState(organization?.slug||'')
+ const [profileName,setProfileName]=useState(profile?.full_name||''); const [email,setEmail]=useState(''); const [avatarUrl,setAvatarUrl]=useState(profile?.avatar_url||'')
+ const [currentPassword,setCurrentPassword]=useState(''); const [newPassword,setNewPassword]=useState(''); const [confirmPassword,setConfirmPassword]=useState('')
+ const [saving,setSaving]=useState(false); const [profileSaving,setProfileSaving]=useState(false); const [passwordSaving,setPasswordSaving]=useState(false); const [emailSaving,setEmailSaving]=useState(false); const [signingOut,setSigningOut]=useState(false)
+ const [notice,setNotice]=useState(''); const [error,setError]=useState(''); const [emailNotice,setEmailNotice]=useState('')
  useEffect(()=>{setName(organization?.name||'');setSlug(organization?.slug||'')},[organization])
- async function save(){if(!organization||!name.trim())return;setSaving(true);setError('');setNotice('');const {error}=await supabase.from('organizations').update({name:name.trim(),slug:slug.trim()||organization.slug}).eq('id',organization.id);if(error)setError(error.message);else{setNotice('Workspace settings saved.');onSaved(name.trim())}setSaving(false)}
- return <section><div className="page-heading compact"><div><p className="eyebrow">Manage</p><h1>Settings</h1><p className="subtitle">Configure your ApplyFlow workspace.</p></div></div>{error&&<div className="form-error page-error">{error}</div>}{notice&&<div className="form-message page-message">{notice}</div>}<div className="card detail-card"><div className="card-header"><div><h2>Workspace</h2><p>Basic organisation settings.</p></div><Settings size={20}/></div><div className="detail-form"><label>Organisation name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Workspace slug<input value={slug} onChange={e=>setSlug(e.target.value)}/></label><div className="detail-form-footer"><button className="primary-button" onClick={save} disabled={saving}><Save size={16}/>{saving?'Saving…':'Save settings'}</button></div></div></div></section>
+ useEffect(()=>{setProfileName(profile?.full_name||'');setAvatarUrl(profile?.avatar_url||'')},[profile])
+ useEffect(()=>{(async()=>{const {data}=await supabase.auth.getUser();setEmail(data.user?.email||'')})()},[])
+ function flash(message:string){setNotice(message);setError('')}
+ async function saveWorkspace(){
+   if(!organization||!name.trim())return
+   setSaving(true);setError('');setNotice('')
+   const {error}=await supabase.from('organizations').update({name:name.trim(),slug:slug.trim()||organization.slug,updated_at:new Date().toISOString()}).eq('id',organization.id)
+   if(error)setError(error.message);else{flash('Workspace settings saved.');onSaved(name.trim())}
+   setSaving(false)
+ }
+ async function saveProfile(){
+   if(!profile)return
+   setProfileSaving(true);setError('');setNotice('')
+   const {error}=await supabase.from('profiles').update({full_name:profileName.trim()||null,updated_at:new Date().toISOString()}).eq('id',profile.id)
+   if(error)setError(error.message)
+   else{onProfileSaved({full_name:profileName.trim()||null,avatar_url:avatarUrl||null});flash('Profile updated.')}
+   setProfileSaving(false)
+ }
+ async function uploadAvatar(file:File){
+   if(!profile)return
+   setError('');setNotice('')
+   if(!['image/jpeg','image/png','image/webp'].includes(file.type)){setError('Please choose a JPG, PNG, or WebP image.');return}
+   if(file.size>5*1024*1024){setError('Profile images must be 5 MB or smaller.');return}
+   setProfileSaving(true)
+   try{
+     const extension=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg'
+     const path=`${profile.id}/${crypto.randomUUID()}.${extension}`
+     const {error:uploadError}=await supabase.storage.from('avatars').upload(path,file,{contentType:file.type,upsert:false,cacheControl:'3600'})
+     if(uploadError)throw uploadError
+     const {data}=supabase.storage.from('avatars').getPublicUrl(path)
+     const {error:profileError}=await supabase.from('profiles').update({avatar_url:data.publicUrl,updated_at:new Date().toISOString()}).eq('id',profile.id)
+     if(profileError){await supabase.storage.from('avatars').remove([path]);throw profileError}
+     if(avatarUrl){try{const marker='/avatars/';const oldPath=decodeURIComponent(avatarUrl.split(marker)[1]||'');if(oldPath&&oldPath.startsWith(profile.id+'/'))await supabase.storage.from('avatars').remove([oldPath])}catch{}}
+     setAvatarUrl(data.publicUrl);onProfileSaved({full_name:profileName.trim()||null,avatar_url:data.publicUrl});flash('Profile photo updated.')
+   }catch(e){setError(e instanceof Error?e.message:'Could not upload your profile image.')}
+   finally{setProfileSaving(false)}
+ }
+ async function changePassword(){
+   setPasswordSaving(true);setError('');setNotice('')
+   try{
+     if(newPassword.length<8)throw new Error('New password must be at least 8 characters.')
+     if(newPassword!==confirmPassword)throw new Error('New passwords do not match.')
+     const {data:{user}}=await supabase.auth.getUser()
+     if(!user?.email)throw new Error('Your account email could not be verified.')
+     if(currentPassword){
+       const {error:reauthError}=await supabase.auth.signInWithPassword({email:user.email,password:currentPassword})
+       if(reauthError)throw new Error('Current password is incorrect.')
+     }
+     const {error:updateError}=await supabase.auth.updateUser({password:newPassword})
+     if(updateError)throw updateError
+     setCurrentPassword('');setNewPassword('');setConfirmPassword('');flash('Password changed successfully.')
+   }catch(e){setError(e instanceof Error?e.message:'Could not change your password.')}
+   finally{setPasswordSaving(false)}
+ }
+ async function changeEmail(){
+   setEmailSaving(true);setEmailNotice('');setError('')
+   try{
+     const {data:{user}}=await supabase.auth.getUser()
+     if(!email.trim()||email.trim()===user?.email){setEmailNotice('Enter a different email address.');return}
+     const {error:updateError}=await supabase.auth.updateUser({email:email.trim()})
+     if(updateError)throw updateError
+     setEmailNotice('A confirmation link has been sent to your new email address. Your current email remains active until you confirm it.')
+   }catch(e){setEmailNotice(e instanceof Error?e.message:'Could not update your email address.')}
+   finally{setEmailSaving(false)}
+ }
+ async function signOutEverywhere(){
+   setSigningOut(true);setError('')
+   try{const {error}=await supabase.auth.signOut({scope:'global'});if(error)throw error}catch(e){setError(e instanceof Error?e.message:'Could not sign out all sessions.')}finally{setSigningOut(false)}
+ }
+ const initials=(profileName||email||'U').split(/\\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'U'
+ return <section>
+  <div className="page-heading compact"><div><p className="eyebrow">Manage</p><h1>Settings</h1><p className="subtitle">Manage your workspace and personal account.</p></div></div>
+  {error&&<div className="form-error page-error">{error}</div>}{notice&&<div className="form-message page-message">{notice}</div>}
+  <div className="settings-account-grid">
+   <div className="card detail-card settings-profile-card">
+    <div className="card-header"><div><p className="eyebrow">Your account</p><h2>Profile</h2><p>Update the details other workspace members see.</p></div><div className="settings-profile-avatar">{avatarUrl?<img src={avatarUrl} alt="" />:<span>{initials}</span>}</div></div>
+    <div className="detail-form">
+      <div className="settings-avatar-row"><div className="settings-avatar-large">{avatarUrl?<img src={avatarUrl} alt="Profile" />:<span>{initials}</span>}</div><div><label className="settings-upload-label"><input type="file" accept="image/jpeg,image/png,image/webp" disabled={profileSaving} onChange={e=>{const file=e.target.files?.[0];if(file)uploadAvatar(file);e.currentTarget.value=''}}/><span>{profileSaving?'Uploading…':'Upload profile image'}</span></label><small className="field-help">JPG, PNG or WebP · maximum 5 MB</small></div></div>
+      <label>Full name<input value={profileName} onChange={e=>setProfileName(e.target.value)} placeholder="Your full name"/></label>
+      <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} /><small className="field-help">Changing your email requires confirmation.</small></label>
+      {emailNotice&&<div className="form-message">{emailNotice}</div>}
+      <div className="detail-form-footer"><button className="secondary-button" onClick={changeEmail} disabled={emailSaving}>{emailSaving?'Updating…':'Change email'}</button><button className="primary-button" onClick={saveProfile} disabled={profileSaving}>Save profile</button></div>
+    </div>
+   </div>
+   <div className="card detail-card">
+    <div className="card-header"><div><p className="eyebrow">Security</p><h2>Password</h2><p>Keep your account protected with a strong password.</p></div><Settings size={20}/></div>
+    <div className="detail-form">
+      <label>Current password <span className="optional">Optional for OAuth accounts</span><input type="password" autoComplete="current-password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} placeholder="Current password"/></label>
+      <label>New password<input type="password" autoComplete="new-password" minLength={8} value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="At least 8 characters"/></label>
+      <label>Confirm new password<input type="password" autoComplete="new-password" minLength={8} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Repeat your new password"/></label>
+      <div className="detail-form-footer"><button className="primary-button" onClick={changePassword} disabled={passwordSaving}>{passwordSaving?'Changing…':'Change password'}</button></div>
+      <div className="security-danger-zone"><div><strong>Sign out all sessions</strong><p>Use this if you think someone else may have access to your account.</p></div><button className="secondary-button" onClick={signOutEverywhere} disabled={signingOut}>{signingOut?'Signing out…':'Sign out everywhere'}</button></div>
+    </div>
+   </div>
+  </div>
+  <div className="card detail-card settings-workspace-card">
+   <div className="card-header"><div><p className="eyebrow">Workspace</p><h2>Organisation</h2><p>Basic organisation settings for this ApplyFlow workspace.</p></div><Settings size={20}/></div>
+   <div className="detail-form"><label>Organisation name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Workspace slug<input value={slug} onChange={e=>setSlug(e.target.value)}/></label><div className="detail-form-footer"><button className="primary-button" onClick={saveWorkspace} disabled={saving}><Save size={16}/>{saving?'Saving…':'Save workspace settings'}</button></div></div>
+  </div>
+ </section>
 }
