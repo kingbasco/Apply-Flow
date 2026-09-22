@@ -2424,3 +2424,47 @@ html.dark-theme,html.dark-theme body{background:#0f1117;color:#e7eaf0}
 @media(max-width:600px){
   .notification-popover{position:fixed;top:62px;right:14px;width:min(370px,calc(100vw - 28px))}
 }
+
+
+/* Google Forms import redesign */
+.import-modal-redesign{width:min(760px,calc(100vw - 32px));max-height:min(88vh,900px);overflow:auto;padding:28px}
+.import-modal-redesign .modal-header{align-items:flex-start;gap:24px;padding-bottom:24px;border-bottom:1px solid #edf0f4}
+.import-modal-redesign .modal-header>div:first-child{min-width:0}
+.import-modal-redesign .modal-header h2{margin:4px 0 8px;font-family:Manrope,sans-serif;font-size:24px;letter-spacing:-.03em}
+.import-modal-redesign .modal-header p:not(.eyebrow){max-width:570px;margin:0;color:#727b8c;line-height:1.55}
+.import-modal-redesign .modal-form{display:grid;gap:22px;padding-top:24px}
+.import-field{display:grid;gap:9px}
+.import-field-label{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
+.import-field-label>span:first-child{font-weight:700;color:#202838;font-size:13px}
+.import-field-hint{font-size:11px;color:#929aaa}
+.programme-picker{position:relative}
+.programme-picker-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 14px;border:1px solid #dfe4eb;border-radius:12px;background:#fff;color:#1b2332;text-align:left;transition:border-color .18s,box-shadow .18s,background .18s}
+.programme-picker-trigger:hover{border-color:#cbd2dc;background:#fcfcfd}
+.programme-picker-trigger.open{border-color:#8793a6;box-shadow:0 0 0 3px rgba(23,29,43,.06)}
+.programme-picker-value{display:flex;align-items:center;gap:11px;min-width:0}
+.programme-picker-icon,.programme-option-icon{display:grid;place-items:center;flex:0 0 auto;width:34px;height:34px;border-radius:9px;background:#f1f3f7;color:#4c5668}
+.programme-picker-value>span:last-child,.programme-option-copy{display:grid;gap:3px;min-width:0}
+.programme-picker-value strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.programme-picker-value small,.programme-option-copy small{font-size:11px;color:#929aaa}
+.programme-picker-chevron{flex:0 0 auto;color:#7c8595;transition:transform .18s}
+.programme-picker-trigger.open .programme-picker-chevron{transform:rotate(180deg)}
+.programme-picker-menu{position:absolute;z-index:30;left:0;right:0;top:calc(100% + 7px);background:#fff;border:1px solid #e1e5eb;border-radius:14px;box-shadow:0 18px 40px rgba(25,32,45,.14);overflow:hidden}
+.programme-picker-search{display:flex;align-items:center;gap:9px;padding:10px 12px;border-bottom:1px solid #edf0f4;color:#8a93a2}
+.programme-picker-search input{width:100%;border:0;outline:0;background:transparent;color:#202838;font-size:13px}
+.programme-picker-search input::placeholder{color:#a0a8b5}
+.programme-picker-options{max-height:250px;overflow:auto;padding:6px}
+.programme-option{width:100%;display:flex;align-items:center;gap:10px;padding:9px;border-radius:10px;background:transparent;color:#1e2635;text-align:left}
+.programme-option:hover{background:#f6f7f9}
+.programme-option.selected{background:#f0f2f6}
+.programme-option>.lucide-check-circle-2{margin-left:auto;color:#394355}
+.programme-option-copy strong{font-size:12px;font-weight:700}
+.programme-picker-empty{padding:18px 12px;text-align:center;font-size:12px;color:#8b93a2}
+.import-modal-redesign .import-dropzone{min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:24px;border:1px dashed #cbd2dc;border-radius:14px;background:#fafbfc;text-align:center;cursor:pointer;transition:border-color .18s,background .18s,transform .18s}
+.import-modal-redesign .import-dropzone:hover{border-color:#8d97a8;background:#f7f8fa}
+.import-modal-redesign .import-dropzone input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.import-upload-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:11px;background:#eef1f5;color:#3e485a;margin-bottom:2px}
+.import-modal-redesign .import-dropzone strong{font-size:13px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.import-modal-redesign .import-dropzone>span:not(.import-upload-icon){font-size:11px;color:#7e8797}
+.import-modal-redesign .import-dropzone small{font-size:10px;color:#a0a7b3}
+.import-modal-redesign .import-preview{padding:18px;border:1px solid #e6e9ee;border-radius:14px;background:#fbfcfd}
+.import-modal-redesign .modal-footer{padding-top:22px;margin-top:22px;border-top:1px solid #edf0f4}
