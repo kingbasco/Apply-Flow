@@ -15,7 +15,7 @@ type Application = {
   id: string; name: string; description: string | null; status: AppStatus
   deadline: string | null; target_count: number | null; participant_code: string; created_at: string
 }
-type Profile = { id: string; full_name: string | null; avatar_url: string | null; organization_id: string | null; role: 'owner'|'admin'|'reviewer' }
+type Profile = { id: string; full_name: string | null; username: string | null; birth_month: number | null; birth_day: number | null; avatar_url: string | null; organization_id: string | null; role: 'owner'|'admin'|'reviewer' }
 type Organization = { id: string; name: string; slug: string }
 
 const nav = [
@@ -36,6 +36,9 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
+  const [username, setUsername] = useState('')
+  const [birthMonth, setBirthMonth] = useState('')
+  const [birthDay, setBirthDay] = useState('')
   const [orgName, setOrgName] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -51,6 +54,9 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
         }
         localStorage.setItem('applyflow-google-signup', JSON.stringify({
           full_name: name.trim(),
+          username: username.trim().toLowerCase(),
+          birth_month: birthMonth ? Number(birthMonth) : null,
+          birth_day: birthDay ? Number(birthDay) : null,
           organization_name: orgName.trim(),
         }))
       } else {
@@ -83,11 +89,23 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
         return
       }
       if (mode === 'signin') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        const identifier = email.trim()
+        const isEmail = identifier.includes('@')
+        let loginEmail = identifier
+        if (!isEmail) {
+          const { data: resolvedEmail, error: resolveError } = await supabase.rpc('resolve_username_login', { p_username: identifier.toLowerCase() })
+          if (resolveError) throw new Error('Could not verify that username. Please try again.')
+          if (!resolvedEmail) throw new Error('No account was found with that username.')
+          loginEmail = resolvedEmail
+        }
+        const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password })
         if (error) throw error
         onSignedIn()
       } else {
-        const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name.trim(), organization_name: orgName.trim() } } })
+        const normalizedUsername = username.trim().toLowerCase()
+        if (!/^[a-z0-9_]{3,30}$/.test(normalizedUsername)) throw new Error('Username must be 3–30 characters and use only letters, numbers, or underscores.')
+        if (!birthMonth || !birthDay) throw new Error('Please select your date of birth.')
+        const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { data: { full_name: name.trim(), username: normalizedUsername, birth_month: Number(birthMonth), birth_day: Number(birthDay), organization_name: orgName.trim() } } })
         if (error) throw error
         if (!data.user) throw new Error('Account could not be created.')
         if (!data.session) {
@@ -97,7 +115,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
         const slug = orgName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'organisation'
         const { data: org, error: orgError } = await supabase.from('organizations').insert({ name: orgName.trim(), slug, created_by: data.user.id }).select('id,name,slug').single()
         if (orgError) throw orgError
-        const { error: profileError } = await supabase.from('profiles').insert({ id: data.user.id, full_name: name.trim() || null, organization_id: org.id, role: 'owner' })
+        const { error: profileError } = await supabase.from('profiles').insert({ id: data.user.id, full_name: name.trim() || null, username: normalizedUsername, birth_month: Number(birthMonth), birth_day: Number(birthDay), organization_id: org.id, role: 'owner' })
         if (profileError) throw profileError
         onSignedIn()
       }
@@ -110,8 +128,8 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
       <div className="brand auth-brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Application OS</span></div></div>
       <div className="auth-copy"><p className="eyebrow">{mode === 'forgot' ? 'Password recovery' : 'Workspace access'}</p><h1>{mode === 'forgot' ? 'Reset your password.' : mode === 'signin' ? 'Welcome back.' : 'Create your workspace.'}</h1><p>{mode === 'forgot' ? 'Enter the email address linked to your ApplyFlow account and we’ll send you a secure reset link.' : mode === 'signin' ? 'Sign in to manage applications, screening and selections.' : 'Set up your organisation and start managing applications.'}</p></div>
       <form onSubmit={submit} className="auth-form">
-        {mode === 'signup' && <><label>Full name<input value={name} onChange={e=>setName(e.target.value)} placeholder="Cyril Adesegha" required /></label><label>Organisation name<input value={orgName} onChange={e=>setOrgName(e.target.value)} placeholder="Emerging Communities" required /></label></>}
-        <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@organisation.com" required /></label>
+        {mode === 'signup' && <><label>Full name<input value={name} onChange={e=>setName(e.target.value)} placeholder="Cyril Adesegha" required /></label><label>Username<input value={username} onChange={e=>setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g,''))} placeholder="cyriladesegha" minLength={3} maxLength={30} autoComplete="username" required /><small className="field-help">3–30 characters · letters, numbers and underscores</small></label><div className="form-grid"><label>Date of birth <span className="optional">Month and day only</span><div className="form-grid"><select value={birthMonth} onChange={e=>setBirthMonth(e.target.value)} required><option value="">Month</option>{['January','February','March','April','May','June','July','August','September','October','November','December'].map((month,index)=><option key={month} value={index+1}>{month}</option>)}</select><select value={birthDay} onChange={e=>setBirthDay(e.target.value)} required><option value="">Day</option>{Array.from({length:31},(_,i)=>i+1).map(day=><option key={day} value={day}>{day}</option>)}</select></div></label><label>Organisation name<input value={orgName} onChange={e=>setOrgName(e.target.value)} placeholder="Emerging Communities" required /></label></div></>}
+        <label>{mode === 'signin' ? 'Email or username' : 'Email'}<input type={mode === 'signin' ? 'text' : 'email'} value={email} onChange={e=>setEmail(e.target.value)} placeholder={mode === 'signin' ? 'you@organisation.com or username' : 'you@organisation.com'} autoComplete={mode === 'signin' ? 'username' : 'email'} required /></label>
         {mode !== 'forgot' && <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" minLength={6} required /></label>}
         {mode === 'signin' && <button type="button" className="auth-forgot-link" onClick={()=>{setMode('forgot');setError('');setMessage('')}}>Forgot password?</button>}
         {error && <div className="form-error">{error}</div>}{message && <div className="form-message">{message}</div>}
@@ -426,18 +444,20 @@ function App() {
     if (pError) { setError(pError.message); setLoading(false); return }
     if (!p) {
       const metadata = currentSession.user.user_metadata || {}
-      let googleSignup: { full_name?: string; organization_name?: string } | null = null
+      let googleSignup: { full_name?: string; username?: string; birth_month?: number | null; birth_day?: number | null; organization_name?: string } | null = null
       try {
         const raw = localStorage.getItem('applyflow-google-signup')
         if (raw) googleSignup = JSON.parse(raw)
       } catch {}
       const fullName = String(googleSignup?.full_name || metadata.full_name || currentSession.user.email?.split('@')[0] || 'Workspace owner').trim()
+      const usernameBase = String(googleSignup?.username || metadata.username || currentSession.user.email?.split('@')[0] || 'user').trim().toLowerCase().replace(/[^a-z0-9_]/g,'').slice(0,30)
+      const username = usernameBase.length >= 3 ? usernameBase : `user_${currentSession.user.id.slice(0,8)}`
       const organizationName = String(googleSignup?.organization_name || metadata.organization_name || 'ApplyFlow Workspace').trim() || 'ApplyFlow Workspace'
       const slugBase = organizationName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'applyflow'
       const slug = slugBase + '-' + currentSession.user.id.slice(0, 8)
       const { data: org, error: orgError } = await supabase.from('organizations').insert({ name: organizationName, slug, created_by: currentSession.user.id }).select('id,name,slug').single()
       if (orgError) { setError(orgError.message); setLoading(false); return }
-      const { data: createdProfile, error: profileError } = await supabase.from('profiles').insert({ id: currentSession.user.id, full_name: fullName, avatar_url: null, organization_id: org.id, role: 'owner' }).select('id,full_name,avatar_url,organization_id,role').single()
+      const { data: createdProfile, error: profileError } = await supabase.from('profiles').insert({ id: currentSession.user.id, full_name: fullName, username, birth_month: googleSignup?.birth_month ?? (metadata.birth_month as number | undefined) ?? null, birth_day: googleSignup?.birth_day ?? (metadata.birth_day as number | undefined) ?? null, avatar_url: null, organization_id: org.id, role: 'owner' }).select('id,full_name,username,birth_month,birth_day,avatar_url,organization_id,role').single()
       if (profileError) { setError(profileError.message); setLoading(false); return }
       p = createdProfile
       localStorage.removeItem('applyflow-google-signup')
