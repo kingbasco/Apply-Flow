@@ -373,19 +373,6 @@ export function GoogleFormImport({
               </div>
 
               {parsed.headers.length > 0 && (
-                <span className="import-dropzone">
-                  <input
-                    type="file"
-                    accept=".csv,text/csv"
-                    onChange={(event) => readFile(event.target.files?.[0] || null)}
-                  />
-                  <Upload size={20} />
-                  <strong>{file ? file.name : 'Choose CSV file'}</strong>
-                  <span>{file ? 'File loaded.' : 'Export your Google Forms responses as CSV first.'}</span>
-                </span>
-              </label>
-
-              {parsed.headers.length > 0 && (
                 <div className="import-preview">
                   <div className="import-preview-heading">
                     <div>
