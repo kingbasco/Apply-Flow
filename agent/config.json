@@ -1,0 +1,70 @@
+{
+  "project": "ApplyFlow",
+  "repository": "kingbasco/Apply-Flow",
+  "branch": "main",
+  "maxAttempts": 5,
+  "phases": [
+    {
+      "id": 1,
+      "name": "Foundation and authentication",
+      "doneWhen": [
+        "Build passes",
+        "Application loads",
+        "Authentication works"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Application management",
+      "doneWhen": [
+        "Applications can be created and managed",
+        "Build passes",
+        "Browser smoke test passes"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Form builder and submission",
+      "doneWhen": [
+        "Published form loads",
+        "Submission succeeds",
+        "Unique application ID is returned and displayed"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Eligibility and screening",
+      "doneWhen": [
+        "Screening workspace loads",
+        "Rules and screening data are available",
+        "No runtime errors"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Reviews, shortlist and selection",
+      "doneWhen": [
+        "Review workflow works",
+        "Shortlist workflow works",
+        "Selection remains human-controlled"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Analytics and notifications",
+      "doneWhen": [
+        "Analytics loads",
+        "Notifications do not break core workflows"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Production hardening",
+      "doneWhen": [
+        "Production build passes",
+        "Browser smoke test passes",
+        "No unresolved deployment errors"
+      ]
+    }
+  ]
+}
