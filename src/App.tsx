@@ -430,14 +430,14 @@ function App() {
     </main>
     {createOpen && <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setCreateOpen(false)}}>
       <form className="modal card" onSubmit={createApplication}>
-        <div className="modal-header"><div><p className="eyebrow">{createMode==='form'?'New form':'New programme'}</p><h2>{createMode==='form'?'Create a form':'Create an application programme'}</h2><p>{createMode==='form'?'Give the form a name and description. You can add the questions immediately after it is created.':'Start with the basic programme details. You can build the form after this.'}</p></div><button type="button" className="icon-button" onClick={()=>setCreateOpen(false)} aria-label="Close"><X size={18}/></button></div>
+        <div className="modal-header"><div><p className="eyebrow">{createMode==='form'?'New form':'New programme'}</p><h2>{createMode==='form'?'Create a Form':'Create a Programme'}</h2><p>{createMode==='form'?'Create the questionnaire applicants will complete. You can add questions immediately after it is created.':'Create the programme that owns the application form, deadline and target.'}</p></div><button type="button" className="icon-button" onClick={()=>setCreateOpen(false)} aria-label="Close"><X size={18}/></button></div>
         <div className="modal-form">
           <label>{createMode==='form'?'Form name':'Programme name'}<input autoFocus value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Women Artisans Application Form" required /></label>
           <label>Description <span className="optional">Optional</span><textarea value={newDescription} onChange={e=>setNewDescription(e.target.value)} placeholder={createMode==='form'?'Briefly describe what this form is for.':'Briefly describe who this programme is for and what it offers.'} rows={4}/></label>
           {createMode==='application'&&<div className="form-grid"><label>Application deadline <span className="optional">Optional</span><input type="date" value={newDeadline} onChange={e=>setNewDeadline(e.target.value)} /></label><label>Target number <span className="optional">Optional</span><input type="number" min="0" value={newTarget} onChange={e=>setNewTarget(e.target.value)} placeholder="150" /></label></div>}
           {createError && <div className="form-error">{createError}</div>}
         </div>
-        <div className="modal-footer"><button type="button" className="secondary-button" onClick={()=>setCreateOpen(false)}>Cancel</button><button className="primary-button" disabled={creating}>{creating?'Creating…':createMode==='form'?'Create form':'Create programme'}</button></div>
+        <div className="modal-footer"><button type="button" className="secondary-button" onClick={()=>setCreateOpen(false)}>Cancel</button><button className="primary-button" disabled={creating}>{creating?'Creating…':createMode==='form'?'Create Form':'Create Programme'}</button></div>
       </form>
     </div>}
   </div>
