@@ -210,9 +210,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
  const [filter,setFilter]=useState<'all'|'pending'|'approved'|'rejected'|'recommended'>('all')
  const [reviewing,setReviewing]=useState<ScreeningRow|null>(null)
  const [aiBulkRunning,setAiBulkRunning]=useState(false)
- const [decisionNotice,setDecisionNotice]=useState<'approved'|'rejected'|null>(null)
- const decisionNoticeTimer=useRef<number|null>(null)
- useEffect(()=>()=>{if(decisionNoticeTimer.current!==null)window.clearTimeout(decisionNoticeTimer.current)},[])
+ const [decisionNotice,setDecisionNotice]=useState<{decision:'approved'|'rejected';applicantName:string;uniqueId:string}|null>(null)
 
  async function load(){
   setLoading(true);setError('')
@@ -285,9 +283,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
   if(error){setError(error.message);return}
   setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision}:r))
   setReviewing(current=>current?.submissionId===row.submissionId?{...current,decision}:current)
-  setDecisionNotice(decision)
-  if(decisionNoticeTimer.current!==null)window.clearTimeout(decisionNoticeTimer.current)
-  decisionNoticeTimer.current=window.setTimeout(()=>setDecisionNotice(null),5000)
+  setDecisionNotice({decision,applicantName:row.applicantName,uniqueId:row.uniqueId})
  }
 
  const screenWithAI=async()=>{
@@ -337,14 +333,20 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
    </div>
   </section>
   {reviewing&&<ScreeningReviewModal row={reviewing} onClose={()=>setReviewing(null)} onDecision={setDecision}/>}
-  {decisionNotice&&<div className="modal-backdrop" role="status" aria-live="polite">
+  {decisionNotice&&<div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="decision-result-title">
    <div className="modal card" style={{maxWidth:460,textAlign:'center',padding:32}}>
-    <div style={{width:52,height:52,borderRadius:'50%',margin:'0 auto 16px',display:'grid',placeItems:'center',fontSize:26,fontWeight:700,background:decisionNotice==='approved'?'#ecfdf3':'#fef2f2',color:decisionNotice==='approved'?'#15803d':'#b91c1c'}}>
-     {decisionNotice==='approved'?'✓':'×'}
+    <div style={{width:58,height:58,borderRadius:'50%',margin:'0 auto 16px',display:'grid',placeItems:'center',fontSize:28,fontWeight:700,background:decisionNotice.decision==='approved'?'#ecfdf3':'#fef2f2',color:decisionNotice.decision==='approved'?'#15803d':'#b91c1c'}}>
+     {decisionNotice.decision==='approved'?'✓':'×'}
     </div>
     <p className="eyebrow">Decision recorded</p>
-    <h2 style={{margin:'6px 0 10px'}}>{decisionNotice==='approved'?'Applicant approved':'Applicant rejected'}</h2>
-    <p className="muted" style={{margin:0}}>{decisionNotice==='approved'?'This applicant has been approved successfully.':'This applicant has been rejected successfully.'}</p>
+    <h2 id="decision-result-title" style={{margin:'6px 0 8px'}}>{decisionNotice.decision==='approved'?'Applicant approved':'Applicant rejected'}</h2>
+    <p style={{fontWeight:600,margin:'0 0 4px'}}>{decisionNotice.applicantName}</p>
+    <p className="muted" style={{margin:'0 0 18px'}}>Application ID: {decisionNotice.uniqueId}</p>
+    <p className="muted" style={{margin:'0 0 22px'}}>{decisionNotice.decision==='approved'?'The applicant has been approved successfully.':'The applicant has been rejected successfully.'}</p>
+    <div style={{display:'flex',justifyContent:'center',gap:10}}>
+     <button className="secondary-button" onClick={()=>setDecisionNotice(null)}>Continue reviewing</button>
+     <button className="primary-button" onClick={()=>{setDecisionNotice(null);setReviewing(null)}}>Back to screening</button>
+    </div>
    </div>
   </div>}
  </>
