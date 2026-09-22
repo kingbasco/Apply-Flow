@@ -380,7 +380,26 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
   })
  },[rows,query,filter])
 
- const exportApplicants=()=>{\n  const application=applications.find(a=>a.id===selectedApplicationId)\n  if(!application||!rows.length)return\n  const escapeCsv=(value:string)=>\"\\\"\"+value.replace(/\\\"/g,'\\\"\\\"')+\"\\\"\"\n  const csv=[\n   ['Applicant ID','Full Name','Email Address'],\n   ...rows.map(row=>[row.uniqueId,row.applicantName,row.email||''])\n  ].map(row=>row.map(value=>escapeCsv(String(value??''))).join(',')).join('\\n')\n  const blob=new Blob(['\\uFEFF'+csv],{type:'text/csv;charset=utf-8;'})\n  const url=URL.createObjectURL(blob)\n  const link=document.createElement('a')\n  link.href=url\n  link.download=(application.name.trim().replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'')||'applicants')+'-applicants.csv'\n  document.body.appendChild(link)\n  link.click()\n  link.remove()\n  URL.revokeObjectURL(url)\n }\n\n const setDecision=async(row:ScreeningRow,decision:'approved'|'rejected')=>{
+ const exportApplicants=()=>{
+  const application=applications.find(a=>a.id===selectedApplicationId)
+  if(!application||!rows.length)return
+  const escapeCsv=(value:string)=>'"'+value.replace(/"/g,'""')+'"'
+  const csv=[
+   ['Applicant ID','Full Name','Email Address'],
+   ...rows.map(row=>[row.uniqueId,row.applicantName,row.email||''])
+  ].map(row=>row.map(value=>escapeCsv(String(value??''))).join(',')).join('\n')
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'})
+  const url=URL.createObjectURL(blob)
+  const link=document.createElement('a')
+  link.href=url
+  link.download=(application.name.trim().replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'')||'applicants')+'-applicants.csv'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+ }
+
+ const setDecision=async(row:ScreeningRow,decision:'approved'|'rejected')=>{
   setError('')
   const {error}=await supabase.from('submissions').update({decision}).eq('id',row.submissionId)
   if(error){setError(error.message);return}
