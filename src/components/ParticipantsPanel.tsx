@@ -145,7 +145,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   async function importAttendance(){
     if(!selectedSession)return
     const codes=[...new Set(ids.split(/[\s,;]+/).map(x=>x.trim().toUpperCase()).filter(Boolean))]
-    if(!codes.length){setError('Paste at least one participant ID.');return}
+    if(!codes.length){setError('Paste at least one applicant ID.');return}
     setSaving(true);setError('');setNotice('')
     try{
       const matches=participants.filter(p=>p.application_id===selectedSession.application_id&&codes.includes(p.participant_code.toUpperCase()))
@@ -200,7 +200,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   return <section>
     <div className="page-heading compact">
       <div><p className="eyebrow">Programme management</p><h1>Participants</h1><p className="subtitle">Manage selected applicants after selection: permanent IDs, attendance and programme benefits.</p></div>
-      <div className="status green"><BadgeCheck size={15}/> Participant IDs active</div>
+      <div className="status green"><BadgeCheck size={15}/> Applicant IDs active</div>
     </div>
 
     {error&&<div className="form-error page-error">{error}</div>}
@@ -244,7 +244,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
         <div style={{display:'flex',gap:10,padding:'0 18px 16px',flexWrap:'wrap'}}>
                     <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value as any)}><option value="all">All statuses</option><option value="active">Active</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select>
         </div>
-        <div className="table-wrap"><table><thead><tr><th>Participant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
+        <div className="table-wrap"><table><thead><tr><th>Applicant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
           {filtered.length?filtered.map(p=><tr key={p.id} className="clickable-row" onClick={()=>setSelectedParticipant(p)}>
             <td><strong>{p.participant_code}</strong></td>
             <td><strong>{p.full_name||'Unnamed participant'}</strong><span className="table-sub">{p.email||'No email'}</span></td>
