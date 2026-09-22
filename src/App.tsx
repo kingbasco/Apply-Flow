@@ -158,8 +158,13 @@ function PublicApplication({slug}:{slug:string}) {
     const emailQ=questions.find(q=>q.type==='email'), nameQ=questions.find(q=>q.label.toLowerCase().includes('full name')||q.label.toLowerCase()==='name')
     const {data:v,error:ve}=await supabase.from('form_versions').select('id').eq('application_id',app!.id).eq('status','published').order('version_number',{ascending:false}).limit(1).single();if(ve)throw ve
     const {data:submissionResult,error:se}=await supabase.rpc('submit_application_with_id',{p_application_id:app!.id,p_form_version_id:v.id,p_email:emailQ?String(answers[emailQ.id]||''):null,p_full_name:nameQ?String(answers[nameQ.id]||''):null,p_answers:answerPayload});if(se)throw se
-    const submissionPayload=typeof submissionResult==='string'?JSON.parse(submissionResult):submissionResult
-    const assignedId=Array.isArray(submissionPayload)?submissionPayload[0]?.unique_id:submissionPayload?.unique_id
+    let submissionPayload:any=typeof submissionResult==='string'?JSON.parse(submissionResult):submissionResult
+    if(typeof submissionPayload==='string'){
+      try{submissionPayload=JSON.parse(submissionPayload)}catch{}
+    }
+    const assignedId=Array.isArray(submissionPayload)
+      ? submissionPayload[0]?.unique_id
+      : submissionPayload?.unique_id||submissionPayload?.data?.unique_id||submissionPayload?.result?.unique_id
     if(!assignedId)throw new Error('Your application was submitted, but we could not retrieve your application ID. Please contact the programme team with the time of submission.')
     for(const q of questions.filter(q=>(q.type==='file'||q.type==='image')&&files[q.id])){
       const file=files[q.id]!, meta=answerPayload.find(x=>x.question_id===q.id)?.value as {path:string}
