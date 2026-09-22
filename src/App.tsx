@@ -162,9 +162,23 @@ function PublicApplication({slug}:{slug:string}) {
     if(typeof submissionPayload==='string'){
       try{submissionPayload=JSON.parse(submissionPayload)}catch{}
     }
-    const assignedId=Array.isArray(submissionPayload)
+    let assignedId=Array.isArray(submissionPayload)
       ? submissionPayload[0]?.unique_id
       : submissionPayload?.unique_id||submissionPayload?.data?.unique_id||submissionPayload?.result?.unique_id
+    // Supabase can return JSONB through a nested response shape depending on the client/runtime.
+    // If the ID is not in the RPC payload, use the returned submission ID to resolve it directly.
+    const submissionId=Array.isArray(submissionPayload)
+      ? submissionPayload[0]?.submission_id
+      : submissionPayload?.submission_id||submissionPayload?.data?.submission_id||submissionPayload?.result?.submission_id
+    if(!assignedId&&submissionId){
+      const {data:submittedRow,error:submittedRowError}=await supabase
+        .from('submissions')
+        .select('applicants!inner(unique_id)')
+        .eq('id',submissionId)
+        .maybeSingle()
+      if(submittedRowError)throw submittedRowError
+      assignedId=(submittedRow as any)?.applicants?.unique_id||''
+    }
     if(!assignedId)throw new Error('Your application was submitted, but we could not retrieve your application ID. Please contact the programme team with the time of submission.')
     for(const q of questions.filter(q=>(q.type==='file'||q.type==='image')&&files[q.id])){
       const file=files[q.id]!, meta=answerPayload.find(x=>x.question_id===q.id)?.value as {path:string}
