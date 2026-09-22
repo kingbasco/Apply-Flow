@@ -499,6 +499,7 @@ function App() {
     const [applications, setApplications] = useState<Application[]>([])
   const [deletingApplicationId, setDeletingApplicationId] = useState('')
   const [deleteCandidate, setDeleteCandidate] = useState<Application | null>(null)
+  const [deleteError, setDeleteError] = useState('')
   const [active, setActive] = useState(initialRoute.active)
   const [routeRestored, setRouteRestored] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -670,6 +671,7 @@ function App() {
 
   function requestDeleteApplication(application:Application) {
     if(deletingApplicationId)return
+    setDeleteError('')
     setDeleteCandidate(application)
   }
 
@@ -682,8 +684,9 @@ function App() {
       setApplications(current=>current.filter(item=>item.id!==application.id))
       if(selectedApplication?.id===application.id)closeApplication()
       setDeleteCandidate(null)
+      setDeleteError('')
     }catch(e){
-      window.alert(e instanceof Error?e.message:'Could not delete this application.')
+      setDeleteError(e instanceof Error?e.message:'Could not delete this application.')
     }finally{setDeletingApplicationId('')}
   }
 
@@ -804,8 +807,8 @@ function App() {
     {importOpen && <GoogleFormImport applications={applications} organizationId={organization!.id} onClose={()=>setImportOpen(false)} />}
     {deleteCandidate && <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setDeleteCandidate(null)}}>
       <div className="modal card" role="dialog" aria-modal="true" aria-labelledby="delete-application-title">
-        <div className="modal-header"><div><p className="eyebrow">Delete programme</p><h2 id="delete-application-title">Delete “{deleteCandidate.name}”?</h2><p>This will permanently delete the programme, its form versions, questions, applicants and submissions. This action cannot be undone.</p></div><button type="button" className="icon-button" onClick={()=>setDeleteCandidate(null)} aria-label="Close"><X size={18}/></button></div>
-        <div className="modal-footer"><button type="button" className="secondary-button" onClick={()=>setDeleteCandidate(null)} disabled={deletingApplicationId===deleteCandidate.id}>Cancel</button><button type="button" className="primary-button" onClick={()=>void deleteApplication(deleteCandidate)} disabled={deletingApplicationId===deleteCandidate.id}>{deletingApplicationId===deleteCandidate.id?'Deleting…':'Delete programme'}</button></div>
+        <div className="modal-header"><div><p className="eyebrow">Delete programme</p><h2 id="delete-application-title">Delete “{deleteCandidate.name}”?</h2><p>This will permanently delete the programme, its form versions, questions, applicants and submissions. This action cannot be undone.</p>{deleteError && <div className="form-error">{deleteError}</div>}</div><button type="button" className="icon-button" onClick={()=>setDeleteCandidate(null)} aria-label="Close"><X size={18}/></button></div>
+        <div className="modal-footer"><button type="button" className="secondary-button" onClick={()=>{setDeleteCandidate(null);setDeleteError('')}} disabled={deletingApplicationId===deleteCandidate.id}>Cancel</button><button type="button" className="primary-button" onClick={()=>void deleteApplication(deleteCandidate)} disabled={deletingApplicationId===deleteCandidate.id}>{deletingApplicationId===deleteCandidate.id?'Deleting…':'Delete programme'}</button></div>
       </div>
     </div>}
     {createOpen && <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setCreateOpen(false)}}>
