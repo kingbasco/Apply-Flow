@@ -350,6 +350,8 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
    </div>
   </div>}
  </>
+ )
+}
 
 type ScreeningReviewData={submission:any;applicant:any;answers:any[];questions:any[];eligibility:any;score:any;criteria:any[];ai:any;documents:any[];options:any[]}
 function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose:()=>void;onDecision:(row:ScreeningRow,decision:'approved'|'rejected')=>Promise<void>}) {
