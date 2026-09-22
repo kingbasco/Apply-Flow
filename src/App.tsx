@@ -467,7 +467,7 @@ function NotificationCenter({ userId, onNavigate }:{userId:string;onNavigate:(ta
   }
 
   return <div className="notification-center">
-    <button className="icon-button notification-trigger" aria-label={unread?\`Notifications, \${unread} unread\`:'Notifications'} aria-expanded={open} onClick={()=>{setOpen(value=>!value);if(!open)void load()}}>
+    <button className="icon-button notification-trigger" aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'} aria-expanded={open} onClick={()=>{setOpen(value=>!value);if(!open)void load()}}>
       <Bell size={18}/>
       {unread>0&&<span className="notification-badge">{unread>9?'9+':unread}</span>}
     </button>
