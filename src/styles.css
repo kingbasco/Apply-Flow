@@ -878,3 +878,224 @@
 .team-invite-modal .detail-form{padding:20px 24px 24px}
 .team-invite-modal .detail-form-footer{justify-content:flex-end;align-items:center;gap:12px;padding-top:8px;margin-top:2px;border-top:1px solid #eef0f3}.team-invite-footer .secondary-button,.team-invite-footer .primary-button{min-width:118px}.team-invite-footer .secondary-button{background:#fff}.team-role-field{gap:8px!important}.team-role-field>span{font-size:10px;font-weight:600;color:#4c5564}.team-role-field select{width:100%;min-height:42px;border:1px solid #dfe3e8;border-radius:9px;padding:10px 12px;background:#fff;color:#222b39;font-size:11px;outline:none;appearance:auto}.team-role-field select:focus{border-color:#7b82d5;box-shadow:0 0 0 3px rgba(91,99,198,.09)}.team-role-help{display:block;color:#98a0ac;font-size:10px;font-weight:400;line-height:1.5}
 @media(max-width:700px){.review-assignment-toolbar{align-items:stretch}.review-assignee-field{max-width:none;min-width:0}.review-selection-meta{padding-bottom:0}.review-assignment-toolbar .primary-button{width:100%}}
+
+
+/* Reviews workspace — overview and filter polish */
+.review-stats{
+ display:grid;
+ grid-template-columns:repeat(5,minmax(0,1fr));
+ gap:12px;
+ margin-bottom:16px;
+}
+.review-stat-card{
+ position:relative;
+ min-width:0;
+ min-height:118px;
+ padding:16px;
+ display:flex;
+ align-items:flex-start;
+ gap:12px;
+ background:#fff;
+ border:1px solid #e4e7ec;
+ border-radius:13px;
+ box-shadow:0 1px 2px rgba(16,24,40,.025);
+ overflow:hidden;
+}
+.review-stat-card::after{
+ content:'';
+ position:absolute;
+ right:-24px;
+ bottom:-28px;
+ width:76px;
+ height:76px;
+ border-radius:50%;
+ background:currentColor;
+ opacity:.035;
+}
+.review-stat-icon{
+ width:34px;
+ height:34px;
+ flex:0 0 34px;
+ display:grid;
+ place-items:center;
+ border-radius:9px;
+ background:#f1f2ff;
+ color:#5961c6;
+}
+.review-stat-card>div:last-child{
+ min-width:0;
+ display:flex;
+ flex-direction:column;
+ align-items:flex-start;
+}
+.review-stat-card span{
+ color:#858e9c;
+ font-size:9px;
+ font-weight:700;
+ text-transform:uppercase;
+ letter-spacing:.07em;
+ white-space:nowrap;
+}
+.review-stat-card strong{
+ margin-top:4px;
+ color:#1c2431;
+ font:800 24px/1 Manrope,sans-serif;
+ letter-spacing:-.045em;
+}
+.review-stat-card small{
+ margin-top:6px;
+ color:#a0a7b2;
+ font-size:9px;
+ line-height:1.35;
+ white-space:nowrap;
+ overflow:hidden;
+ text-overflow:ellipsis;
+ max-width:170px;
+}
+.review-stat-card.unassigned .review-stat-icon{background:#fff6df;color:#a46b12}
+.review-stat-card.assigned .review-stat-icon{background:#eff0ff;color:#5861bd}
+.review-stat-card.progress .review-stat-icon{background:#fff6df;color:#a46b12}
+.review-stat-card.completed .review-stat-icon{background:#eaf8f0;color:#2d8256}
+
+.review-assignment-toolbar{
+ align-items:flex-end;
+ padding:17px 20px;
+ background:linear-gradient(180deg,#fbfcfd 0%,#f8f9fb 100%);
+}
+.review-assignee-field{
+ min-width:300px;
+ max-width:460px;
+ gap:7px;
+}
+.review-assignee-field span{
+ color:#4f5866;
+ font-size:10px;
+ letter-spacing:.01em;
+}
+.review-select-wrap{
+ position:relative;
+ display:flex;
+ align-items:center;
+ width:100%;
+ min-height:44px;
+ border:1px solid #dfe3e9;
+ border-radius:10px;
+ background:#fff;
+ box-shadow:0 1px 2px rgba(16,24,40,.025);
+ transition:border-color .15s,box-shadow .15s,transform .15s;
+}
+.review-select-wrap:hover{
+ border-color:#c8ced8;
+}
+.review-select-wrap:focus-within{
+ border-color:#7078ce;
+ box-shadow:0 0 0 3px rgba(89,97,198,.10);
+}
+.review-select-wrap>svg:first-child{
+ margin-left:12px;
+ flex:0 0 auto;
+ color:#6972c9;
+}
+.review-select-wrap select{
+ appearance:none;
+ -webkit-appearance:none;
+ flex:1;
+ width:100%;
+ min-width:0;
+ height:42px;
+ border:0;
+ outline:0;
+ padding:0 34px 0 9px;
+ background:transparent;
+ color:#303846;
+ font-size:11px;
+ font-weight:600;
+ cursor:pointer;
+}
+.review-select-chevron{
+ position:absolute;
+ right:11px;
+ pointer-events:none;
+ color:#9299a6;
+ transform:rotate(90deg);
+}
+.review-selection-meta{
+ min-width:86px;
+ min-height:44px;
+ padding:0 12px;
+ display:flex;
+ flex-direction:column;
+ justify-content:center;
+ gap:2px;
+ border:1px solid #e2e5ea;
+ border-radius:10px;
+ background:#fff;
+ box-shadow:0 1px 2px rgba(16,24,40,.02);
+}
+.review-selection-meta strong{
+ color:#303846;
+ font:700 13px Manrope,sans-serif;
+}
+.review-selection-meta span{
+ color:#9aa1ad;
+ font-size:9px;
+}
+.review-assign-button{
+ min-height:44px;
+ padding-left:15px;
+ padding-right:15px;
+}
+.review-filter-toolbar{
+ align-items:flex-end;
+ gap:12px;
+}
+.review-status-filter{
+ display:grid;
+ gap:6px;
+ min-width:185px;
+}
+.review-status-filter>span{
+ color:#7e8794;
+ font-size:9px;
+ font-weight:700;
+ text-transform:uppercase;
+ letter-spacing:.07em;
+}
+.review-status-filter .review-select-wrap{
+ min-height:38px;
+}
+.review-status-filter .review-select-wrap select{
+ height:36px;
+ font-size:10px;
+}
+.review-status-filter .status-dot{
+ width:7px;
+ height:7px;
+ margin-left:12px;
+ flex:0 0 7px;
+ border-radius:50%;
+ background:#687181;
+}
+.review-status-filter .review-select-wrap:has(select[value="unassigned"]) .status-dot{background:#a46b12}
+.review-status-filter .review-select-wrap:has(select[value="assigned"]) .status-dot{background:#5861bd}
+.review-status-filter .review-select-wrap:has(select[value="in_progress"]) .status-dot{background:#a46b12}
+.review-status-filter .review-select-wrap:has(select[value="completed"]) .status-dot{background:#2d8256}
+
+@media(max-width:1150px){
+ .review-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:760px){
+ .review-stats{grid-template-columns:1fr 1fr}
+ .review-stat-card{min-height:104px;padding:13px}
+ .review-stat-card small{display:none}
+ .review-assignment-toolbar{display:grid;grid-template-columns:1fr 86px;gap:10px}
+ .review-assignee-field{grid-column:1/-1;max-width:none;min-width:0}
+ .review-assign-button{grid-column:1/-1;width:100%}
+ .review-filter-toolbar{display:flex;flex-direction:column;align-items:stretch}
+ .review-status-filter{min-width:0}
+}
+@media(max-width:480px){
+ .review-stats{grid-template-columns:1fr}
+ .review-stat-card{min-height:92px}
+ .review-selection-meta{min-width:0}
+}
