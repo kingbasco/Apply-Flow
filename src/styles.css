@@ -1883,3 +1883,16 @@ html.dark-theme,html.dark-theme body{background:#0f1117;color:#e7eaf0}
 .dark-theme .status.amber{background:rgba(181,126,31,.18);color:#e7c27a;border-color:rgba(181,126,31,.35)}
 .dark-theme .status.red{background:rgba(190,68,80,.18);color:#f0a1ab;border-color:rgba(190,68,80,.35)}
 .dark-theme .status.neutral{background:#242a34;color:#aeb6c4;border-color:#343a47}
+
+
+/* Conditional question controls — refined select treatment */
+.condition-editor .options-title>div{display:grid;gap:3px}
+.condition-editor .options-title small{display:block;font-size:9px;font-weight:400;color:#8b94a1;line-height:1.4}
+.condition-select-group{display:grid;gap:6px;margin-top:10px}
+.condition-select-group>label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#7e8794}
+.condition-select-wrap{position:relative}
+.condition-select-wrap select{margin-top:0!important;padding-right:38px!important}
+.condition-select-wrap>svg{position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;color:#7b8491}
+.dark-theme .condition-editor .options-title small{color:#858e9d}
+.dark-theme .condition-select-group>label{color:#858e9d}
+.dark-theme .condition-select-wrap>svg{color:#8f97a6}
