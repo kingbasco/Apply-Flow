@@ -614,8 +614,8 @@ const questionTypes:{type:QuestionType;label:string;icon:string}[]=[
  {type:'multiple_choice',label:'Multiple choice',icon:'☑'},{type:'yes_no',label:'Yes / No',icon:'Y/N'},{type:'nigeria_state',label:'State of origin',icon:'NG'},{type:'nigeria_lga',label:'Local government area',icon:'LGA'},{type:'file',label:'File upload',icon:'↑'},{type:'image',label:'Image upload',icon:'▧'},{type:'rating',label:'Rating',icon:'★'}
 ]
 
-type EligibilityOperator='='|'!='|'>'|'<'|'>='|'<='|'IN'|'NOT IN'
-type EligibilityRule={id:string;application_id:string;question_id:string;operator:EligibilityOperator;value:unknown;logic:'AND'|'OR';position:number;enabled:boolean}
+type EligibilityOperator='='|'in'|'between'
+type EligibilityRule={id:string;application_id:string;question_id:string;operator:EligibilityOperator;value:unknown;logic:'AND';position:number;enabled:boolean}
 
 function EligibilityBuilder({applicationId}:{applicationId:string}) {
   const [questions,setQuestions]=useState<BuilderQuestion[]>([])
@@ -638,37 +638,44 @@ function EligibilityBuilder({applicationId}:{applicationId:string}) {
       } else setQuestions([])
       const {data:rs,error:re}=await supabase.from('eligibility_rules').select('id,application_id,question_id,operator,value,logic,position,enabled').eq('application_id',applicationId).order('position')
       if(re)throw re
-      setRules((rs||[]) as EligibilityRule[])
+      setRules((rs||[]).map((r:any)=>({...r,operator:r.operator==='IN'||r.operator==='NOT IN'?'in':r.operator==='between'?'between':'=',logic:'AND'})) as EligibilityRule[])
     }catch(e){setNotice(e instanceof Error?e.message:'Could not load eligibility rules.')}finally{setLoading(false)}
   }
 
   useEffect(()=>{load()},[applicationId])
 
-  function defaultValue(q:BuilderQuestion){return q.type==='multiple_choice'?[]:q.type==='number'||q.type==='rating'?'':q.options[0]?.value||''}
+  function ruleForQuestion(q:BuilderQuestion){
+    if(q.type==='number'||q.type==='rating') return {operator:'between' as const,value:[null,null]}
+    if(q.type==='multiple_choice') return {operator:'in' as const,value:[]}
+    return {operator:'=' as const,value:q.options[0]?.value||''}
+  }
+
   function displayValue(rule:EligibilityRule){
     const q=questions.find(x=>x.id===rule.question_id)
     if(!q)return ''
-    if(Array.isArray(rule.value))return rule.value.join(', ')
-    const option=q.options.find(o=>o.value===String(rule.value))
-    return option?.label||String(rule.value??'')
+    if(rule.operator==='between'&&Array.isArray(rule.value))return rule.value.every(v=>v!==null&&v!=='')?String(rule.value[0])+'–'+String(rule.value[1]):'Set age range'
+    if(Array.isArray(rule.value)){
+      return rule.value.map(String).map(v=>q.options.find(o=>o.value===v)?.label||v).join(', ')
+    }
+    return q.options.find(o=>o.value===String(rule.value))?.label||String(rule.value??'')
   }
 
   async function addRule(){
     if(!questions.length){setNotice('Add questions to the form before creating eligibility rules.');return}
     setBusy(true);setNotice('')
-    const q=questions[0]
+    const q=questions[0], defaults=ruleForQuestion(q)
     const {data,error}=await supabase.from('eligibility_rules').insert({
-      application_id:applicationId,question_id:q.id,operator:'=',value:defaultValue(q),logic:'AND',position:rules.length,enabled:true
+      application_id:applicationId,question_id:q.id,operator:defaults.operator,value:defaults.value,logic:'AND',position:rules.length,enabled:true
     }).select('id,application_id,question_id,operator,value,logic,position,enabled').single()
-    if(error)setNotice(error.message);else setRules(x=>[...x,data as EligibilityRule])
+    if(error)setNotice(error.message);else setRules(x=>[...x,{...data,operator:data.operator as EligibilityOperator,logic:'AND'} as EligibilityRule])
     setBusy(false)
   }
 
   async function updateRule(id:string,patch:Partial<EligibilityRule>){
     setBusy(true);setNotice('')
-    const clean={...patch,updated_at:new Date().toISOString()}
+    const clean={...patch,logic:'AND',updated_at:new Date().toISOString()}
     const {data,error}=await supabase.from('eligibility_rules').update(clean).eq('id',id).select('id,application_id,question_id,operator,value,logic,position,enabled').single()
-    if(error)setNotice(error.message);else setRules(x=>x.map(r=>r.id===id?data as EligibilityRule:r))
+    if(error)setNotice(error.message);else setRules(x=>x.map(r=>r.id===id?{...data,operator:data.operator as EligibilityOperator,logic:'AND'} as EligibilityRule:r))
     setBusy(false)
   }
 
@@ -680,45 +687,40 @@ function EligibilityBuilder({applicationId}:{applicationId:string}) {
   }
 
   function valueEditor(rule:EligibilityRule,q:BuilderQuestion){
-    const value=rule.value
-    const isMulti=rule.operator==='IN'||rule.operator==='NOT IN'
-    if(q.options.length){
-      if(isMulti)return <div className="public-options">{q.options.map(o=>{const values=Array.isArray(value)?value.map(String):[];const checked=values.includes(o.value);return <label key={o.id}><input type="checkbox" checked={checked} onChange={e=>{const current=Array.isArray(value)?value.map(String):[];updateRule(rule.id,{value:e.target.checked?[...current,o.value]:current.filter(v=>v!==o.value)})}}/><span>{o.label}</span></label>})}</div>
-      return <select value={String(value??'')} onChange={e=>updateRule(rule.id,{value:e.target.value})}><option value="">Choose answer…</option>{q.options.map(o=><option key={o.id} value={o.value}>{o.label}</option>)}</select>
+    if(rule.operator==='between'){
+      const values=Array.isArray(rule.value)?rule.value:[null,null]
+      return <div className="eligibility-range"><input type="number" value={values[0]??''} placeholder="Minimum" onChange={e=>updateRule(rule.id,{value:[e.target.value===''?null:Number(e.target.value),values[1]??null]})}/><span>to</span><input type="number" value={values[1]??''} placeholder="Maximum" onChange={e=>updateRule(rule.id,{value:[values[0]??null,e.target.value===''?null:Number(e.target.value)]})}/></div>
     }
-    return <input type={q.type==='number'||q.type==='rating'?'number':q.type==='date'?'date':'text'} value={Array.isArray(value)?value.join(', '):String(value??'')} placeholder={isMulti?'Comma-separated values':''} onChange={e=>updateRule(rule.id,{value:isMulti?e.target.value.split(',').map(v=>v.trim()).filter(Boolean):e.target.value})}/>
+    if(q.options.length){
+      if(rule.operator==='in')return <div className="public-options eligibility-options">{q.options.map(o=>{const values=Array.isArray(rule.value)?rule.value.map(String):[];return <label key={o.id}><input type="checkbox" checked={values.includes(o.value)} onChange={e=>{const current=Array.isArray(rule.value)?rule.value.map(String):[];updateRule(rule.id,{value:e.target.checked?[...current,o.value]:current.filter(v=>v!==o.value)})}}/><span>{o.label}</span></label>})}</div>
+      return <div className="eligibility-field"><select value={String(rule.value??'')} onChange={e=>updateRule(rule.id,{value:e.target.value})}><option value="">Select expected answer</option>{q.options.map(o=><option key={o.id} value={o.value}>{o.label}</option>)}</select><ChevronDown size={15}/></div>
+    }
+    return <input type={q.type==='number'||q.type==='rating'?'number':q.type==='date'?'date':'text'} value={Array.isArray(rule.value)?rule.value.join(', '):String(rule.value??'')} placeholder="Enter expected answer" onChange={e=>updateRule(rule.id,{value:e.target.value})}/>
   }
 
   if(loading)return <div className="loading-card card">Loading eligibility rules…</div>
 
-  const enabledRules=rules.filter(rule=>rule.enabled).length
+  const enabledRules=rules.filter(r=>r.enabled).length
   return <div className="eligibility-builder">
-    <div className="builder-top"><div><p className="eyebrow">Eligibility</p><h2>Eligibility rules</h2><p>Define the conditions an applicant must meet before they move into screening.</p></div><div className="builder-actions">{notice&&<span className="builder-notice">{notice}</span>}<button className="primary-button" disabled={busy||!questions.length} onClick={addRule}><Plus size={14}/> Add rule</button></div></div>
+    <div className="builder-top"><div><p className="eyebrow">Eligibility</p><h2>Eligibility rules</h2><p>Choose the answers an applicant must provide to qualify for this programme.</p></div><div className="builder-actions">{notice&&<span className="builder-notice">{notice}</span>}<button className="primary-button" disabled={busy||!questions.length} onClick={addRule}><Plus size={14}/> Add rule</button></div></div>
     <div className="eligibility-layout">
-      <div className="eligibility-column">
-        <div className="card eligibility-rules-card">
-          <div className="card-header"><div><p className="eyebrow">Rule builder</p><h2>{rules.length?rules.length+' rule'+(rules.length===1?'':'s'):'No rules yet'}</h2><p>Each rule checks one answer from the application form.</p></div><ShieldCheck size={20}/></div>
-          {!rules.length?<div className="builder-empty eligibility-empty"><ShieldCheck size={24}/><h3>No eligibility rules yet</h3><p>Start by adding a rule based on one of the questions in your application form.</p><button className="secondary-button" disabled={!questions.length||busy} onClick={addRule}>Create first rule</button></div>:
-          <div className="eligibility-list">{rules.map((rule,index)=>{const q=questions.find(x=>x.id===rule.question_id);return <div className="eligibility-rule" key={rule.id}>
-            <div className="eligibility-rule-header"><div className="eligibility-rule-title"><span className="question-number">{index+1}</span><div><strong>Rule {index+1}</strong><span>{rule.enabled?'Enabled':'Disabled'} · {rule.logic} logic</span></div></div><button className="icon-button question-delete" onClick={()=>removeRule(rule.id)} aria-label={'Delete rule '+(index+1)}><X size={15}/></button></div>
-            <div className="eligibility-rule-grid">
-              <label>Question<div className="eligibility-field"><select value={rule.question_id} onChange={e=>{const next=questions.find(x=>x.id===e.target.value);updateRule(rule.id,{question_id:e.target.value,value:next?defaultValue(next):''})}}>{questions.map(x=><option key={x.id} value={x.id}>{x.label}</option>)}</select><ChevronDown size={15}/></div></label>
-              <label>Operator<div className="eligibility-field"><select value={rule.operator} onChange={e=>updateRule(rule.id,{operator:e.target.value as EligibilityOperator,value:(e.target.value==='IN'||e.target.value==='NOT IN')?[]:rule.value})}><option value="=">= Equals</option><option value="!=">≠ Does not equal</option><option value=">">&gt; Greater than</option><option value="<">&lt; Less than</option><option value=">=">≥ At least</option><option value="<=">≤ At most</option><option value="IN">In any of</option><option value="NOT IN">Not in</option></select><ChevronDown size={15}/></div></label>
-            </div>
-            {q&&<label className="eligibility-value-field">Expected answer{valueEditor(rule,q)}</label>}
-            <div className="eligibility-rule-footer"><label className="toggle-row"><span>Enabled</span><input type="checkbox" checked={rule.enabled} onChange={e=>updateRule(rule.id,{enabled:e.target.checked})}/></label><label className="eligibility-logic-field">Next rule logic<div className="eligibility-field"><select value={rule.logic} onChange={e=>updateRule(rule.id,{logic:e.target.value as 'AND'|'OR'})}><option value="AND">AND — must also pass</option><option value="OR">OR — alternative</option></select><ChevronDown size={15}/></div></label><span className="eligibility-current">Current answer: <strong>{displayValue(rule)||'No value set'}</strong></span></div>
-          </div>})}</div>}
-        </div>
-      </div>
-      <aside className="eligibility-column">
-        <div className="card eligibility-summary-card">
-          <div className="card-header"><div><p className="eyebrow">Rule summary</p><h2>Eligibility setup</h2><p>A quick view of the rules currently configured.</p></div><ShieldCheck size={20}/></div>
-          <div className="eligibility-summary-stats"><div><span>Total rules</span><strong>{rules.length}</strong></div><div><span>Active rules</span><strong>{enabledRules}</strong></div><div><span>Form questions</span><strong>{questions.length}</strong></div></div>
-          <div className="eligibility-info-box"><div className="eligibility-info-icon"><ShieldCheck size={16}/></div><div><strong>Automatic evaluation</strong><p>When eligibility is evaluated, ApplyFlow compares submitted answers against the rules you configure here.</p></div></div>
-          <div className="eligibility-info-box"><div className="eligibility-info-icon"><CheckCircle2 size={16}/></div><div><strong>Possible outcomes</strong><p>Applicants can be recorded as <strong>Eligible</strong>, <strong>Ineligible</strong>, or <strong>Pending</strong>.</p></div></div>
-          <div className="eligibility-help"><p className="eyebrow">Before adding rules</p><p>Make sure the questions you want to use for eligibility already exist in the form. Rule logic can be refined after the UI is set up.</p></div>
-        </div>
-      </aside>
+      <div className="eligibility-column"><div className="card eligibility-rules-card">
+        <div className="card-header"><div><p className="eyebrow">Requirements</p><h2>{rules.length?rules.length+' requirement'+(rules.length===1?'':'s'):'No requirements yet'}</h2><p>Each requirement is one simple eligibility condition.</p></div><ShieldCheck size={20}/></div>
+        {!rules.length?<div className="builder-empty eligibility-empty"><ShieldCheck size={24}/><h3>No eligibility requirements yet</h3><p>Add a requirement such as age, residence, or eligible trade.</p><button className="secondary-button" disabled={!questions.length||busy} onClick={addRule}>Create first requirement</button></div>:
+        <div className="eligibility-list">{rules.map((rule,index)=>{const q=questions.find(x=>x.id===rule.question_id);return <div className="eligibility-rule" key={rule.id}>
+          <div className="eligibility-rule-header"><div className="eligibility-rule-title"><span className="question-number">{index+1}</span><div><strong>Requirement {index+1}</strong><span>{rule.enabled?'Active':'Disabled'}</span></div></div><button className="icon-button question-delete" onClick={()=>removeRule(rule.id)} aria-label={'Delete requirement '+(index+1)}><X size={15}/></button></div>
+          <label className="eligibility-rule-question">Question<div className="eligibility-field"><select value={rule.question_id} onChange={e=>{const next=questions.find(x=>x.id===e.target.value);const defaults=next?ruleForQuestion(next):{operator:'=',value:''};updateRule(rule.id,{question_id:e.target.value,operator:defaults.operator,value:defaults.value})}}>{questions.map(x=><option key={x.id} value={x.id}>{x.label}</option>)}</select><ChevronDown size={15}/></div></label>
+          {q&&<label className="eligibility-value-field">Expected answer{q.type==='number'||q.type==='rating'?<><small>Set the minimum and maximum allowed value.</small>{valueEditor(rule,q)}</>:valueEditor(rule,q)}</label>}
+          <div className="eligibility-rule-footer"><label className="toggle-row"><span>Requirement active</span><input type="checkbox" checked={rule.enabled} onChange={e=>updateRule(rule.id,{enabled:e.target.checked})}/></label><span className="eligibility-current">Current: <strong>{displayValue(rule)||'Not set'}</strong></span></div>
+        </div>})}</div>}
+      </div></div>
+      <aside className="eligibility-column"><div className="card eligibility-summary-card">
+        <div className="card-header"><div><p className="eyebrow">How eligibility works</p><h2>Simple and automatic</h2><p>Every active requirement must be satisfied.</p></div><ShieldCheck size={20}/></div>
+        <div className="eligibility-summary-stats"><div><span>Total</span><strong>{rules.length}</strong></div><div><span>Active</span><strong>{enabledRules}</strong></div><div><span>Questions</span><strong>{questions.length}</strong></div></div>
+        <div className="eligibility-info-box"><div className="eligibility-info-icon"><CheckCircle2 size={16}/></div><div><strong>Example</strong><p>Age: 20–35 · Residence: Lagos State · Trade: any selected eligible trade.</p></div></div>
+        <div className="eligibility-info-box"><div className="eligibility-info-icon"><Sparkles size={16}/></div><div><strong>AI screening</strong><p>These requirements are included as part of the screening context so AI can explain whether the applicant meets them.</p></div></div>
+        <div className="eligibility-help"><p className="eyebrow">Important</p><p>Eligibility is based on the applicant's submitted answers. If a required eligibility answer is missing, the result stays Pending rather than being guessed.</p></div>
+      </div></aside>
     </div>
   </div>
 }
