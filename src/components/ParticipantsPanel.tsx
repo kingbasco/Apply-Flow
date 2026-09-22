@@ -272,7 +272,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
             <td><strong>{p.full_name||'Unnamed participant'}</strong><span className="table-sub">{p.email||'No email'}</span></td>
             <td>{appName(p.application_id)}</td>
             <td>{p.attendance_count||0} present</td>
-            <td><span className={'status '+(p.status==='active'?'green':p.status==='completed'?'blue':'neutral')}{p.status==='active'?'Active / Enrolled':p.status}</span></td>
+            <td><span className={'status '+(p.status==='active'?'green':p.status==='completed'?'blue':'neutral')}>{p.status==='active'?'Active / Enrolled':p.status}</span></td>
             <td>{new Date(p.joined_at).toLocaleDateString()}</td>
           </tr>):<tr><td colSpan={6}><div className="table-empty">{participants.length?'No participants match these filters.':'No participants yet. Select an applicant in Selection to create their participant record.'}</div></td></tr>}
         </tbody></table></div>
