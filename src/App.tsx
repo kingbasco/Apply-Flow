@@ -97,11 +97,6 @@ function InviteSetupScreen({ email, onComplete }: { email: string; onComplete: (
     try {
       const { error: updateError } = await supabase.auth.updateUser({ password })
       if (updateError) throw updateError
-      const { data: userData } = await supabase.auth.getUser()
-      if (userData.user) {
-        const { error: profileError } = await supabase.from('profiles').update({ invitation_status:'active' }).eq('id', userData.user.id)
-        if (profileError) throw profileError
-      }
       await onComplete()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not finish setting up your account.')
@@ -478,7 +473,7 @@ function App() {
           <section className="page-heading"><div><p className="eyebrow">Your workspace</p><h1>Good evening, {firstName}.</h1><p className="subtitle">Here’s what is happening across your programmes.</p></div><button className="primary-button" onClick={()=>openCreate()}><Plus size={17}/> New application</button></section>
           <section className="stats-grid"><StatCard label="Programmes" value={applications.length.toLocaleString()} note="In your workspace" icon={FolderKanban}/><StatCard label="Targets" value={totalTarget.toLocaleString()} note="Across programmes" icon={FileCheck2}/><StatCard label="Published" value={applications.filter(a=>a.status==='published').length.toLocaleString()} note="Currently accepting" icon={ShieldCheck}/><StatCard label="Screening" value={applications.filter(a=>a.status==='screening').length.toLocaleString()} note="In review" icon={Users}/></section>
           <section className="dashboard-grid"><div className="card table-card"><div className="card-header"><div><h2>Programmes</h2><p>Your application programmes from Supabase.</p></div><button className="text-button" onClick={()=>setActive('Applications')}>View all</button></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th></tr></thead><tbody>{applications.length===0?<tr><td colSpan={4}><div className="table-empty">No programmes yet. Create your first application programme.</div></td></tr>:applications.map(item=><tr key={item.id}><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td></tr>)}</tbody></table></div></div><div className="card funnel-card"><div className="card-header"><div><h2>Workspace health</h2><p>Live database connection</p></div><span className="status green">Connected</span></div><div className="connection-list"><div><span>Organisation</span><strong>{organization?.name || '—'}</strong></div><div><span>Role</span><strong>{profile?.role || '—'}</strong></div><div><span>Programmes</span><strong>{applications.length}</strong></div></div></div></section>
-        </> : selectedApplication ? <ApplicationDetails application={selectedApplication} settings={applicationSettings} tab={detailTab} setTab={setDetailTab} loading={detailLoading} saving={detailSaving} error={detailError} onBack={closeApplication} onSave={saveApplicationDetails}/> : active==='Analytics' ? <AnalyticsPanel applications={applications}/> : active==='Applications' ? <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>Applications</h1><p className="subtitle">Manage your application programmes.</p></div><button className="primary-button" onClick={()=>openCreate()}><Plus size={17}/> New application</button></div><div className="card table-card"><div className="toolbar"><div className="search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applications…"/></div><button className="secondary-button">All status <ChevronDown size={15}/></button></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th></tr></thead><tbody>{filtered.map(item=><tr key={item.id} onClick={()=>openApplication(item)} className="clickable-row"><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td></tr>)}</tbody></table></div></div></section> : active==='Forms' ? <FormsWorkspace applications={applications} onOpen={a=>openWorkspaceModule(a,'Form')} onCreate={()=>openCreate('form')}/> : active==='Screening' ? <ScreeningWorkspace applications={applications} role={profile?.role} onOpen={a=>openWorkspaceModule(a,'Screening')}/> : active==='Reviews' ? <ReviewsWorkspace applications={applications} organizationId={organization!.id} onOpen={a=>openWorkspaceModule(a,'Reviews')}/> : active==='Participants' ? <ParticipantsPanel organizationId={organization!.id} applications={applications}/> : active==='Team' ? <TeamWorkspace organizationId={organization!.id} role={profile?.role}/> : active==='Settings' ? <SettingsWorkspace organization={organization} onSaved={name=>setOrganization(x=>x?{...x,name}:x)}/> : <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>{active}</h1><p className="subtitle">This module is ready for implementation.</p></div></div><div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>No records yet</h2><p>Create a programme to start using this workspace.</p></div></section>}
+        </> : selectedApplication ? <ApplicationDetails application={selectedApplication} settings={applicationSettings} tab={detailTab} setTab={setDetailTab} loading={detailLoading} saving={detailSaving} error={detailError} onBack={closeApplication} onSave={saveApplicationDetails}/> : active==='Analytics' ? <AnalyticsPanel applications={applications}/> : active==='Applications' ? <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>Applications</h1><p className="subtitle">Manage your application programmes.</p></div><button className="primary-button" onClick={()=>openCreate()}><Plus size={17}/> New application</button></div><div className="card table-card"><div className="toolbar"><div className="search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applications…"/></div><button className="secondary-button">All status <ChevronDown size={15}/></button></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th></tr></thead><tbody>{filtered.map(item=><tr key={item.id} onClick={()=>openApplication(item)} className="clickable-row"><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td></tr>)}</tbody></table></div></div></section> : active==='Forms' ? <FormsWorkspace applications={applications} onOpen={a=>openWorkspaceModule(a,'Form')} onCreate={()=>openCreate('form')}/> : active==='Screening' ? <ScreeningWorkspace applications={applications} role={profile?.role} onOpen={a=>openWorkspaceModule(a,'Screening')}/> : active==='Reviews' ? <ReviewsWorkspace applications={applications} organizationId={organization!.id} onOpen={a=>openWorkspaceModule(a,'Reviews')}/> : active==='Participants' ? <ParticipantsPanel organizationId={organization!.id} applications={applications}/> : active==='Team' ? <TeamWorkspace organizationId={organization!.id}/> : active==='Settings' ? <SettingsWorkspace organization={organization} onSaved={name=>setOrganization(x=>x?{...x,name}:x)}/> : <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>{active}</h1><p className="subtitle">This module is ready for implementation.</p></div></div><div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>No records yet</h2><p>Create a programme to start using this workspace.</p></div></section>}
       </div>
     </main>
     {createOpen && <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setCreateOpen(false)}}>
@@ -495,7 +490,6 @@ function App() {
     </div>}
   </div>
 }
-
 
 function ApplicantsPanel({applicationId}:{applicationId:string}) {
   type Row={id:string;applicant_id:string;full_name:string|null;email:string|null;status:string;submitted_at:string|null;created_at:string}
@@ -557,7 +551,6 @@ const questionTypes:{type:QuestionType;label:string;icon:string}[]=[
  {type:'number',label:'Number',icon:'#'},{type:'date',label:'Date',icon:'◫'},{type:'dropdown',label:'Dropdown',icon:'⌄'},{type:'single_choice',label:'Single choice',icon:'○'},
  {type:'multiple_choice',label:'Multiple choice',icon:'☑'},{type:'yes_no',label:'Yes / No',icon:'Y/N'},{type:'nigeria_state',label:'State of origin',icon:'NG'},{type:'nigeria_lga',label:'Local government area',icon:'LGA'},{type:'file',label:'File upload',icon:'↑'},{type:'image',label:'Image upload',icon:'▧'},{type:'rating',label:'Rating',icon:'★'}
 ]
-
 
 type EligibilityOperator='='|'!='|'>'|'<'|'>='|'<='|'IN'|'NOT IN'
 type EligibilityRule={id:string;application_id:string;question_id:string;operator:EligibilityOperator;value:unknown;logic:'AND'|'OR';position:number;enabled:boolean}
@@ -654,7 +647,6 @@ function EligibilityBuilder({applicationId}:{applicationId:string}) {
   </div>
 }
 
-
 type ScoringCriterion={id:string;application_id:string;name:string;description:string|null;weight:number;max_score:number;source:'manual'|'automatic'|'ai';position:number;enabled:boolean}
 function ScoringBuilder({applicationId}:{applicationId:string}){
  const [criteria,setCriteria]=useState<ScoringCriterion[]>([]),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[notice,setNotice]=useState('')
@@ -688,7 +680,6 @@ function ScoringBuilder({applicationId}:{applicationId:string}){
   <div className="card" style={{padding:18,marginTop:14}}><p className="eyebrow">Scoring model</p><p className="muted" style={{margin:0}}>Each criterion gets a score up to its max score. ApplyFlow will use the weights to calculate an overall score once scoring is completed. AI-assisted scoring remains reviewable by a human.</p></div>
  </div>
 }
-
 
 type ReviewRow={id:string;submission_id:string;reviewer_id:string;status:'assigned'|'in_progress'|'completed';score:number|null;notes:string|null;created_at:string;updated_at:string}
 
@@ -977,3 +968,4 @@ function FormBuilder({applicationId}:{applicationId:string}) {
 
 function StatCard({label,value,note,icon:Icon}:{label:string;value:string;note:string;icon:typeof Users}){return <div className="card stat-card"><div className="stat-icon"><Icon size={18}/></div><div><p className="eyebrow">{label}</p><div className="stat-value">{value}</div><p className="muted">{note}</p></div></div>}
 export default App
+
