@@ -38,6 +38,18 @@ jobs:
       - name: Install browser agent
         run: npm install --global agent-browser
 
+      - name: Diagnose secret availability
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+        run: |
+          test -n "$GEMINI_API_KEY" && echo "GEMINI_API_KEY: SET" || echo "GEMINI_API_KEY: EMPTY"
+          test -n "$VERCEL_TOKEN" && echo "VERCEL_TOKEN: SET" || echo "VERCEL_TOKEN: EMPTY"
+          test -n "$VERCEL_PROJECT_ID" && echo "VERCEL_PROJECT_ID: SET" || echo "VERCEL_PROJECT_ID: EMPTY"
+          test -n "$VERCEL_TEAM_ID" && echo "VERCEL_TEAM_ID: SET" || echo "VERCEL_TEAM_ID: EMPTY"
+
       - name: Run supervisor
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
