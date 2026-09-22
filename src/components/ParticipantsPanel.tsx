@@ -108,7 +108,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   async function updateParticipantStatus(participantId:string,status:Participant['status']){
     setSaving(true);setError('');setNotice('')
     try{
-      const {data,error}=await supabase.from('participants').update({status,updated_at:new Date().toISOString()}).eq('id',participantId).select('id,participant_code,full_name,email,application_id,status,joined_at').single()
+      const {data,error}=await supabase.from('participants').update({status,updated_at:new Date().toISOString()}).eq('id',participantId).select('id,participant_code,application_id,status,joined_at').single()
       if(error)throw error
       setParticipants(current=>current.map(p=>p.id===participantId?{...p,...data}:p))
       setSelectedParticipant(current=>current?.id===participantId?{...current,...data}:current)
@@ -148,7 +148,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   async function importAttendance(){
     if(!selectedSession)return
     const codes=[...new Set(ids.split(/[\s,;]+/).map(x=>x.trim().toUpperCase()).filter(Boolean))]
-    if(!codes.length){setError('Paste at least one applicant ID.');return}
+    if(!codes.length){setError('Paste at least one participant ID.');return}
     setSaving(true);setError('');setNotice('')
     try{
       const matches=participants.filter(p=>p.application_id===selectedSession.application_id&&codes.includes(p.participant_code.toUpperCase()))
