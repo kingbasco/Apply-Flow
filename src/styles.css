@@ -833,3 +833,35 @@
   .public-form-actions{padding:20px 20px 24px}
   .public-submit{width:100%;min-width:0}
 }
+
+/* Screening summary cards — consistent icon/content alignment */
+.screening-stats .stat-card{
+  align-items:flex-start;
+  gap:12px;
+}
+.screening-stats .stat-icon{
+  flex:0 0 34px;
+  width:34px;
+  height:34px;
+  margin-top:1px;
+}
+.screening-stats .stat-content{
+  min-width:0;
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  justify-content:flex-start;
+}
+.screening-stats .stat-content .eyebrow{
+  margin:1px 0 4px;
+  line-height:1.25;
+  white-space:nowrap;
+}
+.screening-stats .stat-content .stat-value{
+  margin:0;
+  line-height:1.05;
+}
+.screening-stats .stat-card>.stat-icon + .stat-content{
+  align-self:flex-start;
+}
