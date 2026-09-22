@@ -43,11 +43,10 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   async function load(){
     setLoading(true);setError('')
     try{
-      const [p,s,b,attendance,recipients]=await Promise.all([
+      const [p,s,b,recipients]=await Promise.all([
         supabase.from('participants').select('id,participant_code,full_name,email,application_id,status,joined_at').eq('organization_id',organizationId).order('participant_code'),
         supabase.from('attendance_sessions').select('id,application_id,title,session_date').eq('organization_id',organizationId).order('session_date',{ascending:false}),
         supabase.from('benefit_distributions').select('id,application_id,name,description,distribution_date,status').eq('organization_id',organizationId).order('created_at',{ascending:false}),
-        supabase.from('attendance_records').select('participant_id,status').in('participant_id',[]),
         supabase.from('benefit_recipients').select('distribution_id,participant_id')
       ])
       if(p.error)throw p.error;if(s.error)throw s.error;if(b.error)throw b.error
