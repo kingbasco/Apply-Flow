@@ -60,11 +60,11 @@ export function GoogleFormImport({applications,organizationId,onClose,onComplete
   const sampleRows=parsed.rows.slice(0,5)
 
   const validation=useMemo(()=>{
-    const normalize=(value:string)=>value.trim().toLowerCase().replace(/\\s+/g,' ')
+    const normalize=(value:string)=>value.trim().toLowerCase().replace(/\s+/g,' ')
     const findHeader=(names:string[])=>parsed.headers.find(header=>names.includes(normalize(header)))
     const nameHeader=findHeader(['name','full name','applicant name','your name'])
     const emailHeader=findHeader(['email','email address'])
-    const isValidEmail=(value:string)=>/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(value.trim())
+    const isValidEmail=(value:string)=>/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(value.trim())
     let missingNames=0
     let missingEmails=0
     let invalidEmails=0
