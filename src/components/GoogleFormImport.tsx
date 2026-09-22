@@ -59,6 +59,35 @@ export function GoogleFormImport({applications,organizationId,onClose,onComplete
   const questionHeaders=useMemo(()=>parsed.headers.filter(h=>!isTimestampHeader(h)),[parsed.headers])
   const sampleRows=parsed.rows.slice(0,5)
 
+  const validation=useMemo(()=>{
+    const normalize=(value:string)=>value.trim().toLowerCase().replace(/\\s+/g,' ')
+    const findHeader=(names:string[])=>parsed.headers.find(header=>names.includes(normalize(header)))
+    const nameHeader=findHeader(['name','full name','applicant name','your name'])
+    const emailHeader=findHeader(['email','email address'])
+    const isValidEmail=(value:string)=>/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(value.trim())
+    let missingNames=0
+    let missingEmails=0
+    let invalidEmails=0
+    const emailCounts=new Map<string,number>()
+
+    for(const row of parsed.rows){
+      const name=(nameHeader?row[nameHeader]:'').trim()
+      const email=(emailHeader?row[emailHeader]:'').trim().toLowerCase()
+      if(nameHeader&&!name)missingNames++
+      if(emailHeader){
+        if(!email)missingEmails++
+        else if(!isValidEmail(email))invalidEmails++
+        else emailCounts.set(email,(emailCounts.get(email)||0)+1)
+      }
+    }
+
+    const duplicateEmails=Array.from(emailCounts.values()).filter(count=>count>1).length
+    return {nameHeader,emailHeader,missingNames,missingEmails,invalidEmails,duplicateEmails}
+  },[parsed])
+
+  const warningCount=(validation.nameHeader?validation.missingNames:0)
+    +(validation.emailHeader?validation.missingEmails+validation.invalidEmails+validation.duplicateEmails:0)
+
   async function readFile(next:File|null){
     setFile(next);setError('');setParsed({headers:[],rows:[]});setDone(false)
     if(!next)return
@@ -154,7 +183,17 @@ export function GoogleFormImport({applications,organizationId,onClose,onComplete
             </div>
             <div className="table-wrap import-preview-table"><table><thead><tr>{parsed.headers.slice(0,6).map((h,i)=><th key={h+i}>{h}</th>)}</tr></thead><tbody>{sampleRows.map((row,i)=><tr key={i}>{parsed.headers.slice(0,6).map((h,j)=><td key={h+j}>{row[h]||'—'}</td>)}</tr>)}</tbody></table></div>
             {parsed.headers.length>6&&<p className="muted import-preview-note">Showing the first 6 columns in the preview. All {parsed.headers.length} columns will be stored.</p>}
-          </div>}
+            {warningCount>0&&<div className="import-validation-warning">
+              <div><strong>Validation warnings</strong><span>These responses can still be imported.</span></div>
+              <ul>
+                {validation.nameHeader&&validation.missingNames>0&&<li>{validation.missingNames.toLocaleString()} response{validation.missingNames===1?' is':'s are'} missing a name.</li>}
+                {validation.emailHeader&&validation.missingEmails>0&&<li>{validation.missingEmails.toLocaleString()} response{validation.missingEmails===1?' is':'s are'} missing an email.</li>}
+                {validation.emailHeader&&validation.invalidEmails>0&&<li>{validation.invalidEmails.toLocaleString()} response{validation.invalidEmails===1?' has':'s have'} an invalid email address.</li>}
+                {validation.emailHeader&&validation.duplicateEmails>0&&<li>{validation.duplicateEmails.toLocaleString()} email{validation.duplicateEmails===1?' appears':'s appear'} in multiple responses. These responses will remain separate submissions.</li>}
+              </ul>
+            </div>}
+            {(validation.nameHeader||validation.emailHeader)&&<p className="muted import-preview-note">Detected {validation.nameHeader?'name':'no name'} and {validation.emailHeader?'email':'no email'} columns automatically. Warnings do not block import.</p>}
+          </div>
 
           {error&&<div className="form-error">{error}</div>}
         </div>
