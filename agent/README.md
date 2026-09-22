@@ -6,13 +6,13 @@ It checks GitHub access, the production build, Vercel deployment status and logs
 
 ## Required GitHub Actions secrets
 
-- OPENAI_API_KEY
+- GEMINI_API_KEY
 - VERCEL_TOKEN
 - VERCEL_PROJECT_ID
 - VERCEL_TEAM_ID
 
 Optional:
-- SUPERVISOR_MODEL
+- SUPERVISOR_MODEL (defaults to gemini-3.8-flash)
 - SUPERVISOR_MAX_ATTEMPTS
 
 Do not commit tokens.
