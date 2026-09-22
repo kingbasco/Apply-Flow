@@ -724,12 +724,27 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
   try{
    const ids=applications.map(a=>a.id);
    if(!ids.length){setRows([]);setReviewers([]);setLoading(false);return}
-   const {data:subs,error:se}=await supabase.from('submissions').select('id,application_id,applicant_id,created_at').in('application_id',ids).order('created_at',{ascending:false});
+   const {data:subs,error:se}=await supabase.from('submissions').select('id,application_id,applicant_id,created_at,submitted_at,decision').in('application_id',ids).order('created_at',{ascending:false});
    if(se)throw se;
+   let visibleSubs=subs||[];
    const submissionIds=(subs||[]).map(s=>s.id);
    if(!submissionIds.length){setRows([]);setReviewers([]);setLoading(false);return}
+   let assignmentQuery=supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,decision,updated_at').in('submission_id',submissionIds);
+   if(role==='reviewer'){
+    const {data:authData}=await supabase.auth.getUser();
+    const reviewerId=authData.user?.id;
+    if(reviewerId){
+     const {data:mine,error:mineError}=await supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,decision,updated_at').in('submission_id',submissionIds).eq('reviewer_id',reviewerId);
+     if(mineError)throw mineError;
+     const assignedIds=new Set((mine||[]).map(x=>x.submission_id));
+     visibleSubs=visibleSubs.filter(s=>assignedIds.has(s.id));
+    }else visibleSubs=[];
+   }
+   const visibleIds=visibleSubs.map(s=>s.id);
    const [{data:assignments,error:ae},{data:people,error:pe},{data:applicants,error:apE}]=await Promise.all([
-    supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,decision,updated_at').in('submission_id',submissionIds),
+    role==='reviewer'
+     ? supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,decision,updated_at').in('submission_id',visibleIds)
+     : assignmentQuery,
     supabase.from('profiles').select('id,full_name,role,organization_id').eq('organization_id',organizationId).in('role',['reviewer','admin','owner']).order('full_name'),
     supabase.from('applicants').select('id,full_name,email').in('id',(subs||[]).map(s=>s.applicant_id).filter(Boolean))
    ]);
@@ -738,7 +753,7 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
    const applicantMap=new Map((applicants||[]).map(x=>[x.id,x])),appMap=new Map(applications.map(x=>[x.id,x])),reviewerMap=new Map((people||[]).map(x=>[x.id,x]));
    const grouped=new Map<string,any[]>();
    for(const a of assignments||[])grouped.set(a.submission_id,[...(grouped.get(a.submission_id)||[]),a]);
-   setRows((subs||[]).map(s=>{
+   setRows(visibleSubs.map(s=>{
     const as=grouped.get(s.id)||[],p=applicantMap.get(s.applicant_id),app=appMap.get(s.application_id),reviewerList=as.map(x=>reviewerMap.get(x.reviewer_id)).filter(Boolean);
     const aggregateStatus=as.length===0?'unassigned':as.every(x=>x.status==='completed')?'completed':as.some(x=>x.status==='in_progress')?'in_progress':'assigned';
     return{submissionId:s.id,applicationId:s.application_id,applicantName:p?.full_name||'Unnamed applicant',email:p?.email||null,programmeName:app?.name||'Programme',reviewers:reviewerList,status:aggregateStatus,assignments:as,decision:as.find(x=>x.decision)?.decision||null,score:as.find(x=>x.score!=null)?.score??null,updatedAt:as.reduce((latest,x)=>!latest||x.updated_at>latest?x.updated_at:latest,s.created_at)}
@@ -806,12 +821,12 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
    <div className="review-stat-card completed"><div className="review-stat-icon"><CheckCircle2 size={17}/></div><div><span>Completed</span><strong>{stats.completed}</strong><small>Review finished</small></div></div>
   </div>
   <div className="card table-card">
-   <div className="card-header"><div><h2>Assign applicants</h2><p>Select the applicants you want to give to one team member. You can assign the same applicant to more than one reviewer.</p></div><Users size={20}/></div>
-   <div className="review-assignment-toolbar">
+   <div className="card-header"><div><h2>{role==='reviewer'?'My assigned reviews':'Assign applicants'}</h2><p>{role==='reviewer'?'Review the applicants assigned to you and open each application to complete the review.':'Select the applicants you want to give to one team member. You can assign the same applicant to more than one reviewer.'}</p></div><Users size={20}/></div>
+   {role!=='reviewer'&&<div className="review-assignment-toolbar">
     <label className="review-assignee-field"><span>Assign selected to</span><div className="review-select-wrap"><Users size={15}/><select value={assignmentReviewer} onChange={e=>setAssignmentReviewer(e.target.value)}><option value="">Choose a team member…</option>{reviewers.map(p=><option key={p.id} value={p.id}>{p.full_name||'Unnamed member'} · {p.role}</option>)}</select><ArrowRight size={14} className="review-select-chevron"/></div></label>
     <div className="review-selection-meta"><strong>{selectedIds.length}</strong><span>selected</span></div>
     <button className="primary-button review-assign-button" onClick={assignSelected} disabled={!assignmentReviewer||!selectedIds.length||assigning}>{assigning?'Assigning…':'Assign '+(selectedIds.length||'')+' applicant'+(selectedIds.length===1?'':'s')}</button>
-   </div>
+   </div>}
    <div className="forms-toolbar review-filter-toolbar"><div className="forms-search"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applicant, programme or email…"/></div><label className="review-status-filter"><span>Status</span><div className="review-select-wrap"><span className="status-dot"/><select aria-label="Filter reviews by status" value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses</option><option value="unassigned">Unassigned</option><option value="assigned">Assigned</option><option value="in_progress">In progress</option><option value="completed">Completed</option></select><ArrowRight size={14} className="review-select-chevron"/></div></label></div>
    <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label="Select all visible applicants" checked={allFilteredSelected} onChange={toggleAll}/></th><th>Applicant</th><th>Programme</th><th>Reviewer(s)</th><th>Status</th><th>Score</th><th></th></tr></thead><tbody>
     {loading?<tr><td colSpan={7}><div className="loading-card">Loading review operations…</div></td></tr>:filtered.length===0?<tr><td colSpan={7}><div className="table-empty">No review records match your filters.</div></td></tr>:filtered.map(r=><tr key={r.submissionId}><td><input type="checkbox" aria-label={'Select '+r.applicantName} checked={selectedIds.includes(r.submissionId)} onChange={()=>toggleSelected(r.submissionId)}/></td><td><strong>{r.applicantName}</strong><span className="table-sub">{r.email||'No email'}</span></td><td>{r.programmeName}</td><td>{r.reviewers.length?r.reviewers.map((x:any)=>x.full_name||'Unnamed').join(', '):<span className="muted">Unassigned</span>}</td><td><span className={'status '+(r.status==='completed'?'green':r.status==='in_progress'?'amber':r.status==='assigned'?'blue':'neutral')}>{r.status.replace('_',' ')}</span></td><td>{r.score==null?'—':r.score}</td><td><button className="text-button" onClick={()=>setReviewing({...r,uniqueId:r.uniqueId||'—',submittedAt:r.submittedAt||null,email:r.email||null,eligibility:'pending',aiStatus:'pending',aiRecommendation:'Not screened',decision:r.decision==='approved'||r.decision==='rejected'?r.decision:'pending'})}>Review</button></td></tr>)}
