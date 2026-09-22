@@ -405,6 +405,88 @@ function getInitialWorkspaceRoute() {
   return { active: activeMap[key] || 'Dashboard', applicationId: '', tab: 'Overview' as const }
 }
 
+
+type NotificationItem = {
+  id: string
+  type: 'new_submission'|'review_assigned'|'submission_update'|'system'
+  title: string
+  message: string
+  target: string
+  application_id: string | null
+  submission_id: string | null
+  created_at: string
+  read_at: string | null
+}
+
+function NotificationCenter({ userId, onNavigate }:{userId:string;onNavigate:(target:string)=>void}) {
+  const [open,setOpen]=useState(false)
+  const [items,setItems]=useState<NotificationItem[]>([])
+  const [loading,setLoading]=useState(false)
+
+  async function load(){
+    setLoading(true)
+    const {data,error}=await supabase.from('notifications')
+      .select('id,type,title,message,target,application_id,submission_id,created_at,read_at')
+      .eq('user_id',userId)
+      .order('created_at',{ascending:false})
+      .limit(30)
+    if(!error)setItems((data||[]) as NotificationItem[])
+    setLoading(false)
+  }
+
+  useEffect(()=>{
+    void load()
+    const channel=supabase.channel('notifications:'+userId)
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications',filter:'user_id=eq.'+userId},payload=>{
+        setItems(current=>[payload.new as NotificationItem,...current].slice(0,30))
+      })
+      .subscribe()
+    return ()=>{void supabase.removeChannel(channel)}
+  },[userId])
+
+  async function markRead(id:string){
+    const {error}=await supabase.from('notifications').update({read_at:new Date().toISOString()}).eq('id',id).eq('user_id',userId)
+    if(!error)setItems(current=>current.map(item=>item.id===id?{...item,read_at:new Date().toISOString()}:item))
+  }
+
+  async function markAllRead(){
+    const {error}=await supabase.from('notifications').update({read_at:new Date().toISOString()}).eq('user_id',userId).is('read_at',null)
+    if(!error)setItems(current=>current.map(item=>({...item,read_at:item.read_at||new Date().toISOString()})))
+  }
+
+  const unread=items.filter(item=>!item.read_at).length
+  const relativeTime=(value:string)=>{
+    const seconds=Math.max(0,Math.floor((Date.now()-new Date(value).getTime())/1000))
+    if(seconds<60)return 'Just now'
+    const minutes=Math.floor(seconds/60)
+    if(minutes<60)return minutes+'m ago'
+    const hours=Math.floor(minutes/60)
+    if(hours<24)return hours+'h ago'
+    const days=Math.floor(hours/24)
+    return days+'d ago'
+  }
+
+  return <div className="notification-center">
+    <button className="icon-button notification-trigger" aria-label={unread?\`Notifications, \${unread} unread\`:'Notifications'} aria-expanded={open} onClick={()=>{setOpen(value=>!value);if(!open)void load()}}>
+      <Bell size={18}/>
+      {unread>0&&<span className="notification-badge">{unread>9?'9+':unread}</span>}
+    </button>
+    {open&&<div className="notification-popover">
+      <div className="notification-header">
+        <div><strong>Notifications</strong><span>{unread?unread+' unread':'All caught up'}</span></div>
+        {unread>0&&<button className="text-button" onClick={markAllRead}>Mark all read</button>}
+      </div>
+      <div className="notification-list">
+        {loading?<div className="notification-empty"><Clock3 size={18}/><span>Loading notifications…</span></div>:items.length===0?<div className="notification-empty"><Bell size={18}/><span>No notifications yet.</span></div>:items.map(item=><button key={item.id} className={'notification-item '+(!item.read_at?'unread':'')} onClick={()=>{if(!item.read_at)void markRead(item.id);onNavigate(item.target);setOpen(false)}}>
+          <span className={'notification-dot '+item.type}></span>
+          <span className="notification-body"><strong>{item.title}</strong><span>{item.message}</span><small>{relativeTime(item.created_at)}</small></span>
+        </button>)}
+      </div>
+      {items.length>0&&<div className="notification-footer"><span>Showing your latest 30 notifications</span></div>}
+    </div>}
+  </div>
+}
+
 function App() {
   const initialRoute = getInitialWorkspaceRoute()
   const [sessionReady, setSessionReady] = useState(false)
@@ -688,7 +770,7 @@ function App() {
       {profile?.role!=='reviewer'&&<nav className="nav-group bottom"><p className="nav-label">Manage</p>{bottomNav.map(({label,icon:Icon})=><button key={label} className={active===label?'nav-item active':'nav-item'} onClick={()=>{closeApplication();setActive(label);setSidebarOpen(false)}}><Icon size={18}/><span>{label}</span></button>)}</nav>}
       <div className="sidebar-footer"><div className="help-card"><Sparkles size={17}/><div><strong>AI screening</strong><span>Coming in the next phase</span></div></div><div className="profile-row"><div className="profile-avatar">{profile?.avatar_url?<img src={profile.avatar_url} alt="" />:profileName.slice(0,2).toUpperCase()}</div><div><strong>{profileName}</strong><span>{profile?.username ? '@'+profile.username : profile?.role || 'Owner'}</span></div><button className="icon-button" onClick={signOut} aria-label="Sign out"><LogOut size={15}/></button></div></div>
     </aside>
-    <main className="main"><header className="topbar"><button className="mobile-menu" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Menu size={20}/></button><div className="breadcrumbs"><span>Workspace</span><span>/</span><strong>{active}</strong></div><div className="top-actions"><button className="icon-button" aria-label="Notifications"><Bell size={18}/></button><ThemeToggle/><div className="top-avatar">{profile?.avatar_url?<img src={profile.avatar_url} alt="" />:profileName.slice(0,2).toUpperCase()}</div></div></header>
+    <main className="main"><header className="topbar"><button className="mobile-menu" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Menu size={20}/></button><div className="breadcrumbs"><span>Workspace</span><span>/</span><strong>{active}</strong></div><div className="top-actions"><NotificationCenter userId={session?.user?.id||""} onNavigate={(target)=>setActive(target as typeof active)} /><ThemeToggle/><div className="top-avatar">{profile?.avatar_url?<img src={profile.avatar_url} alt="" />:profileName.slice(0,2).toUpperCase()}</div></div></header>
       <div className="content">
         {selectedApplication ? <ApplicationDetails application={selectedApplication} settings={applicationSettings} tab={detailTab} setTab={setDetailTab} loading={detailLoading} saving={detailSaving} error={detailError} onBack={closeApplication} onSave={saveApplicationDetails} /> : loading ? <div className="loading-card card">Loading your workspace…</div> : error ? <div className="form-error page-error">{error}</div> : active==='Dashboard' ? <>
           <section className="page-heading"><div><p className="eyebrow">Your workspace</p><h1>Good evening, {firstName}.</h1><p className="subtitle">Here’s what is happening across your programmes.</p></div><button className="primary-button" onClick={()=>openCreate()}><Plus size={17}/> New application</button></section>
