@@ -108,7 +108,7 @@ function InviteSetupScreen({ email, onComplete }: { email: string; onComplete: (
   return <div className="auth-shell">
     <div className="auth-panel">
       <div className="brand auth-brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Application OS</span></div></div>
-      <div className="auth-copy"><p className="eyebrow">Team invitation</p><h1>Set up your account.</h1><p>You’ve been invited to join an ApplyFlow workspace. Set a password to finish your account setup.</p></div>
+      <div className="auth-copy"><p className="eyebrow">Team invitation</p><h1>Create your account.</h1><p>You’ve been invited to join an ApplyFlow workspace. Create your password, then sign in normally to access the workspace.</p></div>
       <form onSubmit={submit} className="auth-form">
         <label>Email<input type="email" value={email} readOnly /></label>
         <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Create a password" minLength={6} required /></label>
@@ -117,7 +117,7 @@ function InviteSetupScreen({ email, onComplete }: { email: string; onComplete: (
         <button className="primary-button auth-submit" disabled={busy}>{busy ? 'Setting up…' : 'Finish account setup'}</button>
       </form>
     </div>
-    <div className="auth-aside"><div><span className="aside-kicker">APPLYFLOW</span><h2>Your workspace is ready for you.</h2><p>Once you set your password, you’ll be taken straight to the workspace and can start working on your assigned applications.</p></div><div className="aside-stat"><strong>Invited workspace member</strong><span>Set password · Enter workspace · Start reviewing</span></div></div>
+    <div className="auth-aside"><div><span className="aside-kicker">APPLYFLOW</span><h2>Your account is almost ready.</h2><p>Set your password first. After that, you’ll return to the normal ApplyFlow sign-in screen and use your email and password to enter the workspace.</p></div><div className="aside-stat"><strong>Invited workspace member</strong><span>Create password · Sign in · Start working</span></div></div>
   </div>
 }
 
@@ -343,9 +343,16 @@ function App() {
       .eq('id', session.user.id)
     if (profileError) throw profileError
 
+    // Invitation links create a temporary authenticated session so the invited
+    // user can set their password. Do not send them into the workspace yet.
+    await supabase.auth.signOut()
+    setSession(null)
+    setProfile(null)
+    setOrganization(null)
+    setApplications([])
     setInvitePending(false)
-    window.history.replaceState({}, '', '/')
-    await loadWorkspace(session)
+    window.history.replaceState({}, '', '/login')
+    setSessionReady(true)
   }} />
   if (window.location.pathname === '/login' && !session) return <AuthScreen onSignedIn={async () => {
     const { data } = await supabase.auth.getSession()
