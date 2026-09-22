@@ -380,7 +380,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
   })
  },[rows,query,filter])
 
- const setDecision=async(row:ScreeningRow,decision:'approved'|'rejected')=>{
+ const exportApplicants=()=>{\n  const application=applications.find(a=>a.id===selectedApplicationId)\n  if(!application||!rows.length)return\n  const escapeCsv=(value:string)=>\"\\\"\"+value.replace(/\\\"/g,'\\\"\\\"')+\"\\\"\"\n  const csv=[\n   ['Applicant ID','Full Name','Email Address'],\n   ...rows.map(row=>[row.uniqueId,row.applicantName,row.email||''])\n  ].map(row=>row.map(value=>escapeCsv(String(value??''))).join(',')).join('\\n')\n  const blob=new Blob(['\\uFEFF'+csv],{type:'text/csv;charset=utf-8;'})\n  const url=URL.createObjectURL(blob)\n  const link=document.createElement('a')\n  link.href=url\n  link.download=(application.name.trim().replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'')||'applicants')+'-applicants.csv'\n  document.body.appendChild(link)\n  link.click()\n  link.remove()\n  URL.revokeObjectURL(url)\n }\n\n const setDecision=async(row:ScreeningRow,decision:'approved'|'rejected')=>{
   setError('')
   const {error}=await supabase.from('submissions').update({decision}).eq('id',row.submissionId)
   if(error){setError(error.message);return}
@@ -406,7 +406,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
   <section>
    <div className="page-heading compact">
     <div><p className="eyebrow">Application screening</p><h1>Screening</h1><p className="subtitle">Open one application at a time. Applicants and screening results stay separated by programme.</p></div>
-    <div className="detail-actions">{role!=='reviewer'&&<button className="primary-button" onClick={screenWithAI} disabled={aiBulkRunning||loading||!rows.length}>{aiBulkRunning?'Screening with AI…':'Screen with AI'}</button>}<button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
+    <div className="detail-actions"><button className="secondary-button" onClick={exportApplicants} disabled={loading||!rows.length}><Download size={16}/> Export applicants</button>{role!=='reviewer'&&<button className="primary-button" onClick={screenWithAI} disabled={aiBulkRunning||loading||!rows.length}>{aiBulkRunning?'Screening with AI…':'Screen with AI'}</button>}<button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
    </div>
    {error&&<div className="form-error page-error">{error}</div>}
    <div className="card screening-application-picker">
