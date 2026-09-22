@@ -444,7 +444,7 @@ function App() {
       const { data, error: updateError } = await supabase.from('applications')
         .update({ ...patch, updated_at: new Date().toISOString() })
         .eq('id', selectedApplication.id)
-        .select('id,name,description,status,deadline,target_count,created_at')
+        .select('id,name,description,status,deadline,target_count,participant_code,created_at')
         .single()
       if (updateError) throw updateError
       let nextSettings = applicationSettings
@@ -481,7 +481,7 @@ function App() {
           participant_code: newParticipantCode.trim().toUpperCase() || 'APP',
           status: 'draft',
         })
-        .select('id,name,description,status,deadline,target_count,created_at')
+        .select('id,name,description,status,deadline,target_count,participant_code,created_at')
         .single()
       if (applicationError) throw applicationError
 
