@@ -932,7 +932,14 @@ export function SettingsWorkspace({organization,profile,onSaved,onProfileSaved}:
  }
  const initials=(profileName||username||email||'U').split(/\\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'U'
  return <section>
-  <div className="page-heading compact"><div><p className="eyebrow">Manage</p><h1>Settings</h1><p className="subtitle">Manage your workspace and personal account.</p></div></div>
+  <div className="settings-page-header">
+    <div className="settings-page-heading">
+      <p className="eyebrow">Manage</p>
+      <h1>Settings</h1>
+      <p>Manage your personal account, security, and workspace details.</p>
+    </div>
+    <div className="settings-page-status"><span></span> Account settings</div>
+  </div>
   {error&&<div className="form-error page-error">{error}</div>}{notice&&<div className="form-message page-message">{notice}</div>}
   <div className="settings-account-grid">
    <div className="card detail-card settings-profile-card">
@@ -941,7 +948,7 @@ export function SettingsWorkspace({organization,profile,onSaved,onProfileSaved}:
       <div className="settings-avatar-row"><div className="settings-avatar-large">{avatarUrl?<img src={avatarUrl} alt="Profile" />:<span>{initials}</span>}</div><div><label className="settings-upload-label"><input type="file" accept="image/jpeg,image/png,image/webp" disabled={profileSaving} onChange={e=>{const file=e.target.files?.[0];if(file)uploadAvatar(file);e.currentTarget.value=''}}/><span>{profileSaving?'Uploading…':'Upload profile image'}</span></label><small className="field-help">JPG, PNG or WebP · maximum 5 MB</small></div></div>
       <label>Full name<input value={profileName} onChange={e=>setProfileName(e.target.value)} placeholder="Your full name"/></label>
       <label>Username<input value={username} onChange={e=>setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g,''))} placeholder="yourusername" minLength={3} maxLength={30} autoComplete="username"/><small className="field-help">Used to sign in · 3–30 characters · letters, numbers and underscores</small></label>
-      <div className="form-grid"><label>Date of birth <span className="optional">Month and day only</span><div className="form-grid"><select value={birthMonth} onChange={e=>setBirthMonth(e.target.value)}><option value="">Month</option>{['January','February','March','April','May','June','July','August','September','October','November','December'].map((month,index)=><option key={month} value={index+1}>{month}</option>)}</select><select value={birthDay} onChange={e=>setBirthDay(e.target.value)}><option value="">Day</option>{Array.from({length:31},(_,i)=>i+1).map(day=><option key={day} value={day}>{day}</option>)}</select></div></label><div></div></div>
+      <label className="settings-dob-field"><span>Date of birth <span className="optional">Month and day only</span></span><div className="settings-dob-fields"><select aria-label="Birth month" value={birthMonth} onChange={e=>setBirthMonth(e.target.value)}><option value="">Month</option>{['January','February','March','April','May','June','July','August','September','October','November','December'].map((month,index)=><option key={month} value={index+1}>{month}</option>)}</select><select aria-label="Birth day" value={birthDay} onChange={e=>setBirthDay(e.target.value)}><option value="">Day</option>{Array.from({length:31},(_,i)=>i+1).map(day=><option key={day} value={day}>{day}</option>)}</select></div><small className="field-help">Only the month and day are stored. Your birth year is not required.</small></label>
       <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} /><small className="field-help">Changing your email requires confirmation.</small></label>
       {emailNotice&&<div className="form-message">{emailNotice}</div>}
       <div className="detail-form-footer"><button className="secondary-button" onClick={changeEmail} disabled={emailSaving}>{emailSaving?'Updating…':'Change email'}</button><button className="primary-button" onClick={saveProfile} disabled={profileSaving}>Save profile</button></div>
