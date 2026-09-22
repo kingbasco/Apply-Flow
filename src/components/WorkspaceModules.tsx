@@ -338,11 +338,11 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
     <div style={{width:58,height:58,borderRadius:'50%',margin:'0 auto 16px',display:'grid',placeItems:'center',fontSize:28,fontWeight:700,background:decisionNotice.decision==='approved'?'#ecfdf3':'#fef2f2',color:decisionNotice.decision==='approved'?'#15803d':'#b91c1c'}}>
      {decisionNotice.decision==='approved'?'✓':'×'}
     </div>
-    <p className="eyebrow">Decision recorded</p>
+    <p className="eyebrow">{decisionNotice.decision==='approved'?'Approval successful':'Rejection successful'}</p>
     <h2 id="decision-result-title" style={{margin:'6px 0 8px'}}>{decisionNotice.decision==='approved'?'Applicant approved':'Applicant rejected'}</h2>
     <p style={{fontWeight:600,margin:'0 0 4px'}}>{decisionNotice.applicantName}</p>
     <p className="muted" style={{margin:'0 0 18px'}}>Application ID: {decisionNotice.uniqueId}</p>
-    <p className="muted" style={{margin:'0 0 22px'}}>{decisionNotice.decision==='approved'?'The applicant has been approved successfully.':'The applicant has been rejected successfully.'}</p>
+    <p className="muted" style={{margin:'0 0 22px'}}>{decisionNotice.decision==='approved'?'The applicant has been approved and the decision has been saved.':'The applicant has been rejected and the decision has been saved.'}</p>
     <div style={{display:'flex',justifyContent:'center',gap:10}}>
      <button className="secondary-button" onClick={()=>setDecisionNotice(null)}>Continue reviewing</button>
      <button className="primary-button" onClick={()=>{setDecisionNotice(null);setReviewing(null)}}>Back to screening</button>
