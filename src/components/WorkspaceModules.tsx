@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, Users, Settings, FileText, ShieldCheck, ClipboardList, Save, Eye, Search, Plus, History, Lock, LockOpen, SlidersHorizontal, MoreHorizontal, Download } from 'lucide-react'
+import { ArrowRight, Users, Settings, FileText, ShieldCheck, ClipboardList, Save, Eye, Search, Plus, History, Lock, LockOpen, SlidersHorizontal, MoreHorizontal, Download, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 type Application={id:string;name:string;description:string|null;status:'draft'|'published'|'screening'|'closed'|'completed';deadline:string|null;target_count:number|null;created_at:string}
@@ -132,18 +132,18 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
   <div className="page-heading compact"><div><p className="eyebrow">Application intake</p><h1>Forms</h1><p className="subtitle">Build, publish and manage the forms applicants use.</p></div><div className="detail-actions">{onCreate&&<button className="primary-button" onClick={onCreate}><Plus size={16}/> Create form</button>}</div></div>
   {error&&<div className="form-error page-error">{error}</div>}
   <div className="stats-grid" style={{marginBottom:16}}>
-   <div className="card stat-card"><div className="stat-icon"><FileText size={18}/></div><div><p className="eyebrow">Total forms</p><div className="stat-value">{summaries.length}</div><p className="muted">Programmes in this workspace</p></div></div>
+   <div className="card stat-card"><div className="stat-icon"><FileText size={18}/></div><div><p className="eyebrow">Total forms</p><div className="stat-value">{summaries.length}</div><p className="muted">Forms in this workspace</p></div></div>
    <div className="card stat-card"><div className="stat-icon"><FileText size={18}/></div><div><p className="eyebrow">Published</p><div className="stat-value">{counts.published}</div><p className="muted">Accepting applications</p></div></div>
    <div className="card stat-card"><div className="stat-icon"><FileText size={18}/></div><div><p className="eyebrow">Drafts</p><div className="stat-value">{counts.draft}</div><p className="muted">Still being built</p></div></div>
    <div className="card stat-card"><div className="stat-icon"><Lock size={18}/></div><div><p className="eyebrow">Closed</p><div className="stat-value">{counts.closed}</div><p className="muted">No new applications</p></div></div>
   </div>
-  <div className="card table-card"><div className="card-header"><div><h2>Application forms</h2><p>Manage publishing, access and version history from one place.</p></div></div>
+  <div className="card table-card"><div className="card-header"><div><h2>Application forms</h2><p>Build, publish and manage the forms applicants use.</p></div></div>
    <div className="forms-toolbar">
     
     <div className="forms-search"><Search size={16}/><input aria-label="Search forms" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search programmes…" /></div>
     <div className="forms-filters" role="group" aria-label="Filter forms by status">{(['all','draft','published','closed','none'] as const).map(f=><button key={f} className={filter===f?'filter-button active':'filter-button'} onClick={()=>setFilter(f)}>{f==='all'?'All':f==='none'?'Not started':f[0].toUpperCase()+f.slice(1)}<span>{f==='all'?summaries.length:f==='draft'?counts.draft:f==='published'?counts.published:f==='closed'?counts.closed:summaries.filter(s=>formWorkspaceStatus(s)==='none').length}</span></button>)}</div>
    </div>
-   <div className="table-wrap"><table><thead><tr><th>Programme</th><th>Form status</th><th>Version</th><th>Questions</th><th>Submissions</th><th>Deadline</th><th></th></tr></thead><tbody>
+   <div className="table-wrap"><table><thead><tr><th>Form</th><th>Form status</th><th>Version</th><th>Questions</th><th>Submissions</th><th>Deadline</th><th></th></tr></thead><tbody>
     {loading?<tr><td colSpan={7}><div className="loading-card">Loading forms…</div></td></tr>:!filtered.length?<tr><td colSpan={8}><div className="table-empty"><div className="empty-icon"><FileText size={20}/></div><h3>{summaries.length?'No forms match your filters':'No forms yet'}</h3><p>{summaries.length?'Try another search or filter.':'Create your first form to start collecting applications.'}</p>{!summaries.length&&onCreate&&<button className="primary-button" onClick={onCreate}><Plus size={15}/> Create form</button>}</div></td></tr>:
     filtered.map(s=>{const status=formWorkspaceStatus(s);const busy=busyId===s.application.id;return <tr key={s.application.id}>
       <td><strong>{s.application.name}</strong><span className="table-sub">{s.application.description||'No description yet.'}</span></td>
@@ -166,7 +166,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
     <header className="form-settings-header">
       <div className="form-settings-title">
         <button type="button" className="back-link" onClick={()=>setSettingsFor(null)}>← Back to forms</button>
-        <div><p className="eyebrow">Form settings</p><h2>{settingsFor.application.name}</h2><p>Control when this form accepts applications and what applicants see.</p></div>
+        <div><p className="eyebrow">Form settings</p><h2>{settingsFor.application.name}</h2><p>Set availability and control what applicants see after they open the form.</p></div>
       </div>
       <button type="button" className="icon-button" onClick={()=>setSettingsFor(null)} aria-label="Close settings"><X size={18}/></button>
     </header>
@@ -178,7 +178,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
       </aside>
       <main className="form-settings-content">
         <section id="form-availability" className="settings-section">
-          <div className="settings-section-heading"><div><p className="eyebrow">Availability</p><h3>When can people apply?</h3><p>Set the dates and limits for this form. Leave a field blank when there is no restriction.</p></div></div>
+          <div className="settings-section-heading"><div><p className="eyebrow">Availability</p><h3>Form availability</h3><p>Choose when the form opens, when it closes, and whether there is a submission limit.</p></div></div>
           <div className="settings-fields">
             <label className="field"><span>Application start date</span><input type="date" value={settingsDraft.start_date||''} onChange={e=>setSettingsDraft(d=>({...d,start_date:e.target.value||null}))}/><small className="muted">Applicants cannot submit before this date.</small></label>
             <label className="field"><span>Application deadline</span><input type="date" value={settingsDraft.deadline||''} onChange={e=>setSettingsDraft(d=>({...d,deadline:e.target.value||null}))}/><small className="muted">Applicants cannot submit after this date.</small></label>
