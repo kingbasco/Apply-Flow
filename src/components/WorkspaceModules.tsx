@@ -20,9 +20,9 @@ async function loadFormSummaries(applications:Application[]):Promise<FormSummary
  if(latestIds.length){const {data,error}=await supabase.from('questions').select('id,form_version_id').in('form_version_id',latestIds);if(error)throw error;for(const q of data||[])counts.set(q.form_version_id,(counts.get(q.form_version_id)||0)+1)}
  const submissionCounts=new Map<string,number>();for(const s of submissions)submissionCounts.set(s.application_id,(submissionCounts.get(s.application_id)||0)+1)
  const slugs=new Map<string,string|null>();for(const s of settings)slugs.set(s.application_id,s.public_slug)
- return applications.map(application=>{const v=latest.get(application.id);const raw=(settings as any[]).find(s=>s.application_id===application.id);return {application,version:v?.version_number??null,versionStatus:v?.status??'none',questionCount:v?counts.get(v.id)||0:0,submissionCount:submissionCounts.get(application.id)||0,publicSlug:slugs.get(application.id)||null,settings:raw?{start_date:raw.start_date??null,submission_limit:raw.submission_limit??null,confirmation_message:raw.confirmation_message??'Thank you. Your application has been received.',applicant_instructions:raw.applicant_instructions??null}:undefined}})
+ return applications.map(application=>{const v=latest.get(application.id);const raw=(settings as any[]).find(s=>s.application_id===application.id);return {application,version:v?.version_number??null,versionStatus:v?.status??'none',questionCount:v?counts.get(v.id)||0:0,submissionCount:submissionCounts.get(application.id)||0,publicSlug:slugs.get(application.id)||null,settings:raw?{start_date:raw.start_date??null,deadline:application.deadline??null,submission_limit:raw.submission_limit??null,confirmation_message:raw.confirmation_message??'Thank you. Your application has been received.',applicant_instructions:raw.applicant_instructions??null}:undefined}})
 }
-type FormSettings={start_date:string|null;submission_limit:number|null;confirmation_message:string;applicant_instructions:string|null}
+type FormSettings={start_date:string|null;deadline:string|null;submission_limit:number|null;confirmation_message:string;applicant_instructions:string|null}
 type Profile={id:string;full_name:string|null;role:string;organization_id:string|null}
 
 async function functionErrorMessage(error:unknown,fallback:string){
@@ -51,7 +51,7 @@ function formWorkspaceStatus(s:FormSummary):'draft'|'published'|'closed'|'none'{
 
 export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Application[];onOpen:(a:Application)=>void;onCreate?:()=>void}){
  const [summaries,setSummaries]=useState<FormSummary[]>([]); const [loading,setLoading]=useState(true); const [error,setError]=useState(''); const [query,setQuery]=useState(''); const [filter,setFilter]=useState<'all'|'draft'|'published'|'closed'|'none'>('all')
- const [versions,setVersions]=useState<VersionRecord[]>([]); const [historyFor,setHistoryFor]=useState<FormSummary|null>(null); const [historyLoading,setHistoryLoading]=useState(false); const [busyId,setBusyId]=useState(''); const [settingsFor,setSettingsFor]=useState<FormSummary|null>(null); const [settingsDraft,setSettingsDraft]=useState<FormSettings>({start_date:null,submission_limit:null,confirmation_message:'Thank you. Your application has been received.',applicant_instructions:null}); const [settingsSaving,setSettingsSaving]=useState(false)
+ const [versions,setVersions]=useState<VersionRecord[]>([]); const [historyFor,setHistoryFor]=useState<FormSummary|null>(null); const [historyLoading,setHistoryLoading]=useState(false); const [busyId,setBusyId]=useState(''); const [settingsFor,setSettingsFor]=useState<FormSummary|null>(null); const [settingsDraft,setSettingsDraft]=useState<FormSettings>({start_date:null,deadline:null,submission_limit:null,confirmation_message:'Thank you. Your application has been received.',applicant_instructions:null}); const [settingsSaving,setSettingsSaving]=useState(false)
 
  async function load(){setLoading(true);setError('');try{setSummaries(await loadFormSummaries(applications))}catch(e){setError(e instanceof Error?e.message:'Could not load forms.')}finally{setLoading(false)}}
  useEffect(()=>{load()},[applications])
@@ -71,7 +71,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
 
  function openSettings(summary:FormSummary){
    setSettingsFor(summary)
-   setSettingsDraft(summary.settings||{start_date:null,submission_limit:null,confirmation_message:'Thank you. Your application has been received.',applicant_instructions:null})
+   setSettingsDraft(summary.settings||{start_date:null,deadline:summary.application.deadline??null,submission_limit:null,confirmation_message:'Thank you. Your application has been received.',applicant_instructions:null})
  }
  async function saveSettings(){
    if(!settingsFor)return
@@ -79,6 +79,11 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
    try{
      const limit=settingsDraft.submission_limit===null?null:Number(settingsDraft.submission_limit)
      if(limit!==null&&(!Number.isInteger(limit)||limit<1))throw new Error('Submission limit must be a whole number greater than 0.')
+     const {error:applicationError}=await supabase.from('applications').update({
+       deadline:settingsDraft.deadline||null,
+       updated_at:new Date().toISOString()
+     }).eq('id',settingsFor.application.id)
+     if(applicationError)throw applicationError
      const {error}=await supabase.from('application_settings').upsert({
        application_id:settingsFor.application.id,
        public_slug:settingsFor.publicSlug||settingsFor.application.name.toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''),
@@ -156,23 +161,43 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
    </tbody></table></div>
   </div>
 
-  {settingsFor&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSettingsFor(null)}}>
-   <div className="modal card" style={{maxWidth:900,maxHeight:"90vh",overflowY:"auto"}}>
-    <div className="modal-header"><div><p className="eyebrow">Form settings</p><h2>{settingsFor.application.name}</h2><p>Set the rules applicants see when they open and submit this form.</p></div><button type="button" className="icon-button" onClick={()=>setSettingsFor(null)} aria-label="Close"><MoreHorizontal size={18}/></button></div>
-    <div style={{display:"grid",gap:16,padding:"8px 0 4px"}}>
-      <div className="card" style={{padding:18}}><div style={{marginBottom:14}}><p className="eyebrow">Availability</p><h3 style={{margin:"2px 0 4px"}}>When can people apply?</h3><p className="muted">Leave a date blank when there is no restriction.</p></div><div className="form-grid">
-        <label className="field"><span>Application start date</span><input type="date" value={settingsDraft.start_date||""} onChange={e=>setSettingsDraft(d=>({...d,start_date:e.target.value||null}))}/></label>
-        <label className="field"><span>Application deadline</span><input type="date" value={settingsFor.application.deadline||""} onChange={async e=>{const value=e.target.value||null;const {error}=await supabase.from("applications").update({deadline:value,updated_at:new Date().toISOString()}).eq("id",settingsFor.application.id);if(error)setError(error.message);else setSettingsFor(d=>d?{...d,application:{...d.application,deadline:value}}:d)}}/><small className="muted">Applicants cannot submit after this date.</small></label>
-        <label className="field"><span>Submission limit</span><input type="number" min="1" step="1" value={settingsDraft.submission_limit??""} onChange={e=>setSettingsDraft(d=>({...d,submission_limit:e.target.value?Number(e.target.value):null}))}/><small className="muted">Optional maximum number of submitted applications.</small></label>
-      </div></div>
-      <div className="card" style={{padding:18}}><div style={{marginBottom:14}}><p className="eyebrow">Applicant experience</p><h3 style={{margin:"2px 0 4px"}}>What applicants should see</h3><p className="muted">Keep instructions and the confirmation message clear and simple.</p></div><div style={{display:"grid",gap:16}}>
-        <label className="field"><span>Applicant instructions</span><textarea rows={6} value={settingsDraft.applicant_instructions||""} onChange={e=>setSettingsDraft(d=>({...d,applicant_instructions:e.target.value||null}))} placeholder="Tell applicants what they need before they start…"/></label>
-        <label className="field"><span>Confirmation message</span><textarea rows={5} value={settingsDraft.confirmation_message} onChange={e=>setSettingsDraft(d=>({...d,confirmation_message:e.target.value}))}/></label>
-      </div></div>
+  {settingsFor&&<div className="form-settings-overlay" role="dialog" aria-modal="true" aria-label="Form settings">
+   <div className="form-settings-shell">
+    <header className="form-settings-header">
+      <div className="form-settings-title">
+        <button type="button" className="back-link" onClick={()=>setSettingsFor(null)}>← Back to forms</button>
+        <div><p className="eyebrow">Form settings</p><h2>{settingsFor.application.name}</h2><p>Control when this form accepts applications and what applicants see.</p></div>
+      </div>
+      <button type="button" className="icon-button" onClick={()=>setSettingsFor(null)} aria-label="Close settings"><X size={18}/></button>
+    </header>
+    <div className="form-settings-body">
+      <aside className="form-settings-nav">
+        <div className="settings-nav-label">Settings</div>
+        <a href="#form-availability">Availability</a>
+        <a href="#form-applicant-experience">Applicant experience</a>
+      </aside>
+      <main className="form-settings-content">
+        <section id="form-availability" className="settings-section">
+          <div className="settings-section-heading"><div><p className="eyebrow">Availability</p><h3>When can people apply?</h3><p>Set the dates and limits for this form. Leave a field blank when there is no restriction.</p></div></div>
+          <div className="settings-fields">
+            <label className="field"><span>Application start date</span><input type="date" value={settingsDraft.start_date||''} onChange={e=>setSettingsDraft(d=>({...d,start_date:e.target.value||null}))}/><small className="muted">Applicants cannot submit before this date.</small></label>
+            <label className="field"><span>Application deadline</span><input type="date" value={settingsDraft.deadline||''} onChange={e=>setSettingsDraft(d=>({...d,deadline:e.target.value||null}))}/><small className="muted">Applicants cannot submit after this date.</small></label>
+            <label className="field"><span>Submission limit <span className="optional">Optional</span></span><input type="number" min="1" step="1" value={settingsDraft.submission_limit??''} onChange={e=>setSettingsDraft(d=>({...d,submission_limit:e.target.value?Number(e.target.value):null}))}/><small className="muted">Maximum number of submitted applications.</small></label>
+          </div>
+        </section>
+        <section id="form-applicant-experience" className="settings-section">
+          <div className="settings-section-heading"><div><p className="eyebrow">Applicant experience</p><h3>What applicants see</h3><p>Keep the instructions and confirmation message clear and useful.</p></div></div>
+          <div className="settings-fields single">
+            <label className="field"><span>Applicant instructions <span className="optional">Optional</span></span><textarea rows={7} value={settingsDraft.applicant_instructions||''} onChange={e=>setSettingsDraft(d=>({...d,applicant_instructions:e.target.value||null}))} placeholder="Tell applicants what they need before they start…"/></label>
+            <label className="field"><span>Confirmation message</span><textarea rows={6} value={settingsDraft.confirmation_message} onChange={e=>setSettingsDraft(d=>({...d,confirmation_message:e.target.value}))} placeholder="Thank you. Your application has been received."/></label>
+          </div>
+          <div className="settings-preview-note"><FileText size={17}/><div><strong>After submission</strong><p>Applicants will also receive a unique application ID on the success screen.</p></div></div>
+        </section>
+      </main>
     </div>
-    <div className="modal-footer"><button className="secondary-button" onClick={()=>setSettingsFor(null)}>Cancel</button><button className="primary-button" disabled={settingsSaving} onClick={saveSettings}>{settingsSaving?"Saving…":"Save settings"}</button></div>
+    <footer className="form-settings-footer"><button className="secondary-button" onClick={()=>setSettingsFor(null)}>Cancel</button><button className="primary-button" disabled={settingsSaving} onClick={saveSettings}>{settingsSaving?'Saving…':'Save settings'}</button></footer>
    </div>
-  </div>}
+  </div>
   {historyFor&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setHistoryFor(null)}}>
    <div className="modal card" style={{maxWidth:720}}>
     <div className="modal-header"><div><p className="eyebrow">Version history</p><h2>{historyFor.application.name}</h2><p>Published versions stay tied to the submissions that used them.</p></div><button type="button" className="icon-button" onClick={()=>setHistoryFor(null)} aria-label="Close"><MoreHorizontal size={18}/></button></div>
