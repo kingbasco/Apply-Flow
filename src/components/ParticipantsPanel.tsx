@@ -209,7 +209,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     <div className="card" style={{padding:16,marginBottom:18}}>
       <div style={{display:'flex',gap:12,alignItems:'flex-start'}}>
         <div className="stat-icon"><CheckCircle2 size={18}/></div>
-        <div><strong>How participants are created</strong><p className="muted" style={{margin:'4px 0 0'}}>Applicants become participants when their application is marked <strong>Selected</strong> in the Selection workspace. ApplyFlow then assigns a permanent participant ID automatically.</p></div>
+        <div><strong>How participants are created</strong><p className="muted" style={{margin:'4px 0 0'}}>Applicants become participants automatically when their application is <strong>Approved</strong> during screening. ApplyFlow records them as <strong>Selected</strong> and assigns a permanent participant ID immediately.</p></div>
       </div>
     </div>
 
