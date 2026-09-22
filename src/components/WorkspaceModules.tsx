@@ -391,9 +391,9 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
    <div className="stats-grid screening-stats">
     <div className="card stat-card"><div className="stat-icon"><ClipboardList size={18}/></div><div><p className="eyebrow">Total applicants</p><div className="stat-value">{counts.total}</div><p className="muted">Submitted applications</p></div></div>
     <div className="card stat-card"><div className="stat-icon"><ClipboardList size={18}/></div><div><p className="eyebrow">Pending</p><div className="stat-value">{counts.pending}</div><p className="muted">Awaiting a decision</p></div></div>
-    <div className="card stat-card"><div className="stat-icon"><ShieldCheck size={18}/><p className="eyebrow">Approved</p></div><div className="stat-value">{counts.approved}</div></div>
-    <div className="card stat-card"><div className="stat-icon"><FileText size={18}/><p className="eyebrow">Rejected</p></div><div className="stat-value">{counts.rejected}</div></div>
-    <div className="card stat-card"><div className="stat-icon"><ArrowRight size={18}/><p className="eyebrow">AI recommended</p></div><div className="stat-value">{counts.recommended}</div></div>
+    <div className="card stat-card"><div className="stat-icon"><ShieldCheck size={18}/></div><div className="stat-content"><p className="eyebrow">Approved</p><div className="stat-value">{counts.approved}</div></div></div>
+    <div className="card stat-card"><div className="stat-icon"><FileText size={18}/></div><div className="stat-content"><p className="eyebrow">Rejected</p><div className="stat-value">{counts.rejected}</div></div></div>
+    <div className="card stat-card"><div className="stat-icon"><ArrowRight size={18}/></div><div className="stat-content"><p className="eyebrow">AI recommended</p><div className="stat-value">{counts.recommended}</div></div></div>
    </div>
    <div className="card table-card">
     <div className="card-header"><div><h2>Applicants</h2><p>Review the application, then approve or reject.</p></div></div>
