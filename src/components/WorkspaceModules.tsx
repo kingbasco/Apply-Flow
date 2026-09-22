@@ -25,6 +25,18 @@ async function loadFormSummaries(applications:Application[]):Promise<FormSummary
 type FormSettings={start_date:string|null;submission_limit:number|null;confirmation_message:string;applicant_instructions:string|null}
 type Profile={id:string;full_name:string|null;role:string;organization_id:string|null}
 
+async function functionErrorMessage(error:unknown,fallback:string){
+ const context=(error as any)?.context
+ if(context&&typeof context.json==='function'){
+  try{
+   const body=await context.json()
+   if(body?.error)return String(body.error)
+   if(body?.message)return String(body.message)
+  }catch{}
+ }
+ return error instanceof Error&&error.message?error.message:fallback
+}
+
 function ModuleList({title,eyebrow,description,icon:Icon,applications,onOpen}:{title:string;eyebrow:string;description:string;icon:any;applications:Application[];onOpen:(a:Application)=>void}){
  return <section><div className="page-heading compact"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p className="subtitle">{description}</p></div></div><div className="card table-card"><div className="card-header"><div><h2>{title} by programme</h2><p>Choose a programme to continue.</p></div></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Deadline</th><th></th></tr></thead><tbody>{applications.length?applications.map(a=><tr key={a.id}><td><strong>{a.name}</strong><span className="table-sub">{a.description||'No description yet.'}</span></td><td><span className={'status '+(a.status==='published'?'blue':'neutral')}>{a.status}</span></td><td>{a.deadline?new Date(a.deadline).toLocaleDateString():'—'}</td><td><button className="secondary-button" onClick={()=>onOpen(a)}>Open <ArrowRight size={15}/></button></td></tr>):<tr><td colSpan={4}><div className="table-empty">Create a programme first.</div></td></tr>}</tbody></table></div></div></section>
 }
@@ -281,7 +293,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
     if(error)throw error
    }
    await load()
-  }catch(e){setError(e instanceof Error?e.message:'AI screening failed.')}
+  }catch(e){setError(await functionErrorMessage(e,'AI screening failed.'))}
   finally{setAiBulkRunning(false)}
  }
 
@@ -416,7 +428,7 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
    const {data:ai,error:aiLoadError}=await supabase.from('ai_screenings').select('*').eq('submission_id',row.submissionId).maybeSingle()
    if(aiLoadError)throw aiLoadError
    setData(prev=>prev?{...prev,ai}:prev)
-  }catch(e){setAiError(e instanceof Error?e.message:'AI screening failed.')}
+  }catch(e){setAiError(await functionErrorMessage(e,'AI screening failed.'))}
   finally{setAiRunning(false)}
  }
 
