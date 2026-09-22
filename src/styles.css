@@ -2238,3 +2238,8 @@ html.dark-theme,html.dark-theme body{background:#0f1117;color:#e7eaf0}
 .dark-theme .security-danger-zone{background:rgba(190,68,80,.08);border-color:rgba(190,68,80,.28)}
 .dark-theme .security-danger-zone strong{color:#f0a1ab}
 .dark-theme .security-danger-zone p{color:#858e9d}
+
+
+/* Password recovery */
+.auth-forgot-link{display:block;width:max-content;margin:-4px 0 4px auto;padding:0;border:0;background:transparent;color:var(--accent,#6d5dfc);font:inherit;font-size:11px;font-weight:700;cursor:pointer}
+.auth-forgot-link:hover{text-decoration:underline}
