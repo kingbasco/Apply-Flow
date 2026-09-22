@@ -333,7 +333,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
    </div>
   </section>
   {reviewing&&<ScreeningReviewModal row={reviewing} onClose={()=>setReviewing(null)} onDecision={setDecision}/>}
-  {decisionNotice&&<div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="decision-result-title">
+  {decisionNotice&&<div className="modal-backdrop screening-decision-result" role="dialog" aria-modal="true" aria-labelledby="decision-result-title">
    <div className="modal card" style={{maxWidth:460,textAlign:'center',padding:32}}>
     <div style={{width:58,height:58,borderRadius:'50%',margin:'0 auto 16px',display:'grid',placeItems:'center',fontSize:28,fontWeight:700,background:decisionNotice.decision==='approved'?'#ecfdf3':'#fef2f2',color:decisionNotice.decision==='approved'?'#15803d':'#b91c1c'}}>
      {decisionNotice.decision==='approved'?'✓':'×'}
