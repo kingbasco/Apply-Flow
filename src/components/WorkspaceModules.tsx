@@ -129,7 +129,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
  function preview(s:FormSummary){if(!s.publicSlug){setError('This programme does not have a public application link yet.');return}window.open('/apply/'+s.publicSlug,'_blank','noopener,noreferrer')}
 
  return <section>
-  <div className="page-heading compact"><div><p className="eyebrow">Application intake</p><h1>Forms</h1><p className="subtitle">Build, publish and manage the forms applicants use.</p></div><div className="detail-actions">{onCreate&&<button className="primary-button" onClick={onCreate}><Plus size={16}/> Create form</button>}</div></div>
+  <div className="page-heading compact"><div><p className="eyebrow">Application intake</p><h1>Forms</h1><p className="subtitle">Build and manage the questionnaires applicants complete.</p></div><div className="detail-actions">{onCreate&&<button className="primary-button" onClick={onCreate}><Plus size={16}/> Create form</button>}</div></div>
   {error&&<div className="form-error page-error">{error}</div>}
   <div className="stats-grid" style={{marginBottom:16}}>
    <div className="card stat-card"><div className="stat-icon"><FileText size={18}/></div><div><p className="eyebrow">Total forms</p><div className="stat-value">{summaries.length}</div><p className="muted">Forms in this workspace</p></div></div>
@@ -137,7 +137,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
    <div className="card stat-card"><div className="stat-icon"><FileText size={18}/></div><div><p className="eyebrow">Drafts</p><div className="stat-value">{counts.draft}</div><p className="muted">Still being built</p></div></div>
    <div className="card stat-card"><div className="stat-icon"><Lock size={18}/></div><div><p className="eyebrow">Closed</p><div className="stat-value">{counts.closed}</div><p className="muted">No new applications</p></div></div>
   </div>
-  <div className="card table-card"><div className="card-header"><div><h2>Application forms</h2><p>Build, publish and manage the forms applicants use.</p></div></div>
+  <div className="card table-card"><div className="card-header"><div><h2>Application forms</h2><p>Each form belongs to a programme and defines the questions applicants complete.</p></div></div>
    <div className="forms-toolbar">
     
     <div className="forms-search"><Search size={16}/><input aria-label="Search forms" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search programmes…" /></div>
