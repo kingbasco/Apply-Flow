@@ -32,7 +32,7 @@ function formatDate(value: string | null) {
 }
 
 function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) {
-  const [mode, setMode] = useState<'signin'|'signup'>('signin')
+  const [mode, setMode] = useState<'signin'|'signup'|'forgot'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
@@ -73,6 +73,15 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError(''); setMessage('')
     try {
+      if (mode === 'forgot') {
+        if (!email.trim()) throw new Error('Enter your email address.')
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+          redirectTo: window.location.origin + '/login?reset=1',
+        })
+        if (error) throw error
+        setMessage('If an account exists for that email, we’ve sent a password reset link. Check your inbox.')
+        return
+      }
       if (mode === 'signin') {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
@@ -99,22 +108,64 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
   return <div className="auth-shell">
     <div className="auth-panel">
       <div className="brand auth-brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Application OS</span></div></div>
-      <div className="auth-copy"><p className="eyebrow">Workspace access</p><h1>{mode === 'signin' ? 'Welcome back.' : 'Create your workspace.'}</h1><p>{mode === 'signin' ? 'Sign in to manage applications, screening and selections.' : 'Set up your organisation and start managing applications.'}</p></div>
+      <div className="auth-copy"><p className="eyebrow">{mode === 'forgot' ? 'Password recovery' : 'Workspace access'}</p><h1>{mode === 'forgot' ? 'Reset your password.' : mode === 'signin' ? 'Welcome back.' : 'Create your workspace.'}</h1><p>{mode === 'forgot' ? 'Enter the email address linked to your ApplyFlow account and we’ll send you a secure reset link.' : mode === 'signin' ? 'Sign in to manage applications, screening and selections.' : 'Set up your organisation and start managing applications.'}</p></div>
       <form onSubmit={submit} className="auth-form">
-        {mode === 'signup' && <><label>Full name<input value={name} onChange={e=>setName(e.target.value)} placeholder="Cyril Adesegha" required /></label><label>Organisation name<input value={orgName} onChange={e=>setOrgName(e.target.value)} placeholder="Emerging Communities" required /></label></>}
+        {mode === 'signup' && <><label>Full name<input value={name} onChange={e=>setName(e.target.value)} placeholder="Cyril Adesegha" required /></label><label>Organisation name<input value={orgName} onChange={e=>setOrgName(e.target.value)} placeholder="Emerging Communities" required /></label>}
         <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@organisation.com" required /></label>
-        <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" minLength={6} required /></label>
+        {mode !== 'forgot' && <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" minLength={6} required /></label>}
+        {mode === 'signin' && <button type="button" className="auth-forgot-link" onClick={()=>{setMode('forgot');setError('');setMessage('')}}>Forgot password?</button>}
         {error && <div className="form-error">{error}</div>}{message && <div className="form-message">{message}</div>}
-        <button className="primary-button auth-submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create workspace'}</button>
+        <button className="primary-button auth-submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'forgot' ? 'Send reset link' : mode === 'signin' ? 'Sign in' : 'Create workspace'}</button>
       </form>
-      <div className="auth-divider"><span>OR</span></div>
-      <button type="button" className="google-auth-button" onClick={signInWithGoogle} disabled={busy}>
-        <span className="google-mark" aria-hidden="true">G</span>
-        <span>{mode === 'signin' ? 'Continue with Google' : 'Sign up with Google'}</span>
-      </button>
-      <button className="auth-switch" onClick={()=>{setMode(mode==='signin'?'signup':'signin');setError('');setMessage('')}}>{mode==='signin' ? 'Need an account? Create a workspace' : 'Already have an account? Sign in'}</button>
+      {mode === 'forgot' ? <button className="auth-switch" onClick={()=>{setMode('signin');setError('');setMessage('')}}>← Back to sign in</button> : <>
+        <div className="auth-divider"><span>OR</span></div>
+        <button type="button" className="google-auth-button" onClick={signInWithGoogle} disabled={busy}>
+          <span className="google-mark" aria-hidden="true">G</span>
+          <span>{mode === 'signin' ? 'Continue with Google' : 'Sign up with Google'}</span>
+        </button>
+        <button className="auth-switch" onClick={()=>{setMode(mode==='signin'?'signup':'signin');setError('');setMessage('')}}>{mode==='signin' ? 'Need an account? Create a workspace' : 'Already have an account? Sign in'}</button>
+      </>}
     </div>
-    <div className="auth-aside"><div><span className="aside-kicker">APPLYFLOW</span><h2>From applications to decisions, in one workspace.</h2><p>Collect applications, evaluate eligibility, screen candidates and move the right people through your programme.</p></div><div className="aside-stat"><strong>One source of truth</strong><span>Forms · Eligibility · Screening · Reviews · Selection</span></div></div>
+    <div className="auth-aside"><div><span className="aside-kicker">APPLYFLOW</span><h2>{mode === 'forgot' ? 'Get back into your workspace.' : 'From applications to decisions, in one workspace.'}</h2><p>{mode === 'forgot' ? 'We’ll send a secure link to your email so you can choose a new password.' : 'Collect applications, evaluate eligibility, screen candidates and move the right people through your programme.'}</p></div><div className="aside-stat"><strong>{mode === 'forgot' ? 'Secure password recovery' : 'One source of truth'}</strong><span>{mode === 'forgot' ? 'Email link · New password · Sign in' : 'Forms · Eligibility · Screening · Reviews · Selection'}</span></div></div>
+  </div>
+}
+
+function ResetPasswordScreen({ onComplete }: { onComplete: () => Promise<void> | void }) {
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setMessage('')
+    if (password.length < 8) { setError('Password must be at least 8 characters.'); return }
+    if (password !== confirmPassword) { setError('Passwords do not match.'); return }
+    setBusy(true)
+    try {
+      const { error } = await supabase.auth.updateUser({ password })
+      if (error) throw error
+      setMessage('Your password has been updated. Redirecting to sign in…')
+      window.setTimeout(() => { void onComplete() }, 900)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not reset your password.')
+    } finally { setBusy(false) }
+  }
+
+  return <div className="auth-shell">
+    <div className="auth-panel">
+      <div className="brand auth-brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Application OS</span></div></div>
+      <div className="auth-copy"><p className="eyebrow">Password recovery</p><h1>Choose a new password.</h1><p>Set a new password for your ApplyFlow account. Use at least 8 characters.</p></div>
+      <form onSubmit={submit} className="auth-form">
+        <label>New password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter a new password" minLength={8} required autoFocus /></label>
+        <label>Confirm password<input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter your new password" minLength={8} required /></label>
+        {error && <div className="form-error">{error}</div>}{message && <div className="form-message">{message}</div>}
+        <button className="primary-button auth-submit" disabled={busy}>{busy ? 'Updating password…' : 'Update password'}</button>
+      </form>
+    </div>
+    <div className="auth-aside"><div><span className="aside-kicker">APPLYFLOW</span><h2>Your account, secured again.</h2><p>Once your password is updated, you’ll return to the ApplyFlow sign-in screen.</p></div><div className="aside-stat"><strong>Secure password recovery</strong><span>Reset · Sign in · Continue working</span></div></div>
   </div>
 }
 
@@ -341,6 +392,7 @@ function App() {
   const [sessionReady, setSessionReady] = useState(false)
   const [invitePending, setInvitePending] = useState(()=>new URLSearchParams(window.location.search).get('invite') === '1')
   const [session, setSession] = useState<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>(null)
+  const [passwordRecovery, setPasswordRecovery] = useState(() => new URLSearchParams(window.location.search).get('reset') === '1' || window.location.hash.includes('type=recovery'))
   const [profile, setProfile] = useState<Profile | null>(null)
   const [organization, setOrganization] = useState<Organization | null>(null)
   const [applications, setApplications] = useState<Application[]>([])
@@ -438,8 +490,12 @@ function App() {
       }
     }
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next)
+      if (event === 'PASSWORD_RECOVERY') {
+        setPasswordRecovery(true)
+        return
+      }
       if (next && !invitePending) loadWorkspace(next)
     })
 
@@ -475,6 +531,13 @@ function App() {
     setOrganization(null)
     setApplications([])
     setInvitePending(false)
+    window.history.replaceState({}, '', '/login')
+    setSessionReady(true)
+  }} />
+  if (window.location.pathname === '/login' && passwordRecovery && session) return <ResetPasswordScreen onComplete={async () => {
+    await supabase.auth.signOut()
+    setSession(null)
+    setPasswordRecovery(false)
     window.history.replaceState({}, '', '/login')
     setSessionReady(true)
   }} />
