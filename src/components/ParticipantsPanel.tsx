@@ -55,7 +55,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     setLoading(true);setError('')
     try{
       const [p,s,b,recipients]=await Promise.all([
-        supabase.from('participants').select('id,participant_code,full_name,email,application_id,status,joined_at').eq('organization_id',organizationId).order('participant_code'),
+        supabase.from('participants').select('id,participant_code,application_id,status,joined_at,applicants(full_name,email)').eq('organization_id',organizationId).order('participant_code'),
         supabase.from('attendance_sessions').select('id,application_id,title,session_date').eq('organization_id',organizationId).order('session_date',{ascending:false}),
         supabase.from('benefit_distributions').select('id,application_id,name,description,distribution_date,status').eq('organization_id',organizationId).order('created_at',{ascending:false}),
         supabase.from('benefit_recipients').select('distribution_id,participant_id')
@@ -63,7 +63,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
       if(p.error)throw p.error;if(s.error)throw s.error;if(b.error)throw b.error
       // Load attendance/recipient aggregates separately so an empty organisation does not
       // create an invalid IN () query in PostgREST.
-      const participantRows=(p.data||[]) as Participant[]
+      const participantRows=(p.data||[]).map((row:any)=>({\n        id:row.id,participant_code:row.participant_code,application_id:row.application_id,status:row.status,joined_at:row.joined_at,\n        full_name:row.applicants?.full_name||null,email:row.applicants?.email||null\n      })) as Participant[]
       const sessionRows=(s.data||[]) as Session[]
       const benefitRows=(b.data||[]) as Benefit[]
 
