@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, Users, Settings, FileText, ShieldCheck, ClipboardList, Save, Eye, Search, Plus, History, Lock, LockOpen, SlidersHorizontal, MoreHorizontal, Download } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
@@ -210,6 +210,9 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
  const [filter,setFilter]=useState<'all'|'pending'|'approved'|'rejected'|'recommended'>('all')
  const [reviewing,setReviewing]=useState<ScreeningRow|null>(null)
  const [aiBulkRunning,setAiBulkRunning]=useState(false)
+ const [decisionNotice,setDecisionNotice]=useState<'approved'|'rejected'|null>(null)
+ const decisionNoticeTimer=useRef<number|null>(null)
+ useEffect(()=>()=>{if(decisionNoticeTimer.current!==null)window.clearTimeout(decisionNoticeTimer.current)},[])
 
  async function load(){
   setLoading(true);setError('')
@@ -282,6 +285,9 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
   if(error){setError(error.message);return}
   setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision}:r))
   setReviewing(current=>current?.submissionId===row.submissionId?{...current,decision}:current)
+  setDecisionNotice(decision)
+  if(decisionNoticeTimer.current!==null)window.clearTimeout(decisionNoticeTimer.current)
+  decisionNoticeTimer.current=window.setTimeout(()=>setDecisionNotice(null),5000)
  }
 
  const screenWithAI=async()=>{
@@ -331,8 +337,18 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
    </div>
   </section>
   {reviewing&&<ScreeningReviewModal row={reviewing} onClose={()=>setReviewing(null)} onDecision={setDecision}/>}
+  {decisionNotice&&<div className="modal-backdrop" role="status" aria-live="polite">
+   <div className="modal card" style={{maxWidth:460,textAlign:'center',padding:32}}>
+    <div style={{width:52,height:52,borderRadius:'50%',margin:'0 auto 16px',display:'grid',placeItems:'center',fontSize:26,fontWeight:700,background:decisionNotice==='approved'?'#ecfdf3':'#fef2f2',color:decisionNotice==='approved'?'#15803d':'#b91c1c'}}>
+     {decisionNotice==='approved'?'✓':'×'}
+    </div>
+    <p className="eyebrow">Decision recorded</p>
+    <h2 style={{margin:'6px 0 10px'}}>{decisionNotice==='approved'?'Applicant approved':'Applicant rejected'}</h2>
+    <p className="muted" style={{margin:0}}>{decisionNotice==='approved'?'This applicant has been approved successfully.':'This applicant has been rejected successfully.'}</p>
+   </div>
+  </div>}
+ </section>
  </>
-}
 
 type ScreeningReviewData={submission:any;applicant:any;answers:any[];questions:any[];eligibility:any;score:any;criteria:any[];ai:any;documents:any[];options:any[]}
 function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose:()=>void;onDecision:(row:ScreeningRow,decision:'approved'|'rejected')=>Promise<void>}) {
