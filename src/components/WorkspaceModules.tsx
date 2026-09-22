@@ -347,7 +347,6 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
     <p className="muted" style={{margin:0}}>{decisionNotice==='approved'?'This applicant has been approved successfully.':'This applicant has been rejected successfully.'}</p>
    </div>
   </div>}
- </section>
  </>
 
 type ScreeningReviewData={submission:any;applicant:any;answers:any[];questions:any[];eligibility:any;score:any;criteria:any[];ai:any;documents:any[];options:any[]}
