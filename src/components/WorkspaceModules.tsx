@@ -354,7 +354,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
   finally{setLoading(false)}
  }
 
- useEffect(()=>{load()},[applications])
+ useEffect(()=>{load()},[applications,role])
 
  const counts=useMemo(()=>({
   total:rows.length,
