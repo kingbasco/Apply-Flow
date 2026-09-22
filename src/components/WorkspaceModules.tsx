@@ -284,7 +284,7 @@ function screeningRecommendation(ai:any):string{
  return ai.status==='failed'?'Failed':'In progress'
 }
 
-export function ScreeningWorkspace({applications,onOpen}:{applications:Application[];onOpen:(a:Application)=>void}){
+export function ScreeningWorkspace({applications,onOpen,role}:{applications:Application[];onOpen:(a:Application)=>void;role?:Profile['role']}){
  const [rows,setRows]=useState<ScreeningRow[]>([])
  const [loading,setLoading]=useState(true)
  const [error,setError]=useState('')
@@ -301,7 +301,18 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
    const ids=applications.map(a=>a.id)
    const {data:subs,error:subsError}=await supabase.from('submissions').select('id,application_id,applicant_id,submitted_at,decision').in('application_id',ids).eq('status','submitted').order('submitted_at',{ascending:false})
    if(subsError)throw subsError
-   const submissionIds=(subs||[]).map(s=>s.id)
+   const {data:authData}=await supabase.auth.getUser()
+   const reviewerId=role==='reviewer'?authData.user?.id:null
+   let visibleSubs=subs||[]
+   let assignmentRows:any[]=[]
+   if(reviewerId){
+    const {data:assignments,error:assignmentError}=await supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,notes,decision').in('submission_id',(subs||[]).map(s=>s.id)).eq('reviewer_id',reviewerId)
+    if(assignmentError)throw assignmentError
+    assignmentRows=assignments||[]
+    const assignedIds=new Set(assignmentRows.map(x=>x.submission_id))
+    visibleSubs=visibleSubs.filter(s=>assignedIds.has(s.id))
+   }
+   const submissionIds=visibleSubs.map(s=>s.id)
    if(!submissionIds.length){setRows([]);return}
    const [eligResult,scoreResult,aiResult,applicantResult]=await Promise.all([
     supabase.from('submission_eligibility').select('submission_id,status').in('submission_id',submissionIds),
@@ -325,12 +336,13 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
     return {
      submissionId:s.id,
      applicationId:s.application_id,
+     assignmentId:assignmentMap.get(s.id)?.id,
      uniqueId:applicant?.unique_id||'—',
      applicantName:applicant?.full_name||'Unnamed applicant',
      email:applicant?.email||null,
      submittedAt:s.submitted_at||null,
      eligibility:eligibility?.status==='eligible'?'eligible':eligibility?.status==='ineligible'?'ineligible':'pending',
-     score:score?.overall_score==null?null:Number(score.overall_score),
+     score:role==='reviewer' ? (assignmentMap.get(s.id)?.score==null?null:Number(assignmentMap.get(s.id).score)) : (score?.overall_score==null?null:Number(score.overall_score)),
      aiStatus:ai?.status||'pending',
      aiRecommendation:screeningRecommendation(ai),
      decision:s.decision==='approved'||s.decision==='rejected'?s.decision:'pending'
@@ -385,7 +397,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
   <section>
    <div className="page-heading compact">
     <div><p className="eyebrow">Application screening</p><h1>Screening</h1><p className="subtitle">Review applications and approve or reject them.</p></div>
-    <div className="detail-actions"><button className="primary-button" onClick={screenWithAI} disabled={aiBulkRunning||loading||!rows.length}>{aiBulkRunning?'Screening with AI…':'Screen with AI'}</button><button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
+    <div className="detail-actions">{role!=='reviewer'&&<button className="primary-button" onClick={screenWithAI} disabled={aiBulkRunning||loading||!rows.length}>{aiBulkRunning?'Screening with AI…':'Screen with AI'}</button>}<button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
    </div>
    {error&&<div className="form-error page-error">{error}</div>}
    <div className="stats-grid screening-stats">
@@ -435,7 +447,7 @@ export function ScreeningWorkspace({applications,onOpen}:{applications:Applicati
 }
 
 type ScreeningReviewData={submission:any;applicant:any;answers:any[];questions:any[];eligibility:any;score:any;criteria:any[];ai:any;documents:any[];options:any[]}
-function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose:()=>void;onDecision:(row:ScreeningRow,decision:'approved'|'rejected')=>Promise<void>}) {
+function ScreeningReviewModal({row,role,onClose,onDecision}:{row:ScreeningRow;role?:Profile['role'];onClose:()=>void;onDecision:(row:ScreeningRow,decision:'approved'|'rejected')=>Promise<void>}) {
  const [data,setData]=useState<ScreeningReviewData|null>(null)
  const [extractingId,setExtractingId]=useState('')
  const [loading,setLoading]=useState(true)
@@ -443,6 +455,7 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
  const [aiRunning,setAiRunning]=useState(false)
  const [aiError,setAiError]=useState('')
  const [manualScore,setManualScore]=useState('')
+ const [manualNotes,setManualNotes]=useState('')
  const [scoreSaving,setScoreSaving]=useState(false)
  const [scoreNotice,setScoreNotice]=useState('')
 
@@ -489,7 +502,9 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
 
     if(active){
       setData({submission:s,applicant,answers:ans||[],questions:questions||[],eligibility:e,score:sc,criteria:cr||[],ai,documents:documents||[],options:options||[]})
-      setManualScore(sc?.overall_score==null?'':String(sc.overall_score))
+      setManualScore(role==='reviewer' ? (row.score==null?'':String(row.score)) : (sc?.overall_score==null?'':String(sc.overall_score)))
+      const assignmentForReviewer=(await supabase.from('review_assignments').select('id,score,notes,status').eq('id',row.assignmentId||'').maybeSingle()).data
+      if(role==='reviewer') setManualNotes(assignmentForReviewer?.notes||'')
     }
    }catch(e){
     if(active)setError(e instanceof Error?e.message:'Could not load this application.')
@@ -540,6 +555,15 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
   }
   setScoreSaving(true);setScoreNotice('')
   try{
+   if(role==='reviewer'){
+    if(!row.assignmentId){setScoreNotice('This applicant is not assigned to you.');return}
+    const {data:assignment,error:assignmentError}=await supabase.rpc('update_review_assignment',{
+      p_assignment_id:row.assignmentId,p_status:'completed',p_score:value,p_notes:manualNotes.trim()||null,p_decision:null
+    })
+    if(assignmentError)throw assignmentError
+    setScoreNotice('Review saved.')
+    return
+   }
    const existingCriteria=data?.score?.criteria_scores||[]
    const {data:score,error}=await supabase.from('submission_scores').upsert({
     submission_id:row.submissionId,
@@ -654,7 +678,8 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
           <span>Score</span>
           <div className="screening-score-input-wrap"><input type="number" min="0" max="100" step="1" value={manualScore} onChange={e=>{setManualScore(e.target.value);setScoreNotice('')}} placeholder="80"/><span>/ 100</span></div>
          </label>
-         <button className="primary-button" onClick={saveScore} disabled={scoreSaving}>{scoreSaving?'Saving…':'Save score'}</button>
+         {role==='reviewer'&&<label className="screening-score-notes"><span>Review notes</span><textarea rows={4} value={manualNotes} onChange={e=>setManualNotes(e.target.value)} placeholder="Add your review notes for the programme team…"/></label>}
+         <button className="primary-button" onClick={saveScore} disabled={scoreSaving}>{scoreSaving?'Saving…':role==='reviewer'?'Save review':'Save score'}</button>
          {scoreNotice&&<span className={scoreNotice==='Score saved.'?'screening-score-success':'screening-score-error'}>{scoreNotice}</span>}
         </div>
        </section>
@@ -676,13 +701,13 @@ function ScreeningReviewModal({row,onClose,onDecision}:{row:ScreeningRow;onClose
        </section>
       </main>
 
-      <footer className="screening-review-footer">
+      {role!=='reviewer'&&<footer className="screening-review-footer">
        <div className="screening-decision-copy"><span className="screening-summary-label">Final decision</span><strong>{currentDecision==='pending'?'Choose approve or reject after reviewing the application.':currentDecision==='approved'?'Applicant approved':'Applicant rejected'}</strong></div>
        <div className="screening-decision-actions">
         <button className="secondary-button screening-reject-button" onClick={()=>onDecision(row,'rejected')} disabled={currentDecision==='rejected'}>Reject</button>
         <button className="primary-button screening-approve-button" onClick={()=>onDecision(row,'approved')} disabled={currentDecision==='approved'}>Approve</button>
        </div>
-      </footer>
+      </footer>}
      </>
     ) : null}
    </div>
