@@ -15,7 +15,7 @@ type Benefit = {
 }
 type AttendanceRow = {
   participant_id:string; status:'present'|'absent'; marked_at:string
-  participants?:{participant_code:string;full_name:string|null;email:string|null;application_id:string}|{participant_code:string;full_name:string|null;email:string|null;application_id:string}[]
+  participants?:{participant_code:string;full_name:string|null;email:string|null;application_id:string}
 }
 
 export default function ParticipantsPanel({organizationId,applications}:{organizationId:string;applications:Application[]}) {
