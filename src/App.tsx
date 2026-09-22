@@ -249,20 +249,35 @@ function LandingPage() {
   </div>
 }
 
+function getInitialWorkspaceRoute() {
+  const raw = window.location.hash.replace(/^#\/?/, '')
+  const parts = raw.split('/').filter(Boolean).map(decodeURIComponent)
+  if (!parts.length) return { active: 'Dashboard', applicationId: '', tab: 'Overview' as const }
+  const key = parts[0]
+  const activeMap: Record<string, string> = { dashboard:'Dashboard', applications:'Applications', forms:'Forms', screening:'Screening', reviews:'Reviews', participants:'Participants', analytics:'Analytics', team:'Team', settings:'Settings' }
+  if (key === 'application' && parts[1]) {
+    const tab = (parts[2] || 'overview').replace(/^./, x => x.toUpperCase()) as 'Overview'|'Form'|'Eligibility'|'Scoring'|'Screening'|'Applicants'|'Reviews'|'Selection'|'Communications'
+    return { active: 'Applications', applicationId: parts[1], tab }
+  }
+  return { active: activeMap[key] || 'Dashboard', applicationId: '', tab: 'Overview' as const }
+}
+
 function App() {
+  const initialRoute = getInitialWorkspaceRoute()
   const [sessionReady, setSessionReady] = useState(false)
   const [invitePending, setInvitePending] = useState(()=>new URLSearchParams(window.location.search).get('invite') === '1')
   const [session, setSession] = useState<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [organization, setOrganization] = useState<Organization | null>(null)
   const [applications, setApplications] = useState<Application[]>([])
-  const [active, setActive] = useState('Dashboard')
+  const [active, setActive] = useState(initialRoute.active)
+  const [routeRestored, setRouteRestored] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null)
-  const [detailTab, setDetailTab] = useState<'Overview'|'Form'|'Eligibility'|'Scoring'|'Screening'|'Applicants'|'Reviews'|'Selection'|'Communications'>('Overview')
+  const [detailTab, setDetailTab] = useState<'Overview'|'Form'|'Eligibility'|'Scoring'|'Screening'|'Applicants'|'Reviews'|'Selection'|'Communications'>(initialRoute.tab)
   const [applicationSettings, setApplicationSettings] = useState<{ public_slug: string; confirmation_message: string } | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailSaving, setDetailSaving] = useState(false)
@@ -301,9 +316,26 @@ function App() {
         supabase.from('applications').select('id,name,description,status,deadline,target_count,created_at').eq('organization_id', p.organization_id).order('created_at', { ascending: false }),
       ])
       if (oError) setError(oError.message); else setOrganization(org)
-      if (aError) setError(aError.message); else setApplications(apps ?? [])
+      if (aError) setError(aError.message)
+      else {
+        const nextApplications = apps ?? []
+        setApplications(nextApplications)
+        if (initialRoute.applicationId) {
+          const restored = nextApplications.find(item => item.id === initialRoute.applicationId)
+          if (restored) {
+            setSelectedApplication(restored)
+            setDetailTab(initialRoute.tab)
+            setDetailLoading(true)
+            const { data: restoredSettings, error: restoredSettingsError } = await supabase.from('application_settings').select('public_slug,confirmation_message').eq('application_id', restored.id).single()
+            if (restoredSettingsError) setDetailError(restoredSettingsError.message)
+            setApplicationSettings(restoredSettings)
+            setDetailLoading(false)
+          }
+        }
+      }
     }
     setLoading(false)
+    setRouteRestored(true)
   }
 
   useEffect(() => {
@@ -332,6 +364,14 @@ function App() {
     restoreSession()
     return () => listener.subscription.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    if (!sessionReady || !session || !routeRestored) return
+    const nextHash = selectedApplication
+      ? `#/application/${encodeURIComponent(selectedApplication.id)}/${encodeURIComponent(detailTab.toLowerCase())}`
+      : `#/${active.toLowerCase()}`
+    if (window.location.hash !== nextHash) window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}${nextHash}`)
+  }, [active, detailTab, selectedApplication, routeRestored, sessionReady, session])
 
   const filtered = useMemo(() => applications.filter(a => a.name.toLowerCase().includes(query.toLowerCase())), [applications, query])
   const totalTarget = applications.reduce((sum,a)=>sum+(a.target_count ?? 0),0)
