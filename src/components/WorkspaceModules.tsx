@@ -287,6 +287,7 @@ function screeningRecommendation(ai:any):string{
 
 export function ScreeningWorkspace({applications,onOpen,role}:{applications:Application[];onOpen:(a:Application)=>void;role?:Profile['role']}){
  const [rows,setRows]=useState<ScreeningRow[]>([])
+ const [selectedApplicationId,setSelectedApplicationId]=useState('')
  const [loading,setLoading]=useState(true)
  const [error,setError]=useState('')
  const [query,setQuery]=useState('')
@@ -299,7 +300,9 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
   setLoading(true);setError('')
   try{
    if(!applications.length){setRows([]);return}
-   const ids=applications.map(a=>a.id)
+   const selectedApplication=applications.find(a=>a.id===selectedApplicationId)
+   if(!selectedApplication){setRows([]);return}
+   const ids=[selectedApplication.id]
    const {data:subs,error:subsError}=await supabase.from('submissions').select('id,application_id,applicant_id,submitted_at,decision').in('application_id',ids).eq('status','submitted').order('submitted_at',{ascending:false})
    if(subsError)throw subsError
    const {data:authData}=await supabase.auth.getUser()
@@ -354,7 +357,11 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
   finally{setLoading(false)}
  }
 
- useEffect(()=>{load()},[applications,role])
+ useEffect(()=>{
+  if(!applications.length){setSelectedApplicationId('');setRows([]);return}
+  setSelectedApplicationId(current=>applications.some(a=>a.id===current)?current:applications[0].id)
+ },[applications])
+ useEffect(()=>{load()},[applications,role,selectedApplicationId])
 
  const counts=useMemo(()=>({
   total:rows.length,
@@ -398,10 +405,25 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
  return <>
   <section>
    <div className="page-heading compact">
-    <div><p className="eyebrow">Application screening</p><h1>Screening</h1><p className="subtitle">Review applications and approve or reject them.</p></div>
+    <div><p className="eyebrow">Application screening</p><h1>Screening</h1><p className="subtitle">Open one application at a time. Applicants and screening results stay separated by programme.</p></div>
     <div className="detail-actions">{role!=='reviewer'&&<button className="primary-button" onClick={screenWithAI} disabled={aiBulkRunning||loading||!rows.length}>{aiBulkRunning?'Screening with AI…':'Screen with AI'}</button>}<button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
    </div>
    {error&&<div className="form-error page-error">{error}</div>}
+   <div className="card screening-application-picker">
+    <div className="screening-application-picker-header">
+     <div><p className="eyebrow">Choose application</p><h2>Screen one programme at a time</h2><p>Select a programme to view only its applicants, screening results and decisions.</p></div>
+    </div>
+    <div className="screening-application-list">
+     {applications.map(application=><button key={application.id} type="button" className={selectedApplicationId===application.id?'screening-application-option active':'screening-application-option'} onClick={()=>setSelectedApplicationId(application.id)}>
+      <span className="screening-application-option-copy"><strong>{application.name}</strong><small>{application.description||'No description yet.'}</small></span>
+      <span className="screening-application-option-meta"><span className={'status '+(application.status==='published'?'blue':'neutral')}>{application.status}</span><ArrowRight size={16}/></span>
+     </button>)}
+    </div>
+   </div>
+   <div className="screening-current-application">
+    <div><p className="eyebrow">Current application</p><h2>{applications.find(a=>a.id===selectedApplicationId)?.name||'Select an application'}</h2></div>
+    <span className="status blue">Screening workspace</span>
+   </div>
    <div className="stats-grid screening-stats">
     <div className="card stat-card"><div className="stat-icon"><ClipboardList size={18}/></div><div><p className="eyebrow">Total applicants</p><div className="stat-value">{counts.total}</div><p className="muted">Submitted applications</p></div></div>
     <div className="card stat-card"><div className="stat-icon"><ClipboardList size={18}/></div><div><p className="eyebrow">Pending</p><div className="stat-value">{counts.pending}</div><p className="muted">Awaiting a decision</p></div></div>
