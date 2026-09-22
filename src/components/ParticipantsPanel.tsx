@@ -15,7 +15,7 @@ type Benefit = {
 }
 type AttendanceRow = {
   participant_id:string; status:'present'|'absent'; marked_at:string
-  participants?:{participant_code:string;full_name:string|null;email:string|null;application_id:string}
+  participants?:{participant_code:string;full_name:string|null;email:string|null;application_id:string}|{participant_code:string;full_name:string|null;email:string|null;application_id:string}[]
 }
 
 export default function ParticipantsPanel({organizationId,applications}:{organizationId:string;applications:Application[]}) {
@@ -95,7 +95,10 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
         .select('participant_id,status,marked_at,participants!inner(participant_code,full_name,email,application_id)')
         .eq('attendance_session_id',session.id)
       if(error)throw error
-      setSessionAttendance((data||[]) as AttendanceRow[])
+      setSessionAttendance((data||[]).map((row:any)=>({
+        ...row,
+        participants:Array.isArray(row.participants)?row.participants[0]:row.participants
+      })) as AttendanceRow[])
     }catch(e){setError(e instanceof Error?e.message:'Could not load session attendance.')}finally{setAttendanceLoading(false)}
   }
 
