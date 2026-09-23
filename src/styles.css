@@ -2831,3 +2831,21 @@ html.dark-theme .afx-landing .afx-floating-card-two>span{
 html.dark-theme .afx-landing .afx-floating-card-two{
   border-color:#34394a;
 }
+
+/* Dashboard motion: restrained, purposeful micro-interactions */
+.dashboard-stats .stat-card{animation:dashboardCardIn .55s cubic-bezier(.2,.8,.2,1) both;transition:transform .28s ease,box-shadow .28s ease,border-color .28s ease}
+.dashboard-stats .stat-card:nth-child(1){animation-delay:.04s}.dashboard-stats .stat-card:nth-child(2){animation-delay:.10s}.dashboard-stats .stat-card:nth-child(3){animation-delay:.16s}.dashboard-stats .stat-card:nth-child(4){animation-delay:.22s}
+.dashboard-stats .stat-card:hover{transform:translateY(-4px);box-shadow:0 12px 30px rgba(37,45,72,.08);border-color:#d9dcef}
+.dashboard-stats .stat-icon{transition:transform .35s ease,background .35s ease}.dashboard-stats .stat-card:hover .stat-icon{transform:rotate(-5deg) scale(1.08);background:#e9eaff}
+.dashboard-panels>.card{animation:dashboardPanelIn .65s cubic-bezier(.2,.8,.2,1) both}.dashboard-panels>.card:nth-child(2){animation-delay:.12s}
+.dashboard-panels .card-header{transition:background .25s ease}.dashboard-panels .card-header:hover{background:rgba(240,241,255,.25)}
+.dashboard-panels tbody tr{transition:background .2s ease,transform .2s ease}.dashboard-panels tbody tr:hover{background:#fafaff}
+.dashboard-panels tbody tr:hover td:first-child strong{color:#5961c6}
+.dashboard-panels .status{transition:transform .25s ease}.dashboard-panels tbody tr:hover .status{transform:translateX(2px)}
+.dashboard-panels .connection-list>div{animation:dashboardRowIn .5s ease both}.dashboard-panels .connection-list>div:nth-child(1){animation-delay:.2s}.dashboard-panels .connection-list>div:nth-child(2){animation-delay:.28s}.dashboard-panels .connection-list>div:nth-child(3){animation-delay:.36s}
+.dashboard-panels .funnel-card>.card-header .status.green{animation:dashboardStatusPulse 2.8s ease-in-out infinite}
+@keyframes dashboardCardIn{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes dashboardPanelIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes dashboardRowIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
+@keyframes dashboardStatusPulse{0%,100%{box-shadow:0 0 0 0 rgba(45,130,86,0)}50%{box-shadow:0 0 0 5px rgba(45,130,86,.08)}}
+@media(prefers-reduced-motion:reduce){.dashboard-stats .stat-card,.dashboard-panels>.card,.dashboard-panels .connection-list>div{animation:none!important}.dashboard-panels .funnel-card>.card-header .status.green{animation:none!important}}
