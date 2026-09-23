@@ -403,6 +403,25 @@ Production security review still includes:
 
 ---
 
+## 🔔 Notifications
+
+ApplyFlow currently includes an in-app notifications center for workspace users.
+
+Implemented:
+
+- Notification bell in the workspace header
+- Unread notification count
+- Notification list with titles, messages, types, and relative timestamps
+- Mark individual notifications as read
+- Mark all notifications as read
+- Real-time notification updates through Supabase Realtime
+- Notification click-through to the relevant workspace area
+- Latest 30 notifications displayed
+
+Applicant email and automated programme communication workflows are separate from the in-app notification center and remain planned.
+
+---
+
 ## 🧰 Technology stack
 
 | Layer | Technology |
@@ -546,7 +565,7 @@ Analytics QA
         ↓
 Participant progress & attendance
         ↓
-Notifications
+Applicant email & automated communications
         ↓
 Production hardening
 ```
