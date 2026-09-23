@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, Users, Settings, FileText, ShieldCheck, ClipboardList, Save, Eye, Search, Plus, History, Lock, LockOpen, SlidersHorizontal, MoreHorizontal, Download, X, CheckCircle2, UserRoundPlus, UserCheck, Clock3 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
-type Application={id:string;name:string;description:string|null;status:'draft'|'published'|'screening'|'closed'|'completed';deadline:string|null;target_count:number|null;participant_code:string;created_at:string}
+type Application={id:string;name:string;description:string|null;status:'draft'|'published'|'screening'|'closed'|'completed';deadline:string|null;target_count:number|null;participant_id_prefix:string;created_at:string}
 type FormSummary={application:Application;version:number|null;versionStatus:'draft'|'published'|'none';hasPublishedVersion:boolean;questionCount:number;submissionCount:number;publicSlug:string|null;settings?:FormSettings}
 async function loadFormSummaries(applications:Application[]):Promise<FormSummary[]>{
  if(!applications.length)return []
@@ -231,12 +231,12 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
             <label className="field">
               <span>Confirmation message</span>
               <textarea rows={6} value={settingsDraft.confirmation_message} onChange={e=>setSettingsDraft(d=>({...d,confirmation_message:e.target.value}))} placeholder="Thank you. Your application has been received."/>
-              <small className="muted">Shown after a successful submission, together with the applicant's unique ID.</small>
+              <small className="muted">Shown after a successful submission, together with the applicant's Participant ID.</small>
             </label>
           </div>
           <div className="settings-preview-note">
             <CheckCircle2 size={17}/>
-            <div><strong>Unique application ID</strong><p>ApplyFlow automatically gives every submitted application a unique ID and shows it on the success screen.</p></div>
+            <div><strong>Participant ID</strong><p>ApplyFlow automatically gives every submitted application a Participant ID and shows it on the success screen.</p></div>
           </div>
         </section>
       </main>
@@ -265,7 +265,7 @@ export interface ScreeningRow {
  submissionId:string
  applicationId:string
  assignmentId?:string
- uniqueId:string
+ participantId:string
  applicantName:string
  email:string|null
  submittedAt:string|null
@@ -294,7 +294,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
  const [filter,setFilter]=useState<'all'|'pending'|'approved'|'rejected'|'recommended'>('all')
  const [reviewing,setReviewing]=useState<ScreeningRow|null>(null)
  const [aiBulkRunning,setAiBulkRunning]=useState(false)
- const [decisionNotice,setDecisionNotice]=useState<{decision:'approved'|'rejected';applicantName:string;uniqueId:string}|null>(null)
+ const [decisionNotice,setDecisionNotice]=useState<{decision:'approved'|'rejected';applicantName:string;participantId:string}|null>(null)
  const [selectedSubmissionIds,setSelectedSubmissionIds]=useState<string[]>([])
 
  async function load(){
@@ -323,7 +323,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
     supabase.from('submission_eligibility').select('submission_id,status').in('submission_id',submissionIds),
     supabase.from('submission_scores').select('submission_id,overall_score').in('submission_id',submissionIds),
     supabase.from('ai_screenings').select('submission_id,status,overall_assessment').in('submission_id',submissionIds),
-    supabase.from('applicants').select('id,full_name,email,unique_id').in('id',visibleSubs.map(s=>s.applicant_id))
+    supabase.from('applicants').select('id,full_name,email,participant_id').in('id',visibleSubs.map(s=>s.applicant_id))
    ])
    if(eligResult.error)throw eligResult.error
    if(scoreResult.error)throw scoreResult.error
@@ -343,7 +343,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
      submissionId:s.id,
      applicationId:s.application_id,
      assignmentId:assignmentMap.get(s.id)?.id,
-     uniqueId:applicant?.unique_id||'—',
+     participantId:applicant?.participant_id||'—',
      applicantName:applicant?.full_name||'Unnamed applicant',
      email:applicant?.email||null,
      submittedAt:s.submitted_at||null,
@@ -375,7 +375,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
  const filtered=useMemo(()=>{
   const q=query.trim().toLowerCase()
   return rows.filter(r=>{
-   const matchesQuery=!q||r.applicantName.toLowerCase().includes(q)||(r.email||'').toLowerCase().includes(q)||r.uniqueId.toLowerCase().includes(q)
+   const matchesQuery=!q||r.applicantName.toLowerCase().includes(q)||(r.email||'').toLowerCase().includes(q)||r.participantId.toLowerCase().includes(q)
    const matchesFilter=filter==='all'||(filter==='pending'&&r.decision==='pending')||(filter==='approved'&&r.decision==='approved')||(filter==='rejected'&&r.decision==='rejected')||(filter==='recommended'&&r.aiRecommendation==='Recommended')
    return matchesQuery&&matchesFilter
   })
@@ -388,7 +388,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
   const escapeCsv=(value:string)=>'"'+value.replace(/"/g,'""')+'"'
   const csv=[
    ['Applicant ID','Full Name','Email Address'],
-   ...selectedRows.map(row=>[row.uniqueId,row.applicantName,row.email||''])
+   ...selectedRows.map(row=>[row.participantId,row.applicantName,row.email||''])
   ].map(row=>row.map(value=>escapeCsv(String(value??''))).join(',')).join('\n')
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'})
   const url=URL.createObjectURL(blob)
@@ -412,7 +412,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
   if(error){setError(error.message);return}
   setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision}:r))
   setReviewing(current=>current?.submissionId===row.submissionId?{...current,decision}:current)
-  setDecisionNotice({decision,applicantName:row.applicantName,uniqueId:row.uniqueId})
+  setDecisionNotice({decision,applicantName:row.applicantName,participantId:row.participantId})
  }
 
  const screenWithAI=async()=>{
@@ -460,15 +460,15 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
    <div className="card table-card">
     <div className="card-header"><div><h2>Applicants</h2><p>Review the application, then approve or reject.</p></div><div className="detail-actions"><span className="muted">{selectedSubmissionIds.length} selected</span><button className="secondary-button" onClick={exportApplicants} disabled={loading||selectedSubmissionIds.length===0}><Download size={16}/> Export selected</button></div></div>
     <div className="forms-toolbar">
-     <div className="forms-search"><Search size={16}/><input aria-label="Search applicants" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search name, email or unique ID…" /></div>
+     <div className="forms-search"><Search size={16}/><input aria-label="Search applicants" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search name, email or Participant ID…" /></div>
      <div className="forms-filters" role="group" aria-label="Filter applicants">{(['all','pending','approved','rejected','recommended'] as const).map(f=><button key={f} className={filter===f?'filter-button active':'filter-button'} onClick={()=>setFilter(f)}>{f==='all'?'All':f==='pending'?'Pending':f==='approved'?'Approved':f==='rejected'?'Rejected':'AI recommended'}<span>{f==='all'?counts.total:f==='pending'?counts.pending:f==='approved'?counts.approved:f==='rejected'?counts.rejected:counts.recommended}</span></button>)}</div>
     </div>
-    <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label={allFilteredSelected?"Deselect all visible applicants":"Select all visible applicants"} checked={allFilteredSelected} onChange={toggleAllFiltered} disabled={!filtered.length}/></th><th>Applicant</th><th>Unique ID</th><th>Score</th><th>Eligibility</th><th>AI</th><th>Status</th><th></th></tr></thead><tbody>
+    <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label={allFilteredSelected?"Deselect all visible applicants":"Select all visible applicants"} checked={allFilteredSelected} onChange={toggleAllFiltered} disabled={!filtered.length}/></th><th>Applicant</th><th>Participant ID</th><th>Score</th><th>Eligibility</th><th>AI</th><th>Status</th><th></th></tr></thead><tbody>
      {loading?<tr><td colSpan={8}><div className="loading-card">Loading applicants…</div></td></tr>:!filtered.length?<tr><td colSpan={8}><div className="table-empty"><h3>{rows.length?'No applicants match your filters':'No submitted applications yet'}</h3><p>{rows.length?'Try another filter or search.':'Applications will appear here after applicants submit a form.'}</p></div></td></tr>:
      filtered.map(row=><tr key={row.submissionId}>
       <td><input type="checkbox" aria-label={`Select ${row.applicantName}`} checked={selectedSubmissionIds.includes(row.submissionId)} onChange={()=>toggleApplicant(row.submissionId)}/></td>
       <td><strong>{row.applicantName}</strong><span className="table-sub">{row.email||'No email'}</span></td>
-      <td><strong>{row.uniqueId}</strong></td><td>{row.score==null?'—':row.score.toFixed(1)}</td>
+      <td><strong>{row.participantId}</strong></td><td>{row.score==null?'—':row.score.toFixed(1)}</td>
       <td><span className={'status '+(row.eligibility==='eligible'?'blue':row.eligibility==='ineligible'?'neutral':'amber')}>{row.eligibility}</span></td>
       <td><span className={'status '+(row.aiRecommendation==='Recommended'?'blue':row.aiRecommendation==='Not recommended'?'neutral':'amber')}>{row.aiRecommendation}</span></td>
       <td><span className={'status '+(row.decision==='approved'?'blue':row.decision==='rejected'?'neutral':'amber')}>{row.decision}</span></td>
@@ -486,7 +486,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
     <p className="eyebrow">{decisionNotice.decision==='approved'?'Approval successful':'Rejection successful'}</p>
     <h2 id="decision-result-title" style={{margin:'6px 0 8px'}}>{decisionNotice.decision==='approved'?'Applicant approved':'Applicant rejected'}</h2>
     <p style={{fontWeight:600,margin:'0 0 4px'}}>{decisionNotice.applicantName}</p>
-    <p className="muted" style={{margin:'0 0 18px'}}>Application ID: {decisionNotice.uniqueId}</p>
+    <p className="muted" style={{margin:'0 0 18px'}}>Participant ID: {decisionNotice.participantId}</p>
     <p className="muted" style={{margin:'0 0 22px'}}>{decisionNotice.decision==='approved'?'The applicant has been approved and the decision has been saved.':'The applicant has been rejected and the decision has been saved.'}</p>
     <div style={{display:'flex',justifyContent:'center',gap:10}}>
      <button className="secondary-button" onClick={()=>setDecisionNotice(null)}>Continue reviewing</button>
@@ -539,7 +539,7 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
     if(aie)throw aie
     if(de)throw de
 
-    const {data:applicant,error:appErr}=await supabase.from('applicants').select('id,full_name,email,unique_id').eq('id',s?.applicant_id||'').maybeSingle()
+    const {data:applicant,error:appErr}=await supabase.from('applicants').select('id,full_name,email,participant_id').eq('id',s?.applicant_id||'').maybeSingle()
     if(appErr)throw appErr
 
     const {data:questions,error:qErr}=await supabase.from('questions').select('id,label,description,type,position').eq('form_version_id',s?.form_version_id||'').order('position')
@@ -666,7 +666,7 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
        <p className="eyebrow">Application review</p>
        <h2>{row.applicantName}</h2>
        <div className="screening-review-meta">
-        <span className="screening-id">{data?.applicant?.unique_id||row.uniqueId}</span>
+        <span className="screening-id">{data?.applicant?.participant_id||row.participantId}</span>
         <span>{row.email||'No email provided'}</span>
         <span>{row.submittedAt?new Date(row.submittedAt).toLocaleString():'Submitted date unavailable'}</span>
        </div>
@@ -683,7 +683,7 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
      <>
       <main className="screening-review-content">
        <section className="screening-summary-grid">
-        <div className="screening-summary-card"><span className="screening-summary-label">Unique ID</span><strong className="screening-summary-value">{data.applicant?.unique_id||row.uniqueId}</strong></div>
+        <div className="screening-summary-card"><span className="screening-summary-label">Participant ID</span><strong className="screening-summary-value">{data.applicant?.participant_id||row.participantId}</strong></div>
         <div className="screening-summary-card"><span className="screening-summary-label">Eligibility</span><strong className="screening-summary-value">{eligibilityStatus}</strong></div>
         <div className="screening-summary-card"><span className="screening-summary-label">Current score</span><strong className="screening-summary-value">{score==null?'Not scored':Number(score).toFixed(1)+' / 100'}</strong></div>
        </section>
@@ -861,7 +861,7 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
     <label className="review-status-filter"><span>Status</span><div className="review-select-wrap"><span className="status-dot"/><select aria-label="Filter reviews by status" value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses</option><option value="unassigned">Unassigned</option><option value="assigned">Assigned</option><option value="in_progress">In review</option><option value="reviewed">Reviewed</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select><ArrowRight size={14} className="review-select-chevron"/></div></label>
    </div>
    <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label="Select all visible applicants" checked={allFilteredSelected} onChange={toggleAll}/></th><th>Applicant</th><th>Programme</th><th>Assigned to</th><th>Status</th><th></th></tr></thead><tbody>
-    {loading?<tr><td colSpan={6}><div className="loading-card">Loading reviews…</div></td></tr>:filtered.length===0?<tr><td colSpan={6}><div className="table-empty">No applications match your filters.</div></td></tr>:filtered.map(r=><tr key={r.submissionId}><td><input type="checkbox" aria-label={'Select '+r.applicantName} checked={selectedIds.includes(r.submissionId)} onChange={()=>toggleSelected(r.submissionId)}/></td><td><strong>{r.applicantName}</strong><span className="table-sub">{r.email||'No email'}</span></td><td>{r.programmeName}</td><td>{r.reviewers.length?r.reviewers.map((x:any)=>x.full_name||'Unnamed').join(', '):<span className="muted">Unassigned</span>}</td><td><span className={'status '+statusClass(r.status)}>{statusLabel(r.status)}</span></td><td><button className="text-button" onClick={()=>setReviewing({...r,uniqueId:r.uniqueId||'—',submittedAt:r.submittedAt||null,email:r.email||null,eligibility:'pending',aiStatus:'pending',aiRecommendation:'Not screened',decision:r.decision==='approved'||r.decision==='rejected'?r.decision:'pending'})}>Review</button></td></tr>)}
+    {loading?<tr><td colSpan={6}><div className="loading-card">Loading reviews…</div></td></tr>:filtered.length===0?<tr><td colSpan={6}><div className="table-empty">No applications match your filters.</div></td></tr>:filtered.map(r=><tr key={r.submissionId}><td><input type="checkbox" aria-label={'Select '+r.applicantName} checked={selectedIds.includes(r.submissionId)} onChange={()=>toggleSelected(r.submissionId)}/></td><td><strong>{r.applicantName}</strong><span className="table-sub">{r.email||'No email'}</span></td><td>{r.programmeName}</td><td>{r.reviewers.length?r.reviewers.map((x:any)=>x.full_name||'Unnamed').join(', '):<span className="muted">Unassigned</span>}</td><td><span className={'status '+statusClass(r.status)}>{statusLabel(r.status)}</span></td><td><button className="text-button" onClick={()=>setReviewing({...r,participantId:r.participantId||'—',submittedAt:r.submittedAt||null,email:r.email||null,eligibility:'pending',aiStatus:'pending',aiRecommendation:'Not screened',decision:r.decision==='approved'||r.decision==='rejected'?r.decision:'pending'})}>Review</button></td></tr>)}
    </tbody></table></div>
   </div>
   {reviewing&&<ScreeningReviewModal row={reviewing} role={role} onClose={()=>setReviewing(null)} onDecision={setReviewDecision}/>}
