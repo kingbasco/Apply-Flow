@@ -547,7 +547,7 @@ function App() {
             .select('id', { count: 'exact', head: true })
             .in('application_id', nextApplications.map(application => application.id))
             .eq('status', 'submitted')
-            .is('decision', null)
+            .eq('decision', 'pending')
           if (screeningCountError) setError(screeningCountError.message)
           else setScreeningCount(count ?? 0)
         } else {
