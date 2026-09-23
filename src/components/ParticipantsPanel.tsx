@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 
 type Application = { id:string; name:string }
 type Participant = {
-  id:string; participant_code:string; full_name:string|null; email:string|null
+  id:string; participant_id:string; full_name:string|null; email:string|null
   application_id:string; status:'active'|'completed'|'withdrawn'; joined_at:string
   attendance_count?:number
 }
@@ -15,7 +15,7 @@ type Benefit = {
 }
 type AttendanceRow = {
   participant_id:string; status:'present'|'absent'; marked_at:string
-  participants?:{participant_code:string;application_id:string;applicants?:{full_name:string|null;email:string|null}|{full_name:string|null;email:string|null}[]}
+  participants?:{participant_id:string;application_id:string;applicants?:{full_name:string|null;email:string|null}|{full_name:string|null;email:string|null}[]}
 }
 type ParticipantAttendance = {
   id:string; status:'present'|'absent'; marked_at:string
@@ -61,7 +61,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     setLoading(true);setError('')
     try{
       const [p,s,b,recipients]=await Promise.all([
-        supabase.from('participants').select('id,participant_code,application_id,status,joined_at,applicants(full_name,email)').eq('organization_id',organizationId).order('participant_code'),
+        supabase.from('participants').select('id,participant_id,application_id,status,joined_at,applicants(full_name,email)').eq('organization_id',organizationId).order('participant_id'),
         supabase.from('attendance_sessions').select('id,application_id,title,session_date').eq('organization_id',organizationId).order('session_date',{ascending:false}),
         supabase.from('benefit_distributions').select('id,application_id,name,description,distribution_date,status').eq('organization_id',organizationId).order('created_at',{ascending:false}),
         supabase.from('benefit_recipients').select('distribution_id,participant_id')
@@ -70,7 +70,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
       // Load attendance/recipient aggregates separately so an empty organisation does not
       // create an invalid IN () query in PostgREST.
       const participantRows=(p.data||[]).map((row:any)=>({
-        id:row.id,participant_code:row.participant_code,application_id:row.application_id,status:row.status,joined_at:row.joined_at,
+        id:row.id,participant_id:row.participant_id,application_id:row.application_id,status:row.status,joined_at:row.joined_at,
         full_name:row.applicants?.full_name||null,email:row.applicants?.email||null
       })) as Participant[]
       const sessionRows=(s.data||[]) as Session[]
@@ -95,7 +95,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   useEffect(()=>{load()},[organizationId])
 
   const filtered=useMemo(()=>participants.filter(p=>{
-    const text=[p.participant_code,p.full_name,p.email,appName(p.application_id)].filter(Boolean).join(' ').toLowerCase()
+    const text=[p.participant_id,p.full_name,p.email,appName(p.application_id)].filter(Boolean).join(' ').toLowerCase()
     return (!query.trim()||text.includes(query.trim().toLowerCase()))
       && (applicationFilter==='all'||p.application_id===applicationFilter)
       && (statusFilter==='all'||p.status===statusFilter)
@@ -127,7 +127,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   async function updateParticipantStatus(participantId:string,status:Participant['status']){
     setSaving(true);setError('');setNotice('')
     try{
-      const {data,error}=await supabase.from('participants').update({status,updated_at:new Date().toISOString()}).eq('id',participantId).select('id,participant_code,application_id,status,joined_at').single()
+      const {data,error}=await supabase.from('participants').update({status,updated_at:new Date().toISOString()}).eq('id',participantId).select('id,participant_id,application_id,status,joined_at').single()
       if(error)throw error
       setParticipants(current=>current.map(p=>p.id===participantId?{...p,...data}:p))
       setSelectedParticipant(current=>current?.id===participantId?{...current,...data}:current)
@@ -139,7 +139,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     setSelectedSession(session);setAttendanceLoading(true);setError('')
     try{
       const {data,error}=await supabase.from('attendance_records')
-        .select('participant_id,status,marked_at,participants!inner(participant_code,application_id,applicants(full_name,email))')
+        .select('participant_id,status,marked_at,participants!inner(participant_id,application_id,applicants(full_name,email))')
         .eq('attendance_session_id',session.id)
       if(error)throw error
       setSessionAttendance((data||[]).map((row:any)=>({
@@ -170,8 +170,8 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     if(!codes.length){setError('Paste at least one participant ID.');return}
     setSaving(true);setError('');setNotice('')
     try{
-      const matches=participants.filter(p=>p.application_id===selectedSession.application_id&&codes.includes(p.participant_code.toUpperCase()))
-      const unknown=codes.filter(code=>!matches.some(p=>p.participant_code.toUpperCase()===code))
+      const matches=participants.filter(p=>p.application_id===selectedSession.application_id&&codes.includes(p.participant_id.toUpperCase()))
+      const unknown=codes.filter(code=>!matches.some(p=>p.participant_id.toUpperCase()===code))
       if(matches.length){
         const {error}=await supabase.from('attendance_records').upsert(
           matches.map(p=>({attendance_session_id:selectedSession.id,participant_id:p.id,status:'present',source:'google_meet_import',marked_at:new Date().toISOString()})),
@@ -268,7 +268,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
         </div>
         <div className="table-wrap"><table><thead><tr><th>Participant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
           {filtered.length?filtered.map(p=><tr key={p.id} className="clickable-row" onClick={()=>openParticipant(p)}>
-            <td><strong>{p.participant_code}</strong></td>
+            <td><strong>{p.participant_id}</strong></td>
             <td><strong>{p.full_name||'Unnamed participant'}</strong><span className="table-sub">{p.email||'No email'}</span></td>
             <td>{appName(p.application_id)}</td>
             <td>{p.attendance_count||0} present</td>
@@ -299,7 +299,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
           <div className="card-header"><div><p className="eyebrow">Selected session</p><h2>{selectedSession?selectedSession.title:'Session attendance'}</h2><p>{selectedSession?appName(selectedSession.application_id):'Select a session from the list.'}</p></div><CalendarCheck2 size={20}/></div>
           {!selectedSession?<div className="table-empty">Select an attendance session to see participants.</div>:attendanceLoading?<div className="loading-card">Loading attendance…</div>:<>
             <div className="table-wrap"><table><thead><tr><th>Participant</th><th>ID</th><th>Status</th><th></th></tr></thead><tbody>
-              {selectedAttendance.length?selectedAttendance.map(r=><tr key={r.participant_id}><td><strong>{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.full_name:r.participants?.applicants?.full_name||'Unnamed participant'}</strong><span className="table-sub">{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.email:r.participants?.applicants?.email||''}</span></td><td>{r.participants?.participant_code}</td><td><span className={'status '+(r.status==='present'?'green':'neutral')}>{r.status}</span></td><td>{r.status==='present'?<button className="text-button" disabled={saving} onClick={()=>markAbsent(r.participant_id)}>Mark absent</button>:null}</td></tr>):<tr><td colSpan={4}><div className="table-empty">No attendance recorded for this session.</div></td></tr>}
+              {selectedAttendance.length?selectedAttendance.map(r=><tr key={r.participant_id}><td><strong>{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.full_name:r.participants?.applicants?.full_name||'Unnamed participant'}</strong><span className="table-sub">{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.email:r.participants?.applicants?.email||''}</span></td><td>{r.participants?.participant_id}</td><td><span className={'status '+(r.status==='present'?'green':'neutral')}>{r.status}</span></td><td>{r.status==='present'?<button className="text-button" disabled={saving} onClick={()=>markAbsent(r.participant_id)}>Mark absent</button>:null}</td></tr>):<tr><td colSpan={4}><div className="table-empty">No attendance recorded for this session.</div></td></tr>}
             </tbody></table></div>
             <div className="attendance-import-box">
               <div className="attendance-import-heading"><div><p className="eyebrow">Import attendance</p><h3>Participant IDs</h3><p>Paste participant IDs from Google Meet, one per line or separated by commas.</p></div><Upload size={19}/></div>
@@ -338,7 +338,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
         <div className="participant-profile-header">
           <div className="participant-profile-identity">
             <div className="participant-avatar">{(selectedParticipant.full_name||'P').trim().charAt(0).toUpperCase()}</div>
-            <div><p className="eyebrow">Participant profile</p><h2>{selectedParticipant.full_name||'Unnamed participant'}</h2><div className="participant-profile-meta"><span><Hash size={13}/>{selectedParticipant.participant_code}</span><span>{appName(selectedParticipant.application_id)}</span></div></div>
+            <div><p className="eyebrow">Participant profile</p><h2>{selectedParticipant.full_name||'Unnamed participant'}</h2><div className="participant-profile-meta"><span><Hash size={13}/>{selectedParticipant.participant_id}</span><span>{appName(selectedParticipant.application_id)}</span></div></div>
           </div>
           <button className="icon-button" onClick={()=>setSelectedParticipant(null)} aria-label="Close"><X size={18}/></button>
         </div>
