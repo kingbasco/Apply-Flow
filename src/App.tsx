@@ -14,7 +14,7 @@ import { GoogleFormImport } from './components/GoogleFormImport'
 type AppStatus = 'draft' | 'published' | 'screening' | 'closed' | 'completed'
 type Application = {
   id: string; name: string; description: string | null; status: AppStatus
-  deadline: string | null; target_count: number | null; created_at: string
+  deadline: string | null; target_count: number | null; participant_id_prefix: string; created_at: string
 }
 type Profile = { id: string; full_name: string | null; username: string | null; birth_month: number | null; birth_day: number | null; avatar_url: string | null; organization_id: string | null; role: 'owner'|'admin'|'reviewer' }
 type Organization = { id: string; name: string; slug: string }
@@ -500,6 +500,7 @@ function App() {
   const [newDescription, setNewDescription] = useState('')
   const [newDeadline, setNewDeadline] = useState('')
   const [newTarget, setNewTarget] = useState('')
+  const [newParticipantPrefix, setNewParticipantPrefix] = useState('APP')
   const [importOpen, setImportOpen] = useState(false)
 
   async function loadWorkspace(currentSession = session) {
@@ -532,7 +533,7 @@ function App() {
     if (p.organization_id) {
       const [{ data: org, error: oError }, { data: apps, error: aError }] = await Promise.all([
         supabase.from('organizations').select('id,name,slug').eq('id', p.organization_id).single(),
-        supabase.from('applications').select('id,name,description,status,deadline,target_count,created_at').eq('organization_id', p.organization_id).order('created_at', { ascending: false }),
+        supabase.from('applications').select('id,name,description,status,deadline,target_count,participant_id_prefix,created_at').eq('organization_id', p.organization_id).order('created_at', { ascending: false }),
       ])
       if (oError) setError(oError.message); else setOrganization(org)
       if (aError) setError(aError.message)
@@ -693,7 +694,7 @@ function App() {
     setDetailSaving(true); setDetailError('')
     try {
       const { data, error: updateError } = await supabase.from('applications')
-        .update({ ...patch, updated_at: new Date().toISOString() })
+        .update({ ...patch, participant_id_prefix: patch.participant_id_prefix?.trim().toUpperCase(), updated_at: new Date().toISOString() })
         .eq('id', selectedApplication.id)
         .select('id,name,description,status,deadline,target_count,created_at')
         .single()
@@ -712,7 +713,7 @@ function App() {
     } finally { setDetailSaving(false) }
   }
 
-  function openCreate(mode: 'application'|'form' = 'application') { setCreateMode(mode); setCreateError(''); setNewName(''); setNewDescription(''); setNewDeadline(''); setNewTarget('');  setCreateOpen(true) }
+  function openCreate(mode: 'application'|'form' = 'application') { setCreateMode(mode); setCreateError(''); setNewName(''); setNewDescription(''); setNewDeadline(''); setNewTarget(''); setNewParticipantPrefix('APP'); setCreateOpen(true) }
   function openGoogleFormImport(){ setImportOpen(true) }
 
   async function createApplication(e: React.FormEvent) {
@@ -729,6 +730,7 @@ function App() {
           description: newDescription.trim() || null,
           deadline: newDeadline || null,
           target_count: newTarget ? Number(newTarget) : null,
+          participant_id_prefix: newParticipantPrefix.trim().toUpperCase() || 'APP',
           status: 'draft',
         })
         .select('id,name,description,status,deadline,target_count,created_at')
@@ -795,7 +797,7 @@ function App() {
         <div className="modal-form">
           <label>{createMode==='form'?'Form name':'Programme name'}<input autoFocus value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Women Artisans Application Form" required /></label>
           <label>Description <span className="optional">Optional</span><textarea value={newDescription} onChange={e=>setNewDescription(e.target.value)} placeholder={createMode==='form'?'Briefly describe what this form is for.':'Briefly describe who this programme is for and what it offers.'} rows={4}/></label>
-          {createMode==='application'&&<><div className="form-grid"><label>Application deadline <span className="optional">Optional</span><input type="date" value={newDeadline} onChange={e=>setNewDeadline(e.target.value)} /></label><label>Target number <span className="optional">Optional</span><input type="number" min="0" value={newTarget} onChange={e=>setNewTarget(e.target.value)} placeholder="150" /></label></div></>}
+          {createMode==='application'&&<><div className="form-grid"><label>Participant ID prefix<input value={newParticipantPrefix} onChange={e=>setNewParticipantPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g,''))} maxLength={20} placeholder="ECA" /><small className="field-help">First part of each Participant ID, e.g. ECA-2026-00001.</small></label><label>Application deadline <span className="optional">Optional</span><input type="date" value={newDeadline} onChange={e=>setNewDeadline(e.target.value)} /></label><label>Target number <span className="optional">Optional</span><input type="number" min="0" value={newTarget} onChange={e=>setNewTarget(e.target.value)} placeholder="150" /></label></div></>}
           {createError && <div className="form-error">{createError}</div>}
         </div>
         <div className="modal-footer"><button type="button" className="secondary-button" onClick={()=>setCreateOpen(false)}>Cancel</button><button className="primary-button" disabled={creating}>{creating?'Creating…':createMode==='form'?'Create Form':'Create Programme'}</button></div>
@@ -842,18 +844,18 @@ function ApplicationDetails({ application, settings, tab, setTab, loading, savin
   onSave:(patch:Partial<Application>, settingsPatch?:Partial<{public_slug:string;confirmation_message:string}>)=>Promise<void>
 }) {
   const [name,setName]=useState(application.name), [description,setDescription]=useState(application.description||'')
-  const [deadline,setDeadline]=useState(application.deadline||''), [target,setTarget]=useState(application.target_count?.toString()||'')
+  const [deadline,setDeadline]=useState(application.deadline||''), [target,setTarget]=useState(application.target_count?.toString()||''), [participantPrefix,setParticipantPrefix]=useState(application.participant_id_prefix||'APP')
   const [slug,setSlug]=useState(settings?.public_slug||''), [message,setMessage]=useState(settings?.confirmation_message||'')
-  useEffect(()=>{setName(application.name);setDescription(application.description||'');setDeadline(application.deadline||'');setTarget(application.target_count?.toString()||'')},[application])
+  useEffect(()=>{setName(application.name);setDescription(application.description||'');setDeadline(application.deadline||'');setTarget(application.target_count?.toString()||'');setParticipantPrefix(application.participant_id_prefix||'APP')},[application])
   useEffect(()=>{setSlug(settings?.public_slug||'');setMessage(settings?.confirmation_message||'')},[settings])
   const tabs=['Overview','Form','Eligibility','Screening','Applicants','Reviews','Selection','Communications'] as const
   return <section className="application-detail">
     <button className="back-link" onClick={onBack}>← Back to applications</button>
     <div className="detail-header"><div><p className="eyebrow">Application programme</p><div className="detail-title-row"><h1>{application.name}</h1><span className={'status '+(application.status==='published'?'blue':application.status==='screening'?'amber':'neutral')}>{statusLabel(application.status)}</span></div><p className="subtitle">{application.description||'No description yet.'}</p></div><div className="detail-actions">{application.status==='draft'&&<button className="primary-button" disabled={saving} onClick={()=>onSave({status:'published'})}>Publish</button>}{application.status==='published'&&<button className="secondary-button" disabled={saving} onClick={()=>onSave({status:'closed'})}>Close applications</button>}</div></div>
-    <div className="detail-meta"><div><span>Deadline</span><strong>{formatDate(application.deadline)}</strong></div><div><span>Target</span><strong>{application.target_count?.toLocaleString()||'Not set'}</strong></div><div><span>Participant ID</span><strong>Generated when a response is received</strong></div><div><span>Public URL</span><strong>/apply/{settings?.public_slug||'not-configured'}</strong></div></div>
+    <div className="detail-meta"><div><span>Deadline</span><strong>{formatDate(application.deadline)}</strong></div><div><span>Target</span><strong>{application.target_count?.toLocaleString()||'Not set'}</strong></div><div><span>Participant ID format</span><strong>{application.participant_id_prefix}-2026-00001</strong></div><div><span>Public URL</span><strong>/apply/{settings?.public_slug||'not-configured'}</strong></div></div>
     <div className="detail-tabs">{tabs.map(t=><button key={t} className={tab===t?'detail-tab active':'detail-tab'} onClick={()=>setTab(t)}>{t}</button>)}</div>
     {loading?<div className="loading-card card">Loading programme settings…</div>:error?<div className="form-error page-error">{error}</div>:tab==='Overview'?<div className="detail-grid">
-      <div className="card detail-card"><div className="card-header"><div><h2>Programme details</h2><p>Update the basic information for this programme.</p></div></div><div className="detail-form"><label>Programme name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Description<textarea rows={5} value={description} onChange={e=>setDescription(e.target.value)}/></label><div className="form-grid"><label>Application deadline<input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)}/></label><label>Target number<input type="number" min="0" value={target} onChange={e=>setTarget(e.target.value)}/></label></div><div className="detail-form-footer"><button className="primary-button" disabled={saving} onClick={()=>onSave({name:name.trim(),description:description.trim()||null,deadline:deadline||null,target_count:target?Number(target):null})}>{saving?'Saving…':'Save changes'}</button></div></div></div>
+      <div className="card detail-card"><div className="card-header"><div><h2>Programme details</h2><p>Update the basic information for this programme.</p></div></div><div className="detail-form"><label>Programme name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Participant ID prefix<input value={participantPrefix} onChange={e=>setParticipantPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g,''))} maxLength={20} placeholder="ECA"/><small className="field-help">This becomes the first part of every Participant ID for this programme.</small></label><label>Description<textarea rows={5} value={description} onChange={e=>setDescription(e.target.value)}/></label><div className="form-grid"><label>Application deadline<input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)}/></label><label>Target number<input type="number" min="0" value={target} onChange={e=>setTarget(e.target.value)}/></label></div><div className="detail-form-footer"><button className="primary-button" disabled={saving} onClick={()=>onSave({name:name.trim(),description:description.trim()||null,deadline:deadline||null,target_count:target?Number(target):null,participant_id_prefix:participantPrefix.trim().toUpperCase()||'APP'})}>{saving?'Saving…':'Save changes'}</button></div></div></div>
       <div className="card detail-card"><div className="card-header"><div><h2>Public application</h2><p>Settings applicants will see.</p></div></div><div className="detail-form"><label>Public slug<input value={slug} onChange={e=>setSlug(e.target.value)}/></label><label>Confirmation message<textarea rows={5} value={message} onChange={e=>setMessage(e.target.value)}/></label><div className="detail-form-footer"><button className="secondary-button" disabled={saving} onClick={()=>onSave({}, {public_slug:slug.trim(),confirmation_message:message.trim()||'Thank you. Your application has been received.'})}>Save public settings</button></div></div></div>
     </div>:tab==='Form'?<FormBuilder applicationId={application.id}/>:tab==='Applicants'?<ApplicantsPanel applicationId={application.id}/>:tab==='Eligibility'?<EligibilityBuilder applicationId={application.id}/>:tab==='Screening'?<ScreeningPanel applicationId={application.id}/>:tab==='Reviews'?<ReviewsPanel applicationId={application.id}/>:tab==='Selection'?<SelectionPanel applicationId={application.id}/>:tab==='Communications'?<CommunicationsPanel applicationId={application.id}/>:<div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{tab} is next</h2><p>This section is connected to the programme workspace and will be built on the live data model.</p></div>}
   </section>
