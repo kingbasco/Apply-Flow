@@ -1,12 +1,12 @@
 # ApplyFlow
 
-> **Application intake, screening, review, and selection — in one workspace.**
+> **Application intake, screening, review, and participant management — in one workspace.**
 
 ApplyFlow is a web-based application management platform for organisations running programmes, scholarships, fellowships, grants, recruitment drives, community programmes, and other application-based initiatives.
 
-**Create programme → Build form → Publish → Collect applications → Check eligibility → Screen → Review → Shortlist → Select → Report**
+**Create programme → Build form → Publish → Collect applications → Check eligibility → Screen → Approve → Enrol participants → Track outcomes → Analyse**
 
-AI-assisted screening is designed to support reviewers, not replace them. Final decisions remain human-controlled and auditable.
+AI-assisted screening supports reviewers; it does not replace human decision-making.
 
 ---
 
@@ -16,71 +16,78 @@ AI-assisted screening is designed to support reviewers, not replace them. Final 
 |---|---|
 | 🏗️ Foundation & workspace | 🟢 Built |
 | 🔐 Authentication & profiles | 🟢 Built |
-| 📋 Application management | 🟢 Built / QA |
+| 🏢 Organisation profile & logo | 🟢 Built |
+| 📋 Application management | 🟢 Built |
 | 🧩 Form builder & versioning | 🟢 Built / QA |
-| 🌍 Public applicant experience | 🟡 In progress |
-| ✅ Eligibility rules | 🟡 In progress |
-| 🎯 Scoring | 🟡 In progress |
-| 🤖 AI-assisted screening | 🟡 In progress |
-| 👥 Review teams | 🟢 Built / QA |
-| 🏆 Shortlist & final selection | 🟡 In progress |
-| 📊 Analytics & reporting | 🟡 In progress |
+| 🌍 Public applicant experience | 🟢 Built / QA |
+| 🔎 Eligibility rules | 🟢 Built / QA |
+| 🎯 Reviewer scoring | 🟢 Built / QA |
+| 🤖 AI-assisted screening | 🟢 Built / QA |
+| 👥 Review teams & assignments | 🟢 Built / QA |
+| 👤 Participant management | 🟢 Built / QA |
+| 📊 Analytics & reporting | 🟢 Built / QA |
 | 🔔 Notifications | 🔴 Planned |
-| 🛡️ Production hardening | 🔴 Planned |
+| 🛡️ Production hardening | 🟡 Ongoing |
 
-> 🟢 Built · 🟡 In progress · 🔴 Planned
+> 🟢 Built · 🟡 In progress / QA · 🔴 Planned
 
 ---
 
-## 🖼️ Product workflow
+## 🖼️ Current product workflow
 
 ```text
-┌──────────────────┐
-│  Organisation    │
-│  creates a       │
-│  programme       │
-└────────┬─────────┘
-         ▼
-┌──────────────────┐
-│  Form Builder    │
-│  + versioning    │
-└────────┬─────────┘
-         ▼
-┌──────────────────┐
-│  Publish public  │
-│  application     │
-└────────┬─────────┘
-         ▼
-┌──────────────────┐
-│  Applicants      │
-│  submit forms    │
-└────────┬─────────┘
-         ▼
-┌──────────────────┐
-│ Eligibility +    │
-│ validation       │
-└────────┬─────────┘
-         ▼
-┌──────────────────┐
-│ Screening +      │
-│ scoring          │
-└────────┬─────────┘
-         ▼
-┌──────────────────┐
-│ Review teams     │
-│ assess applicants│
-└────────┬─────────┘
-         ▼
-┌──────────────────┐
-│ Shortlist +      │
-│ final selection  │
-└────────┬─────────┘
-         ▼
-┌──────────────────┐
-│ Analytics +      │
-│ reporting        │
-└──────────────────┘
+┌──────────────────────┐
+│ Organisation creates │
+│ a programme          │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│ Build application    │
+│ form + rules         │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│ Publish programme    │
+│ and public form      │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│ Applicant submits    │
+│ application          │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│ Eligibility +        │
+│ validation           │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│ Screening + reviewer │
+│ scoring + AI support │
+└──────────┬───────────┘
+           ▼
+     ┌─────┴─────┐
+     ▼           ▼
+┌──────────┐  ┌──────────┐
+│ Approve  │  │  Reject  │
+└────┬─────┘  └──────────┘
+     ▼
+┌──────────────────────┐
+│ Automatically enrol  │
+│ as participant        │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│ Active → Completed / │
+│ Withdrawn            │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│ Analytics & reporting│
+└──────────────────────┘
 ```
+
+ApplyFlow no longer uses a separate shortlist/final-selection stage. Once a submitted application is approved during screening, the applicant becomes a participant automatically.
 
 ---
 
@@ -97,6 +104,7 @@ AI-assisted screening is designed to support reviewers, not replace them. Final 
 - Role-aware workspace structure
 - Light and dark themes
 - Reusable UI components
+- Workspace-level organisation branding
 
 ### 2. Authentication & account management
 
@@ -106,7 +114,6 @@ AI-assisted screening is designed to support reviewers, not replace them. Final 
 - Organisation creation during signup
 - User profiles
 - Username management
-- Date of birth stored as month/day only
 - Profile photo upload
 - Forgot password and password reset
 - Team invitation account setup
@@ -114,27 +121,47 @@ AI-assisted screening is designed to support reviewers, not replace them. Final 
 
 Username rules: **3–30 characters**, using lowercase letters, numbers, and underscores, with case-insensitive uniqueness.
 
-### 3. Application management
+### 3. Organisation profile & branding
 
-- Application creation
-- Dashboard and application list
-- Draft / published / screening / closed / completed states
-- Deadlines
-- Target counts
-- Public application slugs
+Organisation settings now support:
+
+- Organisation name and workspace details
+- Organisation profile/logo image
+- JPG, PNG, and WebP uploads
+- 5 MB upload limit
+- Public organisation avatar storage
+- Logo display in the workspace switcher
+
+Organisation profile images are stored securely in Supabase Storage and linked to the organisation record.
+
+### 4. Programme management
+
+Programme creation and editing supports:
+
+- Programme name
+- Description
+- Application deadline
+- Target participant count
+- Public application slug
 - Applicant instructions
 - Submission limits
 - Confirmation messages
+- Participant ID prefix
+- Draft/published/closed/completed lifecycle
+- Publish and unpublish controls
+- Close applications
+
+Before publishing, ApplyFlow validates the programme configuration, including the Participant ID prefix, public slug, and published form version.
 
 ```text
-Draft → Published → Screening → Closed → Completed
+Draft → Published → Closed → Completed
 ```
 
-### 4. Form builder & versioning
+### 5. Form builder & versioning
 
 The visual form builder supports:
 
-- Question ordering and deletion
+- Question creation, editing, ordering, and deletion
 - Required questions
 - Descriptions and placeholders
 - Choice options
@@ -144,74 +171,114 @@ The visual form builder supports:
 - Date, number, email, and phone fields
 - Nigerian state and LGA selection
 - Conditional questions
+- Eligibility rules
 - Applicant preview
 - Draft and published versions
 
-Published forms are treated as immutable. After publishing, ApplyFlow creates the next draft from the published version so future edits do not alter historical submissions.
+Published forms are treated as immutable. Future edits are made through a new draft version so historical submissions remain tied to the form version they used.
+
+When form versions are cloned, conditional and eligibility rules are remapped to the newly created question IDs.
 
 ```text
 Draft v1 → Publish v1 → Draft v2 → Publish v2 → Draft v3
 ```
 
-### 5. Public applicant experience
+### 6. Public applicant experience
 
-Current flow:
+The public application flow supports:
 
-**Public programme → Availability checks → Dynamic form → Conditional questions → File uploads → Submission**
-
-Already covered:
-
+- Public programme pages
+- Application availability checks
 - Start-date checks
 - Deadline checks
 - Submission-limit checks
 - Published form loading
 - Dynamic questions
+- Conditional questions
+- Eligibility evaluation
 - Nigerian state/LGA selection
-- File/image uploads
+- File and image uploads
 - Application submission
+- Submission confirmation
+- Participant ID presentation
 
-Still being completed:
+After submission, the applicant receives a Participant ID generated by ApplyFlow.
 
-- Final submission confirmation
-- Unique Application ID presentation
-- Applicant status tracking
-- Duplicate-submission handling
-- Final mobile UX
+### 7. Participant ID system
 
-### 6. Eligibility rules
-
-Target workflow:
+ApplyFlow uses a single user-facing identifier for the applicant/participant lifecycle:
 
 ```text
-Age ≥ 18
-AND
-State = Lagos
-AND
-Employment status = Unemployed
-        ↓
-     ELIGIBLE
+OWNER PREFIX - YEAR - SYSTEM NUMBER
 ```
 
-Planned capabilities include rule building, AND/OR conditions, automatic evaluation, Eligible/Ineligible/Needs Review outcomes, explanations, re-evaluation, and history.
+Examples:
 
-### 7. Scoring
+```text
+ECA-2026-00001
+ECA-2026-00002
+ATH-2026-00001
+```
 
-Example scoring model:
+The system:
 
-| Criterion | Weight |
-|---|---:|
-| Experience | 20 |
-| Education | 15 |
-| Motivation | 20 |
-| Location | 10 |
-| Programme fit | 35 |
-| **Total** | **100** |
+1. Uses the programme owner's configured prefix.
+2. Adds the year automatically.
+3. Generates a sequential five-digit number.
+4. Keeps the same Participant ID through the application and participant lifecycle.
+5. Keeps internal UUIDs private for database relationships.
 
-Planned capabilities include weighted criteria, automatic calculation, score breakdowns, permitted reviewer adjustments, history, filtering, and ranking.
+Participant IDs are generated atomically in the database to prevent duplicate numbers for the same organisation prefix and year.
 
-### 8. AI-assisted screening
+### 8. Eligibility rules
 
-AI assistance is intended to help reviewers process large application volumes through:
+Programmes can define eligibility requirements using application answers.
+
+The system supports:
+
+- Eligibility rule configuration
+- Question-based conditions
+- Conditional logic
+- Automatic eligibility evaluation
+- Eligibility status used during screening
+- Re-evaluation when relevant answers change
+
+Eligibility is presented clearly during applicant review so reviewers can understand whether an application meets the configured requirements.
+
+### 9. Screening & reviewer scoring
+
+The Screening workspace provides reviewers with:
+
+- Submitted applications
+- Pending, approved, and rejected decisions
+- Applicant answers
+- Eligibility result
+- Reviewer scoring
+- AI recommendation
+- Review assignments
+- Reviewer access controls
+- Review audit history
+
+The applicant review experience includes a clear review summary:
+
+- **Eligibility**
+- **Reviewer score**
+- **AI recommendation**
+
+AI recommendations are advisory. The authorised reviewer remains responsible for the final decision.
+
+Final actions are intentionally clear:
+
+- **Approve & enrol participant**
+- **Reject application**
+
+Approving an application automatically moves the applicant into the Participants area.
+
+### 10. AI-assisted screening
+
+ApplyFlow includes Gemini-powered AI assistance for application screening.
+
+AI assistance can provide:
 
 - Applicant summaries
 - Criteria-based analysis
@@ -223,62 +290,84 @@ AI assistance is intended to help reviewers process large application volumes th
 ```text
 Applicant
    ↓
-Eligibility / Score
+Eligibility
    ↓
-AI assistance
+Reviewer score + AI assistance
    ↓
 Human reviewer
    ↓
-Final decision
+Approve & enrol / Reject
 ```
 
-AI output is advisory. Final selection remains controlled by authorised human users.
+AI output is advisory and does not make the final decision.
 
-### 9. Review teams
+The AI screening Edge Function includes retry and fallback handling for transient model/API failures.
 
-Current roles:
+### 11. Participant management
 
-- Owner
-- Admin
-- Reviewer
+Approved applicants automatically become participants.
 
-The review workflow covers team management, reviewer access, application review, screening decisions, notes, permissions, and auditability.
+Participant records support:
 
-### 10. Shortlisting & final selection
+- Participant ID
+- Applicant relationship
+- Programme relationship
+- Active/enrolled status
+- Completed status
+- Withdrawn status
+- Joined date
+- Attendance count
+
+Current participant lifecycle:
 
 ```text
-Applications → Eligibility → Screening → Review
-                                      ↓
-                                  Shortlist
-                                      ↓
-                                  Finalists
-                                      ↓
-                           Selected / Not selected
+Approved
+   ↓
+Active / Enrolled
+   ├──→ Completed
+   └──→ Withdrawn
 ```
 
-Planned capabilities include bulk shortlisting, finalist status, selection/rejection decisions, notes, history, audit trails, and exports.
+There is no separate shortlist or selected stage in the current product model. **Approved = selected/enrolled.**
 
-### 11. Analytics & reporting
+### 12. Analytics & reporting
 
-Planned reporting includes:
+Analytics now follows the actual ApplyFlow lifecycle.
 
-- Total applications
-- Applications over time
-- Submission conversion
-- Eligible vs. ineligible
-- Screening results
-- Average scores
-- Shortlist and selection numbers
-- Geographic breakdown
-- Programme performance
-- Date filtering
-- Report exports
+Current metrics include:
 
-### 12. Notifications
+- Total submissions
+- Approved applications
+- Rejected applications
+- Enrolled participants
+- Active participants
+- Completed participants
+- Withdrawn participants
+- Scored applications
+- Average reviewer score
+- Approval rate
+- Completion rate
+- Withdrawal rate
 
-Planned applicant notifications include application received, Application ID, status changes, shortlisted, selected, not selected, and programme updates.
+The funnel follows:
 
-Organisation notifications will cover new submissions, reviewer activity, screening completion, deadline reminders, and submission-limit alerts.
+```text
+Submitted
+    ↓
+Approved / Enrolled
+    ↓
+Completed
+```
+
+Rejected applications and withdrawn participants are tracked separately.
+
+Programme-level reporting includes:
+
+- Submissions
+- Approved/enrolled participants
+- Rejected applications
+- Completed participants
+- Withdrawn participants
 
 ---
 
@@ -286,19 +375,31 @@ Organisation notifications will cover new submissions, reviewer activity, screen
 
 ApplyFlow uses Supabase/Postgres with organisation-level data isolation.
 
-Security work already includes:
+Security work includes:
 
 - Row Level Security
 - Role-aware access
 - Protected workspace routes
+- Organisation-scoped data access
 - User-scoped profile data
 - Profile image storage policies
+- Organisation logo storage policies
 - Authenticated profile updates
 - Protected database functions
-- Public submission RPC controls
-- Google signup workspace hardening
+- Public application submission RPC controls
+- Secure application deletion
+- Cascade handling for application-related records
+- Review audit logging
+- Eligibility trigger safeguards
 
-**Before production:** review SECURITY DEFINER functions, RPC permissions, storage policies, leaked-password protection, and role boundaries.
+Production security review still includes:
+
+- SECURITY DEFINER functions
+- RPC permissions
+- Storage policies
+- Leaked-password protection
+- Role boundaries
+- Public submission permissions
 
 ---
 
@@ -317,7 +418,7 @@ Security work already includes:
 | Storage | Supabase Storage |
 | Deployment | Vercel |
 | Source control | GitHub |
-| AI direction | Google Gemini |
+| AI | Google Gemini |
 | Automation | GitHub Actions |
 
 ---
@@ -329,6 +430,9 @@ Apply-Flow/
 ├── agent/
 │   ├── state.json
 │   └── supervisor.mjs
+├── supabase/
+│   ├── migrations/
+│   └── functions/
 ├── src/
 │   ├── components/
 │   │   ├── ParticipantsPanel.tsx
@@ -348,7 +452,7 @@ Apply-Flow/
 
 ## 🤖 Autonomous deployment supervisor
 
-The repository also contains a supervisor intended to verify and monitor deployments.
+The repository contains a supervisor intended to verify and monitor deployments.
 
 ```text
 GitHub
@@ -368,7 +472,16 @@ Commit + push
 Re-verify
 ```
 
-It is designed to verify credentials, run the build, inspect Vercel, browser-check the deployment, send failure evidence to Gemini, apply a safe patch when appropriate, commit/push the fix, and verify again.
+The supervisor is designed to:
+
+- Verify required credentials
+- Run the application build
+- Inspect Vercel deployments
+- Browser-check deployments
+- Send failure evidence to Gemini
+- Apply safe patches when appropriate
+- Commit and push fixes
+- Re-verify the deployment
 
 **Current status:** the supervisor code exists, but its GitHub Actions environment still has a Vercel token injection issue that must be resolved before the autonomous loop can run successfully.
 
@@ -376,18 +489,25 @@ It is designed to verify credentials, run the build, inspect Vercel, browser-che
 
 ## 🧪 Development
 
+Install dependencies:
+
 ```bash
 npm install
+```
+
+Start the development server:
+
+```bash
 npm run dev
 ```
 
-Production build:
+Run a production build:
 
 ```bash
 npm run build
 ```
 
-Preview:
+Preview the production build:
 
 ```bash
 npm run preview
@@ -395,41 +515,40 @@ npm run preview
 
 ---
 
-## 🛣️ Product roadmap
+## 🛣️ Current roadmap
 
 | Phase | Area | Status |
 |---:|---|---|
-| 1 | Foundation & Authentication | 🟢 Mostly complete |
-| 2 | Application Management | 🟢 Built / final QA |
-| 3 | Form Builder & Versioning | 🟢 Built / final QA |
-| 4 | Applicant Experience | 🟡 In progress |
-| 5 | Eligibility Rules | 🟡 In progress |
-| 6 | Scoring | 🟡 In progress |
-| 7 | AI-assisted Screening | 🟡 In progress |
-| 8 | Review Teams | 🟢 Built / final QA |
-| 9 | Shortlist & Final Selection | 🟡 In progress |
-| 10 | Analytics & Reporting | 🟡 In progress |
-| 11 | Notifications | 🔴 Planned |
-| 12 | Production Hardening | 🔴 Planned |
+| 1 | Foundation & Authentication | 🟢 Built |
+| 2 | Organisation & Programme Management | 🟢 Built / QA |
+| 3 | Form Builder & Versioning | 🟢 Built / QA |
+| 4 | Public Applicant Experience | 🟢 Built / QA |
+| 5 | Eligibility Rules | 🟢 Built / QA |
+| 6 | Screening & Reviewer Scoring | 🟢 Built / QA |
+| 7 | AI-assisted Screening | 🟢 Built / QA |
+| 8 | Participant Management | 🟢 Built / QA |
+| 9 | Analytics & Reporting | 🟢 Built / QA |
+| 10 | Notifications | 🔴 Planned |
+| 11 | Participant Progress & Attendance | 🟡 Next |
+| 12 | Certificates & Completion | 🔴 Planned |
+| 13 | Production Hardening | 🟡 Ongoing |
 
-### Current implementation priority
+### Immediate implementation priority
 
 ```text
-Phase 4  Applicant experience
-   ↓
-Phase 5  Eligibility
-   ↓
-Phase 6  Scoring
-   ↓
-Phase 7  AI screening
-   ↓
-Phase 9  Shortlist & selection
-   ↓
-Phase 10 Analytics
-   ↓
-Phase 11 Notifications
-   ↓
-Phase 12 Production hardening
+Finish Vercel build / deployment QA
+        ↓
+End-to-end application lifecycle test
+        ↓
+Participant management QA
+        ↓
+Analytics QA
+        ↓
+Participant progress & attendance
+        ↓
+Notifications
+        ↓
+Production hardening
 ```
 
 ---
@@ -437,21 +556,31 @@ Phase 12 Production hardening
 ## 🎯 Product principles
 
 ### Human-controlled decisions
+
 AI may assist with analysis and screening, but authorised people make final decisions.
 
 ### Version integrity
+
 Published forms remain stable so historical submissions can always be interpreted against the version they used.
 
 ### Organisation isolation
+
 An organisation should only access data it is authorised to access.
 
 ### Auditability
-Important screening and selection actions should leave a traceable history.
+
+Important screening and reviewer actions should leave a traceable history.
 
 ### Applicant clarity
-Applicants should understand what they submitted, receive a unique application reference, and know what happens next.
+
+Applicants should understand what they submitted, receive their Participant ID, and know what happens next.
+
+### Simple participant lifecycle
+
+Approved applicants become participants automatically. ApplyFlow does not introduce unnecessary shortlist or selection stages between approval and enrolment.
 
 ### Secure by default
+
 Authentication, authorisation, storage, database policies, and public submission paths are treated as production security boundaries.
 
 ---
@@ -460,18 +589,21 @@ Authentication, authorisation, storage, database policies, and public submission
 
 - [ ] Authentication fully tested
 - [ ] Organisation isolation verified
-- [ ] Application lifecycle verified
+- [ ] Programme lifecycle verified
 - [ ] Form versioning verified
-- [ ] Applicant submission flow complete
-- [ ] Unique Application ID displayed
-- [ ] Applicant status tracking complete
-- [ ] Eligibility engine complete
-- [ ] Scoring engine complete
-- [ ] AI screening reviewed and tested
+- [ ] Conditional questions verified
+- [ ] Eligibility rules verified
+- [ ] Public applicant flow verified
+- [ ] Participant ID generation verified
+- [ ] Participant ID displayed after submission
+- [ ] Screening workflow verified
 - [ ] Reviewer permissions verified
-- [ ] Shortlist and final selection complete
-- [ ] Analytics complete
-- [ ] Notifications complete
+- [ ] Approve → participant flow verified
+- [ ] Reject workflow verified
+- [ ] Participant status lifecycle verified
+- [ ] Analytics verified
+- [ ] AI screening reviewed and tested
+- [ ] Notifications implemented
 - [ ] Supabase security review complete
 - [ ] Storage security review complete
 - [ ] Accessibility review complete
@@ -486,9 +618,31 @@ Authentication, authorisation, storage, database policies, and public submission
 
 **Stage:** Active product build
 
-**Primary focus:** Completing the applicant → eligibility → screening → review → selection pipeline.
+**Current focus:** Completing production QA across the full application → screening → participant lifecycle.
 
-ApplyFlow is being developed as a production-oriented platform rather than a static prototype. Features are being implemented incrementally, tested against the real Supabase/Vercel environment, and hardened before the platform is considered complete.
+The core ApplyFlow workflow is now established:
+
+```text
+Programme
+   ↓
+Form
+   ↓
+Application
+   ↓
+Eligibility
+   ↓
+Screening
+   ↓
+Approve / Reject
+   ↓
+Participant
+   ↓
+Active / Completed / Withdrawn
+   ↓
+Analytics
+```
+
+ApplyFlow is being developed as a production-oriented platform rather than a static prototype. Features are implemented against the real Supabase/Vercel environment and are being tested and hardened incrementally.
 
 ---
 
