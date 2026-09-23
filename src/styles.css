@@ -166,6 +166,18 @@
 .screening-document-copy strong{font-size:11px;color:#303846}
 .screening-document-copy p{margin:4px 0 0;color:#929aa7;font-size:9px}
 .screening-document-text{margin-top:10px;padding:10px;border-radius:7px;background:#f8f9fb;color:#5e6674;font-size:9px;line-height:1.6;white-space:pre-wrap;max-height:240px;overflow:auto}
+.screening-review-status-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px 20px 20px}
+.screening-review-status-card{border:1px solid #e8ebef;border-radius:9px;padding:12px 13px;background:#fafbfc;display:grid;gap:5px;min-width:0}
+.screening-review-status-card>span{font-size:8px;text-transform:uppercase;letter-spacing:.07em;font-weight:700;color:#8f97a4}
+.screening-review-status-card>strong{font-family:Manrope,sans-serif;font-size:13px;color:#303846;overflow-wrap:anywhere}
+.screening-review-status-card>strong.is-positive{color:#28734b}
+.screening-review-status-card>strong.is-negative{color:#a34e59}
+.screening-review-status-card small{font-size:9px;line-height:1.45;color:#8c95a2}
+.screening-decision-copy>span:last-child{display:block;color:#8c95a2;font-size:9px;margin-top:2px}
+.screening-decision-confirm{display:grid;gap:4px;min-width:min(430px,100%);text-align:right}
+.screening-decision-confirm>strong{font-size:11px;color:#303846}
+.screening-decision-confirm>span{font-size:9px;color:#8c95a2}
+.screening-decision-confirm>div{display:flex;justify-content:flex-end;gap:8px;margin-top:5px}
 .screening-score-editor{padding:18px 20px 20px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
 .screening-score-field{display:grid;gap:6px;color:#4c5564;font-size:10px;font-weight:600}
 .screening-score-input-wrap{display:flex;align-items:center;gap:8px}
