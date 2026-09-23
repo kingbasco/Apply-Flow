@@ -2537,3 +2537,30 @@ html.dark-theme,html.dark-theme body{background:#0f1117;color:#e7eaf0}
 @media(max-width:760px){.afx-nav{width:calc(100% - 24px);height:66px}.afx-nav-scrolled{width:calc(100% - 16px);top:7px}.afx-nav-actions{gap:7px}.afx-nav-actions .theme-toggle{display:none}.afx-nav-login{display:none}.afx-nav .afx-button-small{padding:9px 11px}.afx-hero{min-height:auto;padding:135px 0 70px}.afx-hero-inner,.afx-section{width:calc(100% - 32px)}.afx-hero h1{font-size:52px}.afx-hero-lede{font-size:13px}.afx-proof-row{gap:10px}.afx-proof-row span:nth-child(3){display:none}.afx-hero-stage{min-height:420px;margin-top:15px}.afx-orbit-a{width:390px;height:390px}.afx-orbit-b{width:310px;height:310px}.afx-dashboard{width:100%;border-radius:14px}.afx-dashboard-body{padding:13px}.afx-dash-head h3{font-size:13px}.afx-dash-kpis strong{font-size:18px}.afx-dash-main{grid-template-columns:1fr}.afx-pipeline{display:none}.afx-chart{height:90px}.afx-floating-card{left:-3px;bottom:38px}.afx-floating-card-two{right:-3px;top:48px}.afx-section{padding:85px 0}.afx-section-head{display:grid;gap:18px;margin-bottom:28px}.afx-stage-layout{grid-template-columns:1fr}.afx-stage-preview{min-height:320px}.afx-preview-content{padding:30px}.afx-preview-content h3{font-size:32px}.afx-preview-footer{left:30px;right:30px}.afx-capability-grid{grid-template-columns:1fr}.afx-capability{min-height:240px}.afx-capability h3{margin-top:45px;font-size:23px}.afx-ai-card{padding:30px 20px;gap:35px}.afx-participants{padding-top:80px;padding-bottom:90px;gap:30px}.afx-participant-visual{min-height:310px}.afx-id-card{width:100%}.afx-life-line,.afx-life-labels{width:100%}.afx-cta{padding:105px 16px}.afx-footer{width:calc(100% - 32px);grid-template-columns:1fr;gap:18px}.afx-footer-meta{justify-content:flex-start}.afx-scroll-cue{display:none}}
 @media(max-width:480px){.afx-hero h1{font-size:45px}.afx-hero-stage{min-height:340px}.afx-window-bar>span{display:none}.afx-dash-table{display:none}.afx-dash-kpis{gap:5px}.afx-dash-kpis>div{padding:9px}.afx-dash-kpis strong{font-size:16px}.afx-floating-card-two{display:none}.afx-ai-score strong{font-size:40px}.afx-ai-card{border-radius:16px}.afx-id-format{gap:6px}}
 @media(prefers-reduced-motion:reduce){.afx-landing *,.afx-landing *:before,.afx-landing *:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}.afx-reveal{opacity:1;transform:none}}
+
+/* CTA button contrast fixes: landing-page buttons must not inherit global button/icon rules */
+.afx-landing .afx-button-dark,
+.afx-landing a.afx-button-dark,
+.afx-landing .afx-button-dark:visited{
+  background:#111522 !important;
+  color:#ffffff !important;
+  -webkit-text-fill-color:#ffffff;
+  border:1px solid #111522;
+}
+.afx-landing .afx-button-dark svg{color:#ffffff;stroke:currentColor}
+.afx-landing .afx-button-dark:hover{background:#2b3142 !important;color:#ffffff !important}
+.afx-landing .afx-button-light,
+.afx-landing a.afx-button-light,
+.afx-landing .afx-button-light:visited{
+  background:#ffffff !important;
+  color:#111522 !important;
+  -webkit-text-fill-color:#111522;
+  border:1px solid rgba(255,255,255,.85);
+}
+.afx-landing .afx-button-light svg{color:#111522;stroke:currentColor}
+.afx-landing .afx-button-quiet,
+.afx-landing a.afx-button-quiet,
+.afx-landing .afx-button-quiet:visited{color:#444b5b !important;-webkit-text-fill-color:#444b5b}
+.afx-landing .afx-button-quiet:hover{color:#111522 !important}
+.afx-landing .afx-nav-login,
+.afx-landing .afx-nav-login:visited{color:#4f5666 !important;-webkit-text-fill-color:#4f5666}
