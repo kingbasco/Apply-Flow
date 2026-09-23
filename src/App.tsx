@@ -522,7 +522,7 @@ function App() {
       const organizationName = String(googleSignup?.organization_name || metadata.organization_name || 'ApplyFlow Workspace').trim() || 'ApplyFlow Workspace'
       const slugBase = organizationName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'applyflow'
       const slug = slugBase + '-' + currentSession.user.id.slice(0, 8)
-      const { data: org, error: orgError } = await supabase.from('organizations').insert({ name: organizationName, slug, created_by: currentSession.user.id }).select('id,name,slug').single()
+      const { data: org, error: orgError } = await supabase.from('organizations').insert({ name: organizationName, slug, created_by: currentSession.user.id }).select('id,name,slug,avatar_url').single()
       if (orgError) { setError(orgError.message); setLoading(false); return }
       const { data: createdProfile, error: profileError } = await supabase.from('profiles').insert({ id: currentSession.user.id, full_name: fullName, username, birth_month: googleSignup?.birth_month ?? (metadata.birth_month as number | undefined) ?? null, birth_day: googleSignup?.birth_day ?? (metadata.birth_day as number | undefined) ?? null, avatar_url: null, organization_id: org.id, role: 'owner' }).select('id,full_name,username,birth_month,birth_day,avatar_url,organization_id,role').single()
       if (profileError) { setError(profileError.message); setLoading(false); return }
