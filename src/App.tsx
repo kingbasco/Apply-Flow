@@ -706,6 +706,15 @@ function App() {
     if (!selectedApplication) return
     setDetailSaving(true); setDetailError('')
     try {
+      if (patch.status === 'published') {
+        if (!selectedApplication.participant_id_prefix?.trim()) throw new Error('Set a Participant ID prefix before publishing this programme.')
+        const {data:settings,error:settingsError}=await supabase.from('application_settings').select('public_slug').eq('application_id',selectedApplication.id).single()
+        if (settingsError) throw settingsError
+        if (!settings?.public_slug?.trim()) throw new Error('Set a public application slug before publishing this programme.')
+        const {count,error:formError}=await supabase.from('form_versions').select('id',{count:'exact',head:true}).eq('application_id',selectedApplication.id).eq('status','published')
+        if (formError) throw formError
+        if (!count) throw new Error('Publish the application form first. The programme cannot be opened to applicants without a published form.')
+      }
       const { data, error: updateError } = await supabase.from('applications')
         .update({ ...patch, participant_id_prefix: patch.participant_id_prefix?.trim().toUpperCase(), updated_at: new Date().toISOString() })
         .eq('id', selectedApplication.id)
