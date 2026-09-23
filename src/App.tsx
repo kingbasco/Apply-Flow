@@ -477,6 +477,7 @@ function App() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [organization, setOrganization] = useState<Organization | null>(null)
     const [applications, setApplications] = useState<Application[]>([])
+  const [screeningCount, setScreeningCount] = useState(0)
   const [deletingApplicationId, setDeletingApplicationId] = useState('')
   const [deleteCandidate, setDeleteCandidate] = useState<Application | null>(null)
   const [deleteError, setDeleteError] = useState('')
@@ -540,6 +541,18 @@ function App() {
       else {
         const nextApplications = apps ?? []
         setApplications(nextApplications)
+        if (nextApplications.length) {
+          const { count, error: screeningCountError } = await supabase
+            .from('submissions')
+            .select('id', { count: 'exact', head: true })
+            .in('application_id', nextApplications.map(application => application.id))
+            .eq('status', 'submitted')
+            .is('decision', null)
+          if (screeningCountError) setError(screeningCountError.message)
+          else setScreeningCount(count ?? 0)
+        } else {
+          setScreeningCount(0)
+        }
         if (initialRoute.applicationId) {
           const restored = nextApplications.find(item => item.id === initialRoute.applicationId)
           if (restored) {
@@ -771,7 +784,7 @@ function App() {
     <aside className={sidebarOpen ? 'sidebar open' : 'sidebar'}>
       <div className="brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Application OS</span></div><button className="mobile-close" onClick={()=>setSidebarOpen(false)} aria-label="Close menu"><X size={18}/></button></div>
       <div className="workspace-switcher"><div className="workspace-avatar">{(organization?.name || 'A').charAt(0).toUpperCase()}</div><div className="workspace-copy"><strong>{organization?.name || 'Your organisation'}</strong><span>Organisation</span></div><ChevronDown size={16} className="muted-icon"/></div>
-      <nav className="nav-group"><p className="nav-label">Workspace</p>{(profile?.role==='reviewer'?nav.filter(item=>item.label==='Dashboard'||item.label==='Reviews'):nav).map(({label,icon:Icon})=><button key={label} className={active===label?'nav-item active':'nav-item'} onClick={()=>{closeApplication();setActive(label);setSidebarOpen(false)}}><Icon size={18}/><span>{label}</span>{label==='Screening'&&<span className="nav-count">0</span>}</button>)}</nav>
+      <nav className="nav-group"><p className="nav-label">Workspace</p>{(profile?.role==='reviewer'?nav.filter(item=>item.label==='Dashboard'||item.label==='Reviews'):nav).map(({label,icon:Icon})=><button key={label} className={active===label?'nav-item active':'nav-item'} onClick={()=>{closeApplication();setActive(label);setSidebarOpen(false)}}><Icon size={18}/><span>{label}</span>{label==='Screening'&&<span className="nav-count">{screeningCount}</span>}</button>)}</nav>
       {profile?.role!=='reviewer'&&<nav className="nav-group bottom"><p className="nav-label">Manage</p>{bottomNav.map(({label,icon:Icon})=><button key={label} className={active===label?'nav-item active':'nav-item'} onClick={()=>{closeApplication();setActive(label);setSidebarOpen(false)}}><Icon size={18}/><span>{label}</span></button>)}</nav>}
       <div className="sidebar-footer"><div className="help-card"><Sparkles size={17}/><div><strong>AI screening</strong><span>Coming in the next phase</span></div></div><div className="profile-row"><div className="profile-avatar">{profile?.avatar_url?<img src={profile.avatar_url} alt="" />:profileName.slice(0,2).toUpperCase()}</div><div><strong>{profileName}</strong><span>{profile?.username ? '@'+profile.username : profile?.role || 'Owner'}</span></div><button className="icon-button" onClick={signOut} aria-label="Sign out"><LogOut size={15}/></button></div></div>
     </aside>
