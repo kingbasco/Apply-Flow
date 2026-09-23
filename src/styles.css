@@ -2564,3 +2564,22 @@ html.dark-theme,html.dark-theme body{background:#0f1117;color:#e7eaf0}
 .afx-landing .afx-button-quiet:hover{color:#111522 !important}
 .afx-landing .afx-nav-login,
 .afx-landing .afx-nav-login:visited{color:#4f5666 !important;-webkit-text-fill-color:#4f5666}
+
+.afx-ai-card-light{background:#f7f8ff;color:#111522;border-color:#e2e5f0;box-shadow:0 28px 70px rgba(28,35,57,.09)}
+.afx-ai-card-light:after{background:rgba(103,112,225,.12)}
+.afx-ai-card-light .afx-ai-copy>p{color:#697283}
+.afx-ai-card-light .afx-ai-copy li{color:#4f5868}
+.afx-ai-card-light .afx-ai-copy li svg{color:#6269dc}
+.afx-ai-card-light .afx-inline-link{color:#555ecb}
+.afx-ai-card-light .afx-ai-console{border-color:#dfe3ed;background:rgba(255,255,255,.78);box-shadow:0 24px 55px rgba(25,31,55,.09)}
+.afx-ai-card-light .afx-console-bar{border-bottom-color:#e5e8ef;color:#737b8b}
+.afx-ai-card-light .afx-console-bar b{color:#32845b}
+.afx-ai-card-light .afx-ai-score small,.afx-ai-card-light .afx-confidence small{color:#858d9c}
+.afx-ai-card-light .afx-ai-score strong{color:#151a27}
+.afx-ai-card-light .afx-ai-score strong span{color:#8b92a0}
+.afx-ai-card-light .afx-confidence b{color:#5f67d2}
+.afx-ai-card-light .afx-ai-rows>div{color:#626a79;border-bottom-color:#e7e9ef}
+.afx-ai-card-light .afx-ai-rows b{color:#202633}
+.afx-ai-card-light .afx-ai-rows i{background:#6971d7}
+.afx-ai-card-light .afx-ai-note{background:#eef0ff;color:#626a9b}
+.afx-ai-card-light .afx-ai-note strong{color:#313752}
