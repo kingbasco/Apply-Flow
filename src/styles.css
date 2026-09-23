@@ -2849,3 +2849,140 @@ html.dark-theme .afx-landing .afx-floating-card-two{
 @keyframes dashboardRowIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
 @keyframes dashboardStatusPulse{0%,100%{box-shadow:0 0 0 0 rgba(45,130,86,0)}50%{box-shadow:0 0 0 5px rgba(45,130,86,.08)}}
 @media(prefers-reduced-motion:reduce){.dashboard-stats .stat-card,.dashboard-panels>.card,.dashboard-panels .connection-list>div{animation:none!important}.dashboard-panels .funnel-card>.card-header .status.green{animation:none!important}}
+
+/* ApplyFlow admin motion system — shared across every workspace module */
+.main>.content{
+  animation:afPageEnter .48s cubic-bezier(.2,.8,.2,1) both;
+}
+.main>.content>.page-heading,
+.main>.content>.page-heading.compact,
+.main>.content>.analytics-header,
+.main>.content>.analytics-kpi-grid,
+.main>.content>.analytics-grid,
+.main>.content>.applicants-panel,
+.main>.content>.reviews-panel,
+.main>.content>.screening-panel,
+.main>.content>.eligibility-list,
+.main>.content>.card,
+.main>.content>.stats-grid,
+.main>.content>.form-grid,
+.main>.content>.empty-state,
+.main>.content>.loading-card{
+  animation:afSectionEnter .52s cubic-bezier(.2,.8,.2,1) both;
+}
+.main>.content>*:nth-child(2){animation-delay:.06s}
+.main>.content>*:nth-child(3){animation-delay:.11s}
+.main>.content>*:nth-child(4){animation-delay:.16s}
+.main>.content>*:nth-child(5){animation-delay:.21s}
+
+.sidebar{transition:box-shadow .35s ease,background .35s ease}
+.brand-mark{transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s ease}
+.brand:hover .brand-mark{transform:rotate(-4deg) scale(1.05);box-shadow:0 8px 20px rgba(93,101,210,.18)}
+.workspace-switcher{transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease}
+.workspace-switcher:hover{transform:translateY(-2px);border-color:#d8dcef;box-shadow:0 8px 22px rgba(34,42,70,.06)}
+.nav-item{transition:transform .22s ease,background .22s ease,color .22s ease}
+.nav-item:hover{transform:translateX(3px)}
+.nav-item.active{animation:afNavActivate .32s ease both}
+.topbar{transition:box-shadow .3s ease,border-color .3s ease}
+.top-actions>button,.top-actions>.top-avatar{transition:transform .22s ease,box-shadow .22s ease}
+.top-actions>button:hover,.top-actions>.top-avatar:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(30,38,62,.08)}
+
+.content .card,
+.content .stat-card,
+.content .analytics-card,
+.content .analytics-kpi,
+.content .detail-card,
+.content .review-assign-card,
+.content .screening-drawer,
+.content .screening-table,
+.content .eligibility-rules-card,
+.content .eligibility-summary-card{
+  transition:transform .28s ease,box-shadow .28s ease,border-color .28s ease;
+}
+.content .card:hover,
+.content .analytics-card:hover,
+.content .analytics-kpi:hover,
+.content .detail-card:hover{
+  transform:translateY(-2px);
+  box-shadow:0 12px 30px rgba(30,38,62,.055);
+  border-color:#dfe2ec;
+}
+.content .card-header{transition:background .22s ease}
+.content .card-header:hover{background:rgba(245,246,251,.55)}
+.content table tbody tr{transition:background .2s ease,transform .2s ease}
+.content table tbody tr:hover{background:#fafaff}
+.content table tbody tr:hover td:first-child{transform:translateX(2px)}
+.content table td:first-child{transition:transform .2s ease}
+.content .status{transition:transform .22s ease,box-shadow .22s ease}
+.content tr:hover .status{transform:translateX(2px)}
+.content button:not(:disabled),
+.content a.button,
+.content .text-button{
+  transition:transform .2s ease,box-shadow .2s ease,background .2s ease,border-color .2s ease,color .2s ease;
+}
+.content button:not(:disabled):hover,.content .text-button:hover{transform:translateY(-1px)}
+.content input,.content select,.content textarea{
+  transition:border-color .2s ease,box-shadow .2s ease,background .2s ease,transform .2s ease;
+}
+.content input:focus,.content select:focus,.content textarea:focus{
+  transform:translateY(-1px);
+  box-shadow:0 0 0 3px rgba(98,105,220,.10);
+}
+.content .nav-tabs button,.content [role="tab"]{transition:color .2s ease,background .2s ease,transform .2s ease}
+.content .nav-tabs button:hover,.content [role="tab"]:hover{transform:translateY(-1px)}
+.content .connection-list>div,
+.content .review-table-row,
+.content .screening-table tbody tr,
+.content .eligibility-list>*{
+  animation:afRowEnter .42s ease both;
+}
+.content .connection-list>div:nth-child(2),
+.content .review-table-row:nth-child(2),
+.content .screening-table tbody tr:nth-child(2){animation-delay:.05s}
+.content .connection-list>div:nth-child(3),
+.content .review-table-row:nth-child(3),
+.content .screening-table tbody tr:nth-child(3){animation-delay:.10s}
+.content .connection-list>div:nth-child(4),
+.content .review-table-row:nth-child(4),
+.content .screening-table tbody tr:nth-child(4){animation-delay:.15s}
+.content .connection-list>div:nth-child(5),
+.content .review-table-row:nth-child(5),
+.content .screening-table tbody tr:nth-child(5){animation-delay:.20s}
+
+.modal,.drawer,.screening-drawer{
+  animation:afOverlayEnter .35s cubic-bezier(.2,.8,.2,1) both;
+}
+.modal.card,.screening-drawer.card{transition:transform .3s ease,box-shadow .3s ease}
+.notification-list>*,.notification-item{
+  animation:afNotificationEnter .4s cubic-bezier(.2,.8,.2,1) both;
+}
+.notification-list>*:nth-child(2){animation-delay:.04s}
+.notification-list>*:nth-child(3){animation-delay:.08s}
+.notification-list>*:nth-child(4){animation-delay:.12s}
+.notification-list>*:nth-child(5){animation-delay:.16s}
+
+.loading-card .spinner,.loading-screen .spinner{animation:afSpin 1s linear infinite}
+.empty-state{transition:transform .3s ease,box-shadow .3s ease}
+.empty-state:hover{transform:translateY(-2px)}
+
+@keyframes afPageEnter{from{opacity:0}to{opacity:1}}
+@keyframes afSectionEnter{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes afRowEnter{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
+@keyframes afOverlayEnter{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes afNotificationEnter{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@keyframes afNavActivate{from{transform:translateX(-2px)}to{transform:none}}
+@keyframes afSpin{to{transform:rotate(360deg)}}
+
+@media(prefers-reduced-motion:reduce){
+  .main>.content,
+  .main>.content>*,
+  .content .connection-list>div,
+  .content .review-table-row,
+  .content .screening-table tbody tr,
+  .content .eligibility-list>*,
+  .notification-list>*,
+  .modal,.drawer,.screening-drawer{animation:none!important}
+  .content .card,.content .analytics-card,.content .analytics-kpi,.content .detail-card,
+  .content button,.content a,.content input,.content select,.content textarea,
+  .nav-item,.workspace-switcher,.brand-mark,.empty-state{transition:none!important}
+}
