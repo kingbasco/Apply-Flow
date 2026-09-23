@@ -221,7 +221,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
 
   return <section>
     <div className="page-heading compact">
-      <div><p className="eyebrow">Programme management</p><h1>Participants</h1><p className="subtitle">Manage selected applicants after selection: permanent IDs, attendance and programme benefits.</p></div>
+      <div><p className="eyebrow">Programme management</p><h1>Participants</h1><p className="subtitle">Manage approved participants: permanent IDs, attendance and programme benefits.</p></div>
       <div className="status green"><BadgeCheck size={15}/> Participant IDs active</div>
     </div>
 
@@ -231,7 +231,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     <div className="card" style={{padding:16,marginBottom:18}}>
       <div style={{display:'flex',gap:12,alignItems:'flex-start'}}>
         <div className="stat-icon"><CheckCircle2 size={18}/></div>
-        <div><strong>How participants are created</strong><p className="muted" style={{margin:'4px 0 0'}}>Applicants become participants automatically when their application is <strong>Approved</strong> during screening. ApplyFlow records them as <strong>Selected / Enrolled</strong> and assigns a participant ID immediately.</p></div>
+        <div><strong>How participants are created</strong><p className="muted" style={{margin:'4px 0 0'}}>Applicants become participants automatically when their application is <strong>Approved</strong> during screening. ApplyFlow records them as <strong>Active / Enrolled</strong> and assigns a participant ID immediately.</p></div>
       </div>
     </div>
 
@@ -251,7 +251,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
 
     {tab==='participants'&&<>
       <div className="dashboard-grid" style={{gridTemplateColumns:'repeat(4,minmax(0,1fr))',marginBottom:16}}>
-        <div className="card stat-card"><div className="stat-icon"><Users size={18}/></div><div><p className="eyebrow">Total</p><div className="stat-value">{stats.total}</div><p className="muted">Selected participants</p></div></div>
+        <div className="card stat-card"><div className="stat-icon"><Users size={18}/></div><div><p className="eyebrow">Total</p><div className="stat-value">{stats.total}</div><p className="muted">Total participants</p></div></div>
         <div className="card stat-card"><div className="stat-icon"><BadgeCheck size={18}/></div><div><p className="eyebrow">Active</p><div className="stat-value">{stats.active}</div><p className="muted">Currently enrolled</p></div></div>
         <div className="card stat-card"><div className="stat-icon"><CheckCircle2 size={18}/></div><div><p className="eyebrow">Completed</p><div className="stat-value">{stats.completed}</div><p className="muted">Finished programme</p></div></div>
         <div className="card stat-card"><div className="stat-icon"><X size={18}/></div><div><p className="eyebrow">Withdrawn</p><div className="stat-value">{stats.withdrawn}</div><p className="muted">No longer participating</p></div></div>
@@ -259,7 +259,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
 
       <div className="card table-card">
         <div className="card-header">
-          <div><h2>Participant directory</h2><p>Showing participants selected and enrolled for the current application.</p></div>
+          <div><h2>Participant directory</h2><p>Showing approved participants for the current application.</p></div>
           <div className="search"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search participants…"/></div>
         </div>
         <div className="participant-directory-filters">
@@ -274,7 +274,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
             <td>{p.attendance_count||0} present</td>
             <td><span className={'status '+(p.status==='active'?'green':p.status==='completed'?'blue':'neutral')}>{p.status==='active'?'Active / Enrolled':p.status}</span></td>
             <td>{new Date(p.joined_at).toLocaleDateString()}</td>
-          </tr>):<tr><td colSpan={6}><div className="table-empty">{participants.length?'No participants match these filters.':'No participants yet. Select an applicant in Selection to create their participant record.'}</div></td></tr>}
+          </tr>):<tr><td colSpan={6}><div className="table-empty">{participants.length?'No participants match these filters.':'No approved participants yet. Approved applicants appear here automatically.'}</div></td></tr>}
         </tbody></table></div>
       </div>
     </>}
