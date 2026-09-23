@@ -1,17 +1,42 @@
 -- Unify ApplyFlow around one user-facing identifier: Participant ID.
 -- Internal UUIDs remain for database relationships and are not shown as user IDs.
 
-alter table public.applications
-  rename column participant_code to participant_id_prefix;
+do $
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='applications' and column_name='participant_code'
+  ) and not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='applications' and column_name='participant_id_prefix'
+  ) then
+    alter table public.applications rename column participant_code to participant_id_prefix;
+  end if;
 
-alter table public.applicants
-  rename column unique_id to participant_id;
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='applicants' and column_name='unique_id'
+  ) and not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='applicants' and column_name='participant_id'
+  ) then
+    alter table public.applicants rename column unique_id to participant_id;
+  end if;
+
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='participants' and column_name='participant_code'
+  ) and not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='participants' and column_name='participant_id'
+  ) then
+    alter table public.participants rename column participant_code to participant_id;
+  end if;
+end;
+$;
 
 alter index if exists public.applicants_unique_id_idx
   rename to applicants_participant_id_idx;
-
-alter table public.participants
-  rename column participant_code to participant_id;
 
 update public.participants p
 set participant_id = a.participant_id,
