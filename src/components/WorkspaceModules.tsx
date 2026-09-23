@@ -509,6 +509,7 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
  const [manualNotes,setManualNotes]=useState('')
  const [scoreSaving,setScoreSaving]=useState(false)
  const [scoreNotice,setScoreNotice]=useState('')
+ const [decisionToConfirm,setDecisionToConfirm]=useState<'approved'|'rejected'|null>(null)
 
  useEffect(()=>{
   let active=true
@@ -720,9 +721,20 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
         </section>
        )}
 
+       <section className="screening-review-section screening-review-overview">
+        <div className="screening-section-heading">
+         <div><span className="screening-section-kicker">Review summary</span><h3>Make the decision from the evidence</h3><p>Review the applicant's answers, eligibility result, score and AI recommendation before deciding.</p></div>
+        </div>
+        <div className="screening-review-status-grid">
+         <div className="screening-review-status-card"><span>Eligibility</span><strong className={eligibilityStatus==='eligible'?'is-positive':eligibilityStatus==='ineligible'?'is-negative':''}>{eligibilityStatus==='eligible'?'Eligible':eligibilityStatus==='ineligible'?'Not eligible':'Pending'}</strong><small>{eligibilityStatus==='eligible'?'Meets the configured eligibility rules.':eligibilityStatus==='ineligible'?'Does not meet the configured eligibility rules.':'Eligibility has not been resolved yet.'}</small></div>
+         <div className="screening-review-status-card"><span>Reviewer score</span><strong>{score==null?'Not scored':Number(score).toFixed(1)+' / 100'}</strong><small>Human assessment of the application.</small></div>
+         <div className="screening-review-status-card"><span>AI recommendation</span><strong className={String(aiRecommendation||'').toLowerCase().includes('not')?'is-negative':String(aiRecommendation||'').toLowerCase().includes('recommend')?'is-positive':''}>{aiRecommendation||'Not screened'}</strong><small>Advisory only — the reviewer makes the final decision.</small></div>
+        </div>
+       </section>
+
        <section className="screening-review-section">
         <div className="screening-section-heading">
-         <div><span className="screening-section-kicker">Human review</span><h3>Your score</h3><p>Give this applicant a score out of 100 based on your review.</p></div>
+         <div><span className="screening-section-kicker">Human review</span><h3>Reviewer score</h3><p>Give this applicant a score out of 100 based on your review.</p></div>
         </div>
         <div className="screening-score-editor">
          <label className="screening-score-field">
@@ -753,11 +765,8 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
       </main>
 
       <footer className="screening-review-footer">
-       <div className="screening-decision-copy"><span className="screening-summary-label">Final decision</span><strong>{currentDecision==='pending'?'Choose approve or reject after reviewing the application.':currentDecision==='approved'?'Applicant approved':'Applicant rejected'}</strong></div>
-       <div className="screening-decision-actions">
-        <button className="secondary-button screening-reject-button" onClick={()=>onDecision(row,'rejected')} disabled={currentDecision==='rejected'}>Reject</button>
-        <button className="primary-button screening-approve-button" onClick={()=>onDecision(row,'approved')} disabled={currentDecision==='approved'}>Approve</button>
-       </div>
+       <div className="screening-decision-copy"><span className="screening-summary-label">Final decision</span><strong>{currentDecision==='pending'?'Ready to decide?':currentDecision==='approved'?'Applicant approved — participant enrolment is active':'Applicant rejected'}</strong><span>{currentDecision==='pending'?'Approve to enrol the applicant as a participant, or reject the application.':'This decision has been saved.'}</span></div>
+       {decisionToConfirm ? <div className="screening-decision-confirm"><strong>{decisionToConfirm==='approved'?'Approve this applicant?':'Reject this application?'}</strong><span>{decisionToConfirm==='approved'?'They will be approved and moved into Participants automatically.':'This application will be marked rejected.'}</span><div><button className="secondary-button" onClick={()=>setDecisionToConfirm(null)}>Cancel</button><button className={decisionToConfirm==='approved'?'primary-button screening-approve-button':'secondary-button screening-reject-button'} onClick={async()=>{const d=decisionToConfirm;setDecisionToConfirm(null);await onDecision(row,d)}}>{decisionToConfirm==='approved'?'Confirm approval':'Confirm rejection'}</button></div></div> : <div className="screening-decision-actions"><button className="secondary-button screening-reject-button" onClick={()=>setDecisionToConfirm('rejected')} disabled={currentDecision==='rejected'}>Reject application</button><button className="primary-button screening-approve-button" onClick={()=>setDecisionToConfirm('approved')} disabled={currentDecision==='approved'}>Approve & enrol participant</button></div>}
       </footer>
      </>
     ) : null}
