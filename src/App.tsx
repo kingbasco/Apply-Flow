@@ -1240,7 +1240,19 @@ function FormBuilder({applicationId}:{applicationId:string}) {
       if(cloneError)throw cloneError
       const {data:opts,error:optionsError}=await supabase.from('question_options').select('label,value,position').eq('question_id',source.id).order('position')
       if(optionsError)throw optionsError
+      questionMap.set(source.id,cloned.id)
       if(opts?.length){const {error}=await supabase.from('question_options').insert(opts.map(o=>({question_id:cloned.id,label:o.label,value:o.value,position:o.position})));if(error)throw error}
+    }
+    for(const source of sourceQuestions||[]){
+      const mappedRules=(source.conditional_rules||[]).map((r:any)=>({...r,question_id:questionMap.get(r.question_id)||r.question_id}))
+      const {error}=await supabase.from('questions').update({conditional_rules:mappedRules.length?mappedRules:null}).eq('id',questionMap.get(source.id)!)
+      if(error)throw error
+    }
+    const publishedIds=sourceQuestions.map(q=>q.id)
+    if(publishedIds.length){
+      const {data:eligibilityRules,error:eligibilityError}=await supabase.from('eligibility_rules').select('id,question_id').eq('application_id',applicationId).in('question_id',publishedIds)
+      if(eligibilityError)throw eligibilityError
+      for(const rule of eligibilityRules||[]){const mapped=questionMap.get(rule.question_id);if(mapped){const {error}=await supabase.from('eligibility_rules').update({question_id:mapped,updated_at:new Date().toISOString()}).eq('id',rule.id);if(error)throw error}}
     }
     setVersionId(newVersion.id);setVersion(newVersion.version_number);await loadQuestions(newVersion.id)
   }catch(e){showNotice(e instanceof Error?e.message:'Could not load form.')}})()},[applicationId])
