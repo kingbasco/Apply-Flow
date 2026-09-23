@@ -1349,6 +1349,7 @@ function FormBuilder({applicationId}:{applicationId:string}) {
 
       const {data:sourceQuestions,error:questionsError}=await supabase.from('questions').select('id,type,label,description,required,placeholder,position,config,conditional_rules').eq('form_version_id',publishedVersionId).order('position')
       if(questionsError)throw questionsError
+      const questionMap=new Map<string,string>()
       for(const source of sourceQuestions||[]){
         const {data:cloned,error:cloneError}=await supabase.from('questions').insert({
           form_version_id:newVersion.id,type:source.type,label:source.label,description:source.description,required:source.required,
