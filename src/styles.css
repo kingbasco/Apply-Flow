@@ -2755,3 +2755,79 @@ html.dark-theme .afx-landing .afx-logo-mark{color:#9ea5ff}
   .afx-nav-actions .theme-toggle{display:grid}
   .afx-nav-actions{gap:8px}
 }
+
+
+/* Dark-mode hero product visual */
+html.dark-theme .afx-landing .afx-dashboard{
+  background:#151922;
+  border-color:#2b313c;
+  box-shadow:0 35px 90px rgba(0,0,0,.42),0 4px 14px rgba(0,0,0,.22);
+}
+html.dark-theme .afx-landing .afx-window-bar{
+  border-bottom-color:#292f3a;
+  color:#8f98a8;
+}
+html.dark-theme .afx-landing .afx-window-dots i{background:#3b424f}
+html.dark-theme .afx-landing .afx-window-bar>b{
+  background:#272b48;
+  color:#a7adff;
+}
+html.dark-theme .afx-landing .afx-dash-head small,
+html.dark-theme .afx-landing .afx-dash-kpis small,
+html.dark-theme .afx-landing .afx-pipeline>small,
+html.dark-theme .afx-landing .afx-mini-chart small,
+html.dark-theme .afx-landing .afx-dash-table>div:first-child{
+  color:#7f8898;
+}
+html.dark-theme .afx-landing .afx-dash-head h3{color:#eef1f5}
+html.dark-theme .afx-landing .afx-dash-head>span{
+  background:#173326;
+  color:#79d8a1;
+}
+html.dark-theme .afx-landing .afx-dash-kpis>div,
+html.dark-theme .afx-landing .afx-mini-chart,
+html.dark-theme .afx-landing .afx-pipeline,
+html.dark-theme .afx-landing .afx-dash-table{
+  background:#1b202a;
+  border-color:#2b313c;
+}
+html.dark-theme .afx-landing .afx-dash-kpis strong{color:#f1f3f7}
+html.dark-theme .afx-landing .afx-dash-kpis span{color:#8e97a6}
+html.dark-theme .afx-landing .afx-mini-chart>div:first-child{color:#c7ccd6}
+html.dark-theme .afx-landing .afx-chart{
+  background:repeating-linear-gradient(to top,#1b202a 0,#1b202a 24px,#292f38 25px);
+}
+html.dark-theme .afx-landing .afx-chart i{
+  background:linear-gradient(to top,#6259d9,#9299ff);
+}
+html.dark-theme .afx-landing .afx-pipeline>div{
+  color:#9aa3b2;
+  border-bottom-color:#2b313c;
+}
+html.dark-theme .afx-landing .afx-pipeline b{color:#e8ebf1}
+html.dark-theme .afx-landing .afx-dash-table>div{border-top-color:#2b313c}
+html.dark-theme .afx-landing .afx-dash-table>div:first-child{background:#181d26}
+html.dark-theme .afx-landing .afx-dash-table strong{color:#e9ecf2}
+html.dark-theme .afx-landing .afx-dash-table b{color:#c8ced9}
+html.dark-theme .afx-landing .afx-dash-table em{
+  background:#173326;
+  color:#79d8a1;
+}
+html.dark-theme .afx-landing .afx-floating-card{
+  background:rgba(21,25,34,.94);
+  border-color:#303642;
+  box-shadow:0 18px 42px rgba(0,0,0,.35);
+  color:#eef1f5;
+}
+html.dark-theme .afx-landing .afx-floating-card small{color:#8f98a8}
+html.dark-theme .afx-landing .afx-floating-card>span{
+  background:#193629;
+  color:#7be0a5;
+}
+html.dark-theme .afx-landing .afx-floating-card-two>span{
+  background:#292c50;
+  color:#a1a8ff;
+}
+html.dark-theme .afx-landing .afx-floating-card-two{
+  border-color:#34394a;
+}
