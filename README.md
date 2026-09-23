@@ -26,7 +26,7 @@ AI-assisted screening supports reviewers; it does not replace human decision-mak
 | 👥 Review teams & assignments | 🟢 Built / QA |
 | 👤 Participant management | 🟢 Built / QA |
 | 📊 Analytics & reporting | 🟢 Built / QA |
-| 🔔 Notifications | 🔴 Planned |
+| 🔔 Notifications | 🟢 Built / QA |
 | 🛡️ Production hardening | 🟡 Ongoing |
 
 > 🟢 Built · 🟡 In progress / QA · 🔴 Planned
@@ -547,7 +547,7 @@ npm run preview
 | 7 | AI-assisted Screening | 🟢 Built / QA |
 | 8 | Participant Management | 🟢 Built / QA |
 | 9 | Analytics & Reporting | 🟢 Built / QA |
-| 10 | Notifications | 🔴 Planned |
+| 10 | In-app Notifications | 🟢 Built / QA |
 | 11 | Participant Progress & Attendance | 🟡 Next |
 | 12 | Certificates & Completion | 🔴 Planned |
 | 13 | Production Hardening | 🟡 Ongoing |
@@ -622,7 +622,7 @@ Authentication, authorisation, storage, database policies, and public submission
 - [ ] Participant status lifecycle verified
 - [ ] Analytics verified
 - [ ] AI screening reviewed and tested
-- [ ] Notifications implemented
+- [x] In-app notifications implemented
 - [ ] Supabase security review complete
 - [ ] Storage security review complete
 - [ ] Accessibility review complete
