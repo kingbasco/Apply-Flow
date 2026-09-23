@@ -300,79 +300,115 @@ function ThemeToggle({ compact = false }: { compact?: boolean }) {
   </button>
 }
 
+function ApplyFlowMark({ light = false }: { light?: boolean }) {
+  return <span className={"afx-logo-mark" + (light ? " afx-logo-mark-light" : "")} aria-hidden="true">
+    <svg viewBox="0 0 42 42" role="presentation">
+      <rect x="1" y="1" width="40" height="40" rx="12" fill="currentColor" opacity=".12"/>
+      <path d="M11 27.5 17.5 14l7 14 6.5-7.5" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="11" cy="27.5" r="2.7" fill="currentColor"/><circle cx="17.5" cy="14" r="2.7" fill="currentColor"/><circle cx="24.5" cy="28" r="2.7" fill="currentColor"/><circle cx="31" cy="20.5" r="2.7" fill="currentColor"/>
+    </svg>
+  </span>
+}
+
 function LandingPage() {
-  const features = [
-    { icon: FileText, title: 'Flexible application forms', text: 'Build structured application forms with conditional questions, uploads and versioned publishing.' },
-    { icon: ShieldCheck, title: 'Eligibility without the guesswork', text: 'Define clear rules and automatically separate eligible applications from those that do not qualify.' },
-    { icon: Target, title: 'Consistent scoring', text: 'Create weighted criteria so reviewers assess applications against the same programme priorities.' },
-    { icon: Brain, title: 'AI-assisted screening', text: 'Use AI to surface evidence, strengths, concerns and missing information while keeping people in control.' },
-    { icon: Users, title: 'Collaborative review', text: 'Assign reviewers, collect scores and notes, and keep a clear history of review decisions.' },
-    { icon: BarChart3, title: 'Selection and analytics', text: 'Move applicants from shortlist to selection and understand your programme with live reporting.' },
+  const [scrolled,setScrolled]=useState(false)
+  const [activeStage,setActiveStage]=useState(1)
+
+  useEffect(()=>{
+    const onScroll=()=>setScrolled(window.scrollY>24)
+    onScroll(); window.addEventListener('scroll',onScroll,{passive:true})
+    const nodes=Array.from(document.querySelectorAll<HTMLElement>('.afx-reveal'))
+    const observer=new IntersectionObserver(entries=>{
+      entries.forEach(entry=>{if(entry.isIntersecting){entry.target.classList.add('is-visible');observer.unobserve(entry.target)}})
+    },{threshold:.12,rootMargin:'0px 0px -60px'})
+    nodes.forEach(node=>observer.observe(node))
+    return()=>{window.removeEventListener('scroll',onScroll);observer.disconnect()}
+  },[])
+
+  const stages=[
+    {icon:FileText,number:'01',title:'Intake',text:'Build forms that collect exactly what your programme needs.',detail:'Conditional questions · uploads · versioned forms'},
+    {icon:ShieldCheck,number:'02',title:'Eligibility',text:'Turn programme requirements into clear, repeatable rules.',detail:'Rules · evidence · automatic eligibility status'},
+    {icon:Brain,number:'03',title:'Screening',text:'Use AI to surface evidence while your team stays in control.',detail:'AI assessment · reviewer score · audit trail'},
+    {icon:BadgeCheck,number:'04',title:'Participants',text:'Approve applicants and move them into one participant lifecycle.',detail:'Participant ID · active · completed · withdrawn'},
   ]
-  const steps = [
-    ['01', 'Create your programme', 'Set the programme details, target and deadline in one workspace.'],
-    ['02', 'Build your application', 'Design the questions and rules applicants need to complete.'],
-    ['03', 'Screen and review', 'Apply eligibility, scoring and optional AI assistance before human review.'],
-    ['04', 'Select and report', 'Shortlist, select, communicate and export the results.'],
+  const capabilities=[
+    {icon:FileText,label:'Application forms',title:'A form builder that behaves like a product.',text:'Conditional logic, uploads, structured fields and versioned publishing — without duct-taping a spreadsheet to it.'},
+    {icon:ShieldCheck,label:'Eligibility',title:'Make programme requirements explicit.',text:'Define the answers that qualify someone before reviewers spend time screening the wrong applications.'},
+    {icon:Users,label:'Review teams',title:'Give every reviewer the same context.',text:'Assign applications, capture scores and notes, and preserve a clear history of how reviews changed.'},
+    {icon:BarChart3,label:'Analytics',title:'See the whole programme, not just the form.',text:'Track submissions, approvals, participants, completion and withdrawal from the same source of truth.'},
   ]
-  return <div className="landing-shell">
-    <header className="landing-nav">
-      <a className="landing-brand" href="/"><span className="landing-mark">A</span><span><strong>ApplyFlow</strong><small>Application OS</small></span></a>
-      <nav className="landing-links"><a href="#product">Product</a><a href="#how-it-works">How it works</a><a href="#features">Features</a></nav>
-      <div className="landing-actions"><ThemeToggle compact/><a className="landing-login" href="/login">Sign in</a><a className="landing-cta small" href="/login">Get started <ArrowRight size={15}/></a></div>
+
+  return <div className="afx-landing">
+    <header className={"afx-nav"+(scrolled?" afx-nav-scrolled":"")}>
+      <a className="afx-brand" href="/" aria-label="ApplyFlow home"><ApplyFlowMark/><span><strong>ApplyFlow</strong><small>Application OS</small></span></a>
+      <nav className="afx-nav-links" aria-label="Primary navigation"><a href="#product">Product</a><a href="#workflow">Workflow</a><a href="#ai">AI screening</a><a href="#analytics">Analytics</a></nav>
+      <div className="afx-nav-actions"><ThemeToggle compact/><a className="afx-nav-login" href="/login">Sign in</a><a className="afx-button afx-button-dark afx-button-small" href="/login">Get started <ArrowRight size={15}/></a></div>
     </header>
 
     <main>
-      <section className="landing-hero" id="product">
-        <div className="hero-copy">
-          <span className="hero-kicker"><span className="kicker-dot"></span> APPLICATION INTAKE + SCREENING</span>
-          <h1>From applications<br/><em>to decisions.</em></h1>
-          <p>ApplyFlow gives organisations one workspace to collect applications, check eligibility, screen candidates, review submissions and make final selections.</p>
-          <div className="hero-actions"><a className="landing-cta" href="/login">Start building <ArrowRight size={17}/></a><a className="hero-secondary" href="#how-it-works">See how it works <ChevronRight size={16}/></a></div>
-          <div className="hero-trust"><span><Check size={14}/> Structured intake</span><span><Check size={14}/> Human-led decisions</span><span><Check size={14}/> Live programme data</span></div>
-        </div>
-        <div className="hero-visual">
-          <div className="dashboard-window">
-            <div className="window-top"><div className="window-dots"><i></i><i></i><i></i></div><span>ApplyFlow / Programme overview</span><div className="window-avatar">EC</div></div>
-            <div className="mock-content">
-              <div className="mock-heading"><div><small>PROGRAMME OVERVIEW</small><h3>Women Artisans — Cohort 3</h3></div><span className="mock-status">● Screening</span></div>
-              <div className="mock-stats"><div><small>Applications</small><strong>450</strong><span>+18 this week</span></div><div><small>Eligible</small><strong>382</strong><span>84.9% of total</span></div><div><small>Shortlisted</small><strong>210</strong><span>55% of eligible</span></div></div>
-              <div className="mock-body"><div className="mock-chart"><div className="chart-label"><span>Application pipeline</span><small>Last 30 days</small></div><div className="chart-bars"><i style={{height:'35%'}}></i><i style={{height:'48%'}}></i><i style={{height:'42%'}}></i><i style={{height:'61%'}}></i><i style={{height:'54%'}}></i><i style={{height:'76%'}}></i><i style={{height:'88%'}}></i><i style={{height:'70%'}}></i><i style={{height:'94%'}}></i><i style={{height:'82%'}}></i></div></div><div className="mock-side"><small>TOP LOCATIONS</small><div><span>Lagos</span><b>124</b></div><div><span>Kaduna</span><b>86</b></div><div><span>Abuja</span><b>71</b></div><div><span>Oyo</span><b>48</b></div></div></div>
-              <div className="mock-table"><span>Applicant</span><span>Score</span><span>Status</span><b>Amina Yusuf</b><strong>87.5</strong><em>Shortlisted</em><b>Grace Okafor</b><strong>82.0</strong><em>Review</em></div>
-            </div>
+      <section className="afx-hero" id="product">
+        <div className="afx-hero-grid"></div><div className="afx-glow afx-glow-one"></div><div className="afx-glow afx-glow-two"></div>
+        <div className="afx-hero-inner">
+          <div className="afx-hero-copy afx-reveal">
+            <div className="afx-overline"><span></span> APPLICATION OPERATIONS PLATFORM</div>
+            <h1>Run the whole<br/><em>application journey.</em></h1>
+            <p className="afx-hero-lede">Collect applications. Check eligibility. Screen with confidence. Review with context. Turn approved applicants into participants — without moving your programme between five different tools.</p>
+            <div className="afx-hero-actions"><a className="afx-button afx-button-dark" href="/login">Build your workspace <ArrowRight size={17}/></a><a className="afx-button afx-button-quiet" href="#workflow"><span className="afx-play"><ChevronRight size={14}/></span> Explore the workflow</a></div>
+            <div className="afx-proof-row"><span><Check size={14}/> Structured intake</span><span><Check size={14}/> Human-led decisions</span><span><Check size={14}/> Live programme data</span></div>
           </div>
-          <div className="hero-float"><span className="float-icon"><Check size={15}/></span><div><strong>Eligibility evaluated</strong><small>382 applications passed</small></div></div>
+          <div className="afx-hero-stage afx-reveal afx-delay-2">
+            <div className="afx-stage-orbit afx-orbit-a"></div><div className="afx-stage-orbit afx-orbit-b"></div>
+            <div className="afx-dashboard">
+              <div className="afx-window-bar"><div className="afx-window-dots"><i></i><i></i><i></i></div><span>ApplyFlow / Programme overview</span><b>EC</b></div>
+              <div className="afx-dashboard-body">
+                <div className="afx-dash-head"><div><small>PROGRAMME OVERVIEW</small><h3>Women Artisans · Cohort 3</h3></div><span><i></i> Screening</span></div>
+                <div className="afx-dash-kpis"><div><small>Applications</small><strong>450</strong><span>+18 this week</span></div><div><small>Eligible</small><strong>382</strong><span>84.9% of total</span></div><div><small>Participants</small><strong>146</strong><span>32.4% of total</span></div></div>
+                <div className="afx-dash-main"><div className="afx-mini-chart"><div><span>Application flow</span><small>Last 30 days</small></div><div className="afx-chart">{[34,46,40,58,51,73,86,68,94,78,88,96].map((height,index)=><i key={index} style={{height:height+'%'}}></i>)}</div></div><div className="afx-pipeline"><small>LIVE PIPELINE</small><div><span>Submitted</span><b>450</b></div><div><span>Eligible</span><b>382</b></div><div><span>Approved</span><b>146</b></div></div></div>
+                <div className="afx-dash-table"><div><span>Applicant</span><span>Score</span><span>Decision</span></div><div><strong>Amina Yusuf</strong><b>87.5</b><em>Approved</em></div><div><strong>Grace Okafor</strong><b>82.0</b><em>Review</em></div></div>
+              </div>
+            </div>
+            <div className="afx-floating-card"><span><Check size={15}/></span><div><strong>Eligibility evaluated</strong><small>382 applications passed</small></div></div>
+            <div className="afx-floating-card afx-floating-card-two"><span><Sparkles size={14}/></span><div><strong>AI screening complete</strong><small>8 evidence points found</small></div></div>
+          </div>
+        </div>
+        <div className="afx-scroll-cue"><span>SCROLL TO EXPLORE</span><i></i></div>
+      </section>
+
+      <section className="afx-marquee" aria-label="ApplyFlow capabilities"><div className="afx-marquee-track">{['APPLICATIONS','ELIGIBILITY','SCREENING','REVIEW','PARTICIPANTS','ANALYTICS','APPLICATIONS','ELIGIBILITY','SCREENING','REVIEW','PARTICIPANTS','ANALYTICS'].map((item,index)=><span key={index}><b>✦</b>{item}</span>)}</div></section>
+
+      <section className="afx-section afx-intro afx-reveal"><div className="afx-section-label">01 / THE PROBLEM</div><div className="afx-intro-grid"><h2>Your programme is more than a <em>form.</em></h2><div><p>Applications arrive in one place. Eligibility gets checked somewhere else. Reviewers open a spreadsheet. Decisions land in email. Then someone manually builds a participant list.</p><p className="afx-muted">ApplyFlow connects the stages so the information moves with the applicant — not between tools.</p></div></div></section>
+
+      <section className="afx-section afx-workflow" id="workflow">
+        <div className="afx-section-head afx-reveal"><div><div className="afx-section-label">02 / ONE CONNECTED FLOW</div><h2>One system. Every stage.</h2></div><p>Designed around the way programme teams actually work: collect, evaluate, decide, then manage the people who make it through.</p></div>
+        <div className="afx-stage-layout">
+          <div className="afx-stage-list afx-reveal">{stages.map((stage,index)=>{const Icon=stage.icon;return <button key={stage.number} className={"afx-stage-item"+(activeStage===index?" active":"")} onClick={()=>setActiveStage(index)}><span className="afx-stage-number">{stage.number}</span><span className="afx-stage-icon"><Icon size={18}/></span><span className="afx-stage-copy"><strong>{stage.title}</strong><small>{stage.text}</small></span><ChevronRight size={16}/></button>})}</div>
+          <div className="afx-stage-preview afx-reveal afx-delay-1"><div className="afx-preview-top"><span>APPLYFLOW / {stages[activeStage].title.toUpperCase()}</span><i></i></div><div className="afx-preview-content"><div className="afx-preview-number">0{activeStage+1}</div><h3>{stages[activeStage].title}</h3><p>{stages[activeStage].text}</p><div className="afx-preview-detail"><Check size={14}/>{stages[activeStage].detail}</div><div className="afx-preview-lines"><i></i><i></i><i></i><i></i></div><div className="afx-preview-footer"><span>Stage {activeStage+1} of 4</span><span>{activeStage===3?'Participant lifecycle':'Connected to next stage'} <ArrowRight size={13}/></span></div></div></div>
         </div>
       </section>
 
-      <section className="landing-strip"><span>BUILT FOR PROGRAMMES THAT NEED MORE THAN A FORM</span><div><b>APPLICATIONS</b><b>ELIGIBILITY</b><b>SCREENING</b><b>REVIEWS</b><b>SELECTION</b><b>REPORTING</b></div></section>
-
-      <section className="landing-section intro-section" id="features">
-        <div className="section-kicker">ONE WORKSPACE</div>
-        <div className="intro-grid"><h2>Everything between <em>“Apply”</em> and <em>“Selected.”</em></h2><p>Stop stitching together forms, spreadsheets, email threads and review notes. ApplyFlow keeps the full application lifecycle connected so your team can focus on evaluating people, not moving data around.</p></div>
+      <section className="afx-section afx-capabilities" id="analytics">
+        <div className="afx-section-head afx-reveal"><div><div className="afx-section-label">03 / CAPABILITIES</div><h2>Built for the work<br/>behind the application.</h2></div><p>Not another form tool with a few extra fields. ApplyFlow is built for the operational layer around programmes.</p></div>
+        <div className="afx-capability-grid">{capabilities.map(({icon:Icon,label,title,text},index)=><article className={"afx-capability afx-reveal afx-delay-"+(index%3)} key={title}><div className="afx-capability-top"><span>{label}</span><Icon size={18}/></div><h3>{title}</h3><p>{text}</p><div className="afx-capability-arrow"><ArrowRight size={16}/></div></article>)}</div>
       </section>
 
-      <section className="landing-section feature-section">
-        <div className="feature-grid">{features.map(({icon:Icon,title,text})=><article className="feature-card" key={title}><div className="feature-icon"><Icon size={19}/></div><h3>{title}</h3><p>{text}</p><span className="feature-line"></span></article>)}</div>
+      <section className="afx-section afx-ai" id="ai">
+        <div className="afx-ai-card afx-reveal">
+          <div className="afx-ai-copy"><div className="afx-section-label">04 / AI WITH OVERSIGHT</div><h2>Let AI handle the volume.<br/><em>Keep people in charge.</em></h2><p>ApplyFlow can assess configured criteria against the information an applicant actually provided. It surfaces evidence, strengths, concerns and missing information — then leaves the final decision with your team.</p><ul><li><Check size={14}/> Evidence-backed criterion assessments</li><li><Check size={14}/> Clear reviewer context before a decision</li><li><Check size={14}/> Human decisions and review history</li></ul><a className="afx-inline-link" href="/login">Explore the workspace <ArrowRight size={15}/></a></div>
+          <div className="afx-ai-console"><div className="afx-console-bar"><span><Brain size={14}/> AI SCREENING</span><b>COMPLETED</b></div><div className="afx-ai-score"><div><small>SUGGESTED SCORE</small><strong>82<span>/100</span></strong></div><div className="afx-confidence"><b>92%</b><small>confidence</small></div></div><div className="afx-ai-rows"><div><span>Business experience</span><b>17/20</b><i style={{width:'85%'}}></i></div><div><span>Programme fit</span><b>16/20</b><i style={{width:'80%'}}></i></div><div><span>Application quality</span><b>13/15</b><i style={{width:'87%'}}></i></div><div><span>Need</span><b>18/20</b><i style={{width:'90%'}}></i></div></div><div className="afx-ai-note"><Sparkles size={13}/> Evidence found across 8 submitted answers. <strong>1 concern</strong> flagged for reviewer.</div></div>
+        </div>
       </section>
 
-      <section className="landing-section workflow-section" id="how-it-works">
-        <div className="section-kicker">HOW IT WORKS</div>
-        <div className="workflow-head"><h2>A clearer path from <em>intake</em> to <em>outcome.</em></h2><p>Every stage builds on the one before it. Your programme team gets a shared record of what happened and why.</p></div>
-        <div className="steps-grid">{steps.map(([num,title,text])=><article className="step-card" key={num}><span>{num}</span><div><h3>{title}</h3><p>{text}</p></div></article>)}</div>
+      <section className="afx-section afx-participants afx-reveal">
+        <div className="afx-participant-visual"><div className="afx-id-card"><small>PARTICIPANT ID</small><strong>ECA-2026-00146</strong><span>ACTIVE / ENROLLED</span><i></i></div><div className="afx-life-line"><span></span><span></span><span></span><span></span></div><div className="afx-life-labels"><span>Approved</span><span>Active</span><span>Completed</span><span>Withdrawn</span></div></div>
+        <div className="afx-participant-copy"><div className="afx-section-label">05 / PARTICIPANT LIFECYCLE</div><h2>Approval is the handoff.<br/><em>Not another queue.</em></h2><p>When your team approves an application, ApplyFlow moves that applicant into Participants automatically and assigns a persistent Participant ID.</p><div className="afx-id-format"><span>OWNER</span><b>ECA</b><i>—</i><span>YEAR</span><b>2026</b><i>—</i><span>NUMBER</span><b>00146</b></div></div>
       </section>
 
-      <section className="landing-section spotlight-section">
-        <div className="spotlight-card"><div className="spotlight-copy"><div className="section-kicker">AI, WITH HUMAN OVERSIGHT</div><h2>Let AI help with the volume. Keep people in charge of the decision.</h2><p>ApplyFlow can assess configured criteria against the information an applicant actually provided. It surfaces evidence, strengths, concerns and missing information — then leaves the decision with your team.</p><ul><li><Check size={15}/> Evidence-backed criterion assessments</li><li><Check size={15}/> No invented or missing applicant information</li><li><Check size={15}/> Human review, overrides and audit history</li></ul></div><div className="ai-panel"><div className="ai-panel-head"><span><Brain size={15}/> AI SCREENING</span><small>COMPLETED</small></div><div className="ai-score"><div><small>SUGGESTED SCORE</small><strong>82<span>/100</span></strong></div><div className="confidence">92%<small>confidence</small></div></div><div className="ai-rows"><div><span>Business experience</span><b>17/20</b></div><div><span>Programme fit</span><b>16/20</b></div><div><span>Application quality</span><b>13/15</b></div><div><span>Need</span><b>18/20</b></div></div><div className="ai-note">Evidence found across 8 submitted answers. 1 concern flagged for reviewer.</div></div></div>
-      </section>
-
-      <section className="landing-section closing-section"><div className="closing-inner"><div className="section-kicker">READY WHEN YOU ARE</div><h2>Build a better application process.</h2><p>Give your applicants a clear experience and your programme team a system they can trust.</p><a className="landing-cta" href="/login">Create your workspace <ArrowRight size={17}/></a></div></section>
+      <section className="afx-cta"><div className="afx-cta-grid"></div><div className="afx-cta-inner afx-reveal"><div className="afx-section-label">06 / READY WHEN YOU ARE</div><h2>Make the application process<br/><em>feel like a system.</em></h2><p>Give applicants a clear experience. Give your programme team one source of truth.</p><a className="afx-button afx-button-light" href="/login">Create your workspace <ArrowRight size={17}/></a></div></section>
     </main>
 
-    <footer className="landing-footer"><div className="landing-brand"><span className="landing-mark">A</span><span><strong>ApplyFlow</strong><small>Application OS</small></span></div><span>Application intake, screening and selection — in one workspace.</span><span>© 2026 ApplyFlow</span></footer>
+    <footer className="afx-footer"><a className="afx-brand afx-brand-footer" href="/"><ApplyFlowMark light/><span><strong>ApplyFlow</strong><small>Application OS</small></span></a><div className="afx-footer-copy">Application intake, screening, review and participant management — in one workspace.</div><div className="afx-footer-meta"><a href="/login">Sign in</a><span>© 2026 ApplyFlow</span></div></footer>
   </div>
 }
-
 function getInitialWorkspaceRoute() {
   const raw = window.location.hash.replace(/^#\/?/, '')
   const parts = raw.split('/').filter(Boolean).map(decodeURIComponent)
