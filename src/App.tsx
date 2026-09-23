@@ -14,7 +14,7 @@ import { GoogleFormImport } from './components/GoogleFormImport'
 type AppStatus = 'draft' | 'published' | 'screening' | 'closed' | 'completed'
 type Application = {
   id: string; name: string; description: string | null; status: AppStatus
-  deadline: string | null; target_count: number | null; participant_code: string; created_at: string
+  deadline: string | null; target_count: number | null; participant_id_prefix: string; created_at: string
 }
 type Profile = { id: string; full_name: string | null; username: string | null; birth_month: number | null; birth_day: number | null; avatar_url: string | null; organization_id: string | null; role: 'owner'|'admin'|'reviewer' }
 type Organization = { id: string; name: string; slug: string }
@@ -228,7 +228,7 @@ function InviteSetupScreen({ email, onComplete }: { email: string; onComplete: (
 }
 
 function PublicApplication({slug}:{slug:string}) {
-  const [loading,setLoading]=useState(true), [error,setError]=useState(''), [submitted,setSubmitted]=useState(false), [uniqueId,setUniqueId]=useState('')
+  const [loading,setLoading]=useState(true), [error,setError]=useState(''), [submitted,setSubmitted]=useState(false), [participantId,setUniqueId]=useState('')
   const [app,setApp]=useState<{id:string;name:string;description:string|null;deadline:string|null} | null>(null)
   const [settings,setSettings]=useState<{confirmation_message:string;start_date:string|null;submission_limit:number|null;applicant_instructions:string|null}|null>(null)
   const [questions,setQuestions]=useState<BuilderQuestion[]>([]), [answers,setAnswers]=useState<Record<string,string|string[]>>({}), [files,setFiles]=useState<Record<string,File>>({})
@@ -262,33 +262,13 @@ function PublicApplication({slug}:{slug:string}) {
     })
     const emailQ=questions.find(q=>q.type==='email'), nameQ=questions.find(q=>q.label.toLowerCase().includes('full name')||q.label.toLowerCase()==='name')
     const {data:v,error:ve}=await supabase.from('form_versions').select('id').eq('application_id',app!.id).eq('status','published').order('version_number',{ascending:false}).limit(1).single();if(ve)throw ve
-    const {data:submissionResult,error:se}=await supabase.rpc('submit_application_with_id',{p_application_id:app!.id,p_form_version_id:v.id,p_email:emailQ?String(answers[emailQ.id]||''):null,p_full_name:nameQ?String(answers[nameQ.id]||''):null,p_answers:answerPayload});if(se)throw se
+    const {data:submissionResult,error:se}=await supabase.rpc('submit_application_with_participant_id',{p_application_id:app!.id,p_form_version_id:v.id,p_email:emailQ?String(answers[emailQ.id]||''):null,p_full_name:nameQ?String(answers[nameQ.id]||''):null,p_answers:answerPayload});if(se)throw se
     let submissionPayload:any=typeof submissionResult==='string'?JSON.parse(submissionResult):submissionResult
-    if(typeof submissionPayload==='string'){
-      try{submissionPayload=JSON.parse(submissionPayload)}catch{}
-    }
-    let assignedId=Array.isArray(submissionPayload)
-      ? submissionPayload[0]?.unique_id
-      : submissionPayload?.unique_id||submissionPayload?.data?.unique_id||submissionPayload?.result?.unique_id
-    // Supabase can return JSONB through a nested response shape depending on the client/runtime.
-    // If the ID is not in the RPC payload, use the returned submission ID to resolve it directly.
-    const submissionId=Array.isArray(submissionPayload)
-      ? submissionPayload[0]?.submission_id
-      : submissionPayload?.submission_id
-        ||submissionPayload?.data?.submission_id
-        ||submissionPayload?.data?.[0]?.submission_id
-        ||submissionPayload?.result?.submission_id
-        ||submissionPayload?.result?.data?.submission_id
-    if(!assignedId&&submissionId){
-      const {data:submittedRow,error:submittedRowError}=await supabase
-        .from('submissions')
-        .select('applicants!inner(unique_id)')
-        .eq('id',submissionId)
-        .maybeSingle()
-      if(submittedRowError)throw submittedRowError
-      assignedId=(submittedRow as any)?.applicants?.unique_id||''
-    }
-    if(!assignedId)throw new Error('Your application was submitted, but we could not retrieve your application ID. Please contact the programme team with the time of submission.')
+    if(typeof submissionPayload==='string'){try{submissionPayload=JSON.parse(submissionPayload)}catch{}}
+    const assignedId=Array.isArray(submissionPayload)
+      ? submissionPayload[0]?.participant_id
+      : submissionPayload?.participant_id||submissionPayload?.data?.participant_id||submissionPayload?.result?.participant_id
+    if(!assignedId)throw new Error('Your application was submitted, but we could not retrieve your Participant ID. Please contact the programme team with the time of submission.')
     for(const q of questions.filter(q=>(q.type==='file'||q.type==='image')&&files[q.id])){
       const file=files[q.id]!, meta=answerPayload.find(x=>x.question_id===q.id)?.value as {path:string}
       const {error:uploadError}=await supabase.storage.from('application-files').upload(meta.path,file,{contentType:file.type||'application/octet-stream',upsert:false})
@@ -305,7 +285,7 @@ function PublicApplication({slug}:{slug:string}) {
   }finally{setLoading(false)}}
   if(loading&&!app)return <div className="public-shell"><div className="public-card card">Loading application…</div></div>
   if(error&&!app)return <div className="public-shell"><div className="public-card card"><div className="empty-icon"><FileText size={22}/></div><h1>Application unavailable</h1><p>{error}</p></div></div>
-  if(submitted)return <div className="public-shell"><div className="public-card card public-success"><div className="success-mark">✓</div><p className="eyebrow">Application submitted</p><h1>Thank you.</h1><p>{settings?.confirmation_message}</p><div className="card" style={{marginTop:20,padding:20}}><p className="eyebrow">Your unique application ID</p><h2 style={{margin:"6px 0"}}>{uniqueId}</h2><p className="muted">This ID has been assigned to your application. Please copy it and keep it somewhere safe. You can use this ID when referencing your application or contacting the programme team.</p></div></div></div>
+  if(submitted)return <div className="public-shell"><div className="public-card card public-success"><div className="success-mark">✓</div><p className="eyebrow">Application submitted</p><h1>Thank you.</h1><p>{settings?.confirmation_message}</p><div className="card" style={{marginTop:20,padding:20}}><p className="eyebrow">Your Participant ID</p><h2 style={{margin:"6px 0"}}>{participantId}</h2><p className="muted">This Participant ID has been assigned to you. Please copy it and keep it somewhere safe. You can use it when referencing your application or contacting the programme team.</p></div></div></div>
   return <div className="public-shell"><div className="public-frame"><div className="public-brand"><div className="public-brand-mark">A</div><div><strong>ApplyFlow</strong><span>Application form</span></div></div><form className="public-form card" onSubmit={submit}><header className="public-header"><div className="public-kicker-row"><p className="eyebrow">Application</p><span className="public-status">Open</span></div><h1>{app?.name}</h1><p className="public-description">{app?.description||'Complete the form below to apply.'}</p><div className="public-meta">{settings?.start_date&&<div><span>Opens</span><strong>{new Date(settings.start_date+"T00:00:00").toLocaleDateString()}</strong></div>}{app?.deadline&&<div><span>Deadline</span><strong>{formatDate(app.deadline)}</strong></div>}<div><span>Questions</span><strong>{questions.filter(visible).length}</strong></div></div>{settings?.applicant_instructions&&<div className="public-instructions"><strong>Before you begin</strong><p>{settings.applicant_instructions}</p></div>}</header><div className="public-form-body">{questions.map((q,i)=>visible(q)&&<div className="public-question" key={q.id}><label><span className="public-question-number">{String(i+1).padStart(2,'0')}</span><span className="public-question-copy"><span className="public-question-title">{q.label}{q.required&&<span className="required-star">*</span>}</span>{q.description&&<small>{q.description}</small>}</span></label>{q.type==='long_text'?<textarea value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} placeholder={q.placeholder||''}/>:q.type==='date'?<input type="date" value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)}/>:q.type==='number'?<input type="number" value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} placeholder={q.placeholder||''}/>:q.type==='email'?<input type="email" value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} placeholder={q.placeholder||''}/>:q.type==='phone'?<input type="tel" value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} placeholder={q.placeholder||''}/>:q.type==='dropdown'?<select value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)}><option value="">Select an option</option>{q.options.map(o=><option key={o.id} value={o.value}>{o.label}</option>)}</select>:q.type==='nigeria_state'?<select value={String(answers[q.id]||'')} onChange={e=>setStateAnswer(q.id,e.target.value)}><option value="">Select your state of origin</option>{NIGERIAN_STATES.map(state=><option key={state} value={state}>{state}</option>)}</select>:q.type==='nigeria_lga'?<select value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} disabled={!selectedState||lgaLoading}><option value="">{!selectedState?'Select your state first':lgaLoading?'Loading local governments…':'Select your local government'}</option>{lgaOptions.map(lga=><option key={lga} value={lga}>{lga}</option>)}</select>:q.type==='single_choice'||q.type==='yes_no'?<div className="public-options">{q.options.map(o=><label key={o.id}><input type="radio" name={q.id} checked={answers[q.id]===o.value} onChange={()=>setAnswer(q.id,o.value)}/><span>{o.label}</span></label>)}</div>:q.type==='multiple_choice'?<div className="public-options">{q.options.map(o=><label key={o.id}><input type="checkbox" checked={Array.isArray(answers[q.id])&&answers[q.id].includes(o.value)} onChange={e=>{const current=Array.isArray(answers[q.id])?(answers[q.id] as string[]):[];setAnswer(q.id,e.target.checked?[...current,o.value]:current.filter((v:string)=>v!==o.value))}}/><span>{o.label}</span></label>)}</div>:q.type==='rating'?<div className="rating-options">{[1,2,3,4,5].map(n=><button type="button" key={n} className={answers[q.id]===String(n)?'rating-active':''} onClick={()=>setAnswer(q.id,String(n))}>{n}</button>)}</div>:q.type==='file'||q.type==='image'?<input type="file" accept={q.type==='image'?'image/*':undefined} onChange={e=>{const f=e.target.files?.[0]||null;setFile(q.id,f);setAnswer(q.id,f?.name||'')}}/>:<input value={String(answers[q.id]||'')} onChange={e=>setAnswer(q.id,e.target.value)} placeholder={q.placeholder||''}/>}</div>)}</div><div className="public-form-actions">{error&&<div className="form-error">{error}</div>}<button className="primary-button public-submit" disabled={loading}>{loading?'Submitting…':'Submit application'}</button></div></form><p className="public-footer-note">Your information will be securely submitted to the programme team.</p></div></div>
 }
 
@@ -553,7 +533,7 @@ function App() {
     if (p.organization_id) {
       const [{ data: org, error: oError }, { data: apps, error: aError }] = await Promise.all([
         supabase.from('organizations').select('id,name,slug').eq('id', p.organization_id).single(),
-        supabase.from('applications').select('id,name,description,status,deadline,target_count,participant_code,created_at').eq('organization_id', p.organization_id).order('created_at', { ascending: false }),
+        supabase.from('applications').select('id,name,description,status,deadline,target_count,participant_id_prefix,created_at').eq('organization_id', p.organization_id).order('created_at', { ascending: false }),
       ])
       if (oError) setError(oError.message); else setOrganization(org)
       if (aError) setError(aError.message)
@@ -716,7 +696,7 @@ function App() {
       const { data, error: updateError } = await supabase.from('applications')
         .update({ ...patch, updated_at: new Date().toISOString() })
         .eq('id', selectedApplication.id)
-        .select('id,name,description,status,deadline,target_count,participant_code,created_at')
+        .select('id,name,description,status,deadline,target_count,participant_id_prefix,created_at')
         .single()
       if (updateError) throw updateError
       let nextSettings = applicationSettings
@@ -750,10 +730,10 @@ function App() {
           description: newDescription.trim() || null,
           deadline: newDeadline || null,
           target_count: newTarget ? Number(newTarget) : null,
-          participant_code: newParticipantCode.trim().toUpperCase() || 'APP',
+          participant_id_prefix: newParticipantCode.trim().toUpperCase() || 'APP',
           status: 'draft',
         })
-        .select('id,name,description,status,deadline,target_count,participant_code,created_at')
+        .select('id,name,description,status,deadline,target_count,participant_id_prefix,created_at')
         .single()
       if (applicationError) throw applicationError
 
@@ -817,7 +797,7 @@ function App() {
         <div className="modal-form">
           <label>{createMode==='form'?'Form name':'Programme name'}<input autoFocus value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Women Artisans Application Form" required /></label>
           <label>Description <span className="optional">Optional</span><textarea value={newDescription} onChange={e=>setNewDescription(e.target.value)} placeholder={createMode==='form'?'Briefly describe what this form is for.':'Briefly describe who this programme is for and what it offers.'} rows={4}/></label>
-          {createMode==='application'&&<><div className="form-grid"><label>Application deadline <span className="optional">Optional</span><input type="date" value={newDeadline} onChange={e=>setNewDeadline(e.target.value)} /></label><label>Target number <span className="optional">Optional</span><input type="number" min="0" value={newTarget} onChange={e=>setNewTarget(e.target.value)} placeholder="150" /></label></div><label>Participant ID code<input value={newParticipantCode} onChange={e=>setNewParticipantCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''))} placeholder="HC2" minLength={2} maxLength={12} required/><small className="field-help">This is the owner-defined code. ApplyFlow adds the creation year and 4-digit participant number automatically, e.g. <strong>{newParticipantCode||'HC2'}-2026-0001</strong>.</small></label></>}
+          {createMode==='application'&&<><div className="form-grid"><label>Application deadline <span className="optional">Optional</span><input type="date" value={newDeadline} onChange={e=>setNewDeadline(e.target.value)} /></label><label>Target number <span className="optional">Optional</span><input type="number" min="0" value={newTarget} onChange={e=>setNewTarget(e.target.value)} placeholder="150" /></label></div><label>Participant ID code<input value={newParticipantCode} onChange={e=>setNewParticipantCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''))} placeholder="HC2" minLength={2} maxLength={12} required/><small className="field-help">This is the programme prefix used for Participant IDs, e.g. <strong>{newParticipantCode||'HC2'}-2026-0001</strong>.</small></label></>}
           {createError && <div className="form-error">{createError}</div>}
         </div>
         <div className="modal-footer"><button type="button" className="secondary-button" onClick={()=>setCreateOpen(false)}>Cancel</button><button className="primary-button" disabled={creating}>{creating?'Creating…':createMode==='form'?'Create Form':'Create Programme'}</button></div>
@@ -827,15 +807,15 @@ function App() {
 }
 
 function ApplicantsPanel({applicationId}:{applicationId:string}) {
-  type Row={id:string;applicant_id:string;unique_id:string|null;full_name:string|null;email:string|null;status:string;submitted_at:string|null;created_at:string}
+  type Row={id:string;applicant_id:string;participant_id:string|null;full_name:string|null;email:string|null;status:string;submitted_at:string|null;created_at:string}
   const [rows,setRows]=useState<Row[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[statusFilter,setStatusFilter]=useState<'all'|'submitted'|'draft'>('all'),[selected,setSelected]=useState<Row|null>(null)
   const [answerRows,setAnswerRows]=useState<{label:string;value:string}[]>([])
   useEffect(()=>{(async()=>{try{
-    const {data,error}=await supabase.from('submissions').select('id,applicant_id,status,submitted_at,created_at,applicants!inner(full_name,email,unique_id)').eq('application_id',applicationId).order('submitted_at',{ascending:false})
+    const {data,error}=await supabase.from('submissions').select('id,applicant_id,status,submitted_at,created_at,applicants!inner(full_name,email,participant_id)').eq('application_id',applicationId).order('submitted_at',{ascending:false})
     if(error)throw error
-    setRows((data||[]).map((r:any)=>({id:r.id,applicant_id:r.applicant_id,unique_id:r.applicants?.unique_id||null,status:r.status,submitted_at:r.submitted_at,created_at:r.created_at,full_name:r.applicants?.full_name||null,email:r.applicants?.email||null})))
+    setRows((data||[]).map((r:any)=>({id:r.id,applicant_id:r.applicant_id,participant_id:r.applicants?.participant_id||null,status:r.status,submitted_at:r.submitted_at,created_at:r.created_at,full_name:r.applicants?.full_name||null,email:r.applicants?.email||null})))
   }catch(e){setError(e instanceof Error?e.message:'Could not load applications.')}finally{setLoading(false)}})()},[applicationId])
-  const filtered=useMemo(()=>rows.filter(r=>{const haystack=[r.unique_id,r.full_name,r.email,r.status].filter(Boolean).join(' ').toLowerCase();return(!query.trim()||haystack.includes(query.trim().toLowerCase()))&&(statusFilter==='all'||r.status===statusFilter)}),[rows,query,statusFilter])
+  const filtered=useMemo(()=>rows.filter(r=>{const haystack=[r.participant_id,r.full_name,r.email,r.status].filter(Boolean).join(' ').toLowerCase();return(!query.trim()||haystack.includes(query.trim().toLowerCase()))&&(statusFilter==='all'||r.status===statusFilter)}),[rows,query,statusFilter])
   const submittedCount=rows.filter(r=>r.status==='submitted').length
   const draftCount=rows.filter(r=>r.status==='draft').length
   async function open(row:Row){
@@ -847,11 +827,11 @@ function ApplicantsPanel({applicationId}:{applicationId:string}) {
   if(loading)return <div className="loading-card card">Loading applications…</div>
   if(error)return <div className="form-error page-error">{error}</div>
   return <div className="applicants-panel">
-    <div className="applicants-toolbar"><div><p className="eyebrow">Applications received</p><h2>{rows.length} submission{rows.length===1?'':'s'}</h2><p className="muted">Every submission keeps its own unique application ID.</p></div><div className="applicant-search"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search name, email or application ID"/></div></div>
+    <div className="applicants-toolbar"><div><p className="eyebrow">Applications received</p><h2>{rows.length} submission{rows.length===1?'':'s'}</h2><p className="muted">Every submission keeps its own Participant ID.</p></div><div className="applicant-search"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search name, email or Participant ID"/></div></div>
     <div className="stats-grid" style={{marginBottom:16}}><div className="card stat-card"><div className="stat-icon"><FileCheck2 size={18}/></div><div><p className="eyebrow">Total</p><div className="stat-value">{rows.length}</div><p className="muted">All submissions</p></div></div><div className="card stat-card"><div className="stat-icon"><CheckCircle2 size={18}/></div><div><p className="eyebrow">Submitted</p><div className="stat-value">{submittedCount}</div><p className="muted">Ready for screening</p></div></div><div className="card stat-card"><div className="stat-icon"><Clock3 size={18}/></div><div><p className="eyebrow">Drafts</p><div className="stat-value">{draftCount}</div><p className="muted">Not yet submitted</p></div></div></div>
     <div className="card table-card"><div className="toolbar"><div className="forms-filters" role="group" aria-label="Filter applications"><button className={statusFilter==='all'?'filter-button active':'filter-button'} onClick={()=>setStatusFilter('all')}>All <span>{rows.length}</span></button><button className={statusFilter==='submitted'?'filter-button active':'filter-button'} onClick={()=>setStatusFilter('submitted')}>Submitted <span>{submittedCount}</span></button><button className={statusFilter==='draft'?'filter-button active':'filter-button'} onClick={()=>setStatusFilter('draft')}>Drafts <span>{draftCount}</span></button></div></div>
-      {!filtered.length?<div className="empty-state"><div className="empty-icon"><Users size={22}/></div><h2>No applications found</h2><p>{rows.length?'Try another search or filter.':'Submitted applications will appear here.'}</p></div>:<div className="table-wrap"><table className="applicants-table"><thead><tr><th>Application ID</th><th>Applicant</th><th>Email</th><th>Status</th><th>Submitted</th><th></th></tr></thead><tbody>{filtered.map(r=><tr key={r.id} onClick={()=>open(r)}><td><strong>{r.unique_id||'—'}</strong></td><td><strong>{r.full_name||'Unnamed applicant'}</strong></td><td>{r.email||'—'}</td><td><span className={'status '+(r.status==='submitted'?'blue':'neutral')}>{statusLabel(r.status as AppStatus)}</span></td><td>{r.submitted_at?formatDate(r.submitted_at):'—'}</td><td><button className="text-button" onClick={e=>{e.stopPropagation();open(r)}}>View</button></td></tr>)}</tbody></table></div>}</div>
-    {selected&&<div className="applicant-drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSelected(null)}}><aside className="applicant-drawer"><div className="drawer-header"><div><p className="eyebrow">Application</p><h2>{selected.unique_id||'Application'}</h2><p>{selected.full_name||'Unnamed applicant'} · {selected.email||'No email provided'}</p></div><button className="icon-button" onClick={()=>setSelected(null)}><X size={18}/></button></div><div className="drawer-meta"><div><span>Applicant</span><strong>{selected.full_name||'Unnamed applicant'}</strong></div><div><span>Status</span><strong>{statusLabel(selected.status as AppStatus)}</strong></div><div><span>Submitted</span><strong>{selected.submitted_at?formatDate(selected.submitted_at):'—'}</strong></div></div><div className="drawer-section"><p className="eyebrow">Application answers</p>{answerRows.length?answerRows.map((a,i)=><div className="answer-item" key={i}><strong>{a.label}</strong><span>{a.value||'Not provided'}</span></div>):<p className="muted">No answers recorded.</p>}</div></aside></div>}
+      {!filtered.length?<div className="empty-state"><div className="empty-icon"><Users size={22}/></div><h2>No applications found</h2><p>{rows.length?'Try another search or filter.':'Submitted applications will appear here.'}</p></div>:<div className="table-wrap"><table className="applicants-table"><thead><tr><th>Participant ID</th><th>Applicant</th><th>Email</th><th>Status</th><th>Submitted</th><th></th></tr></thead><tbody>{filtered.map(r=><tr key={r.id} onClick={()=>open(r)}><td><strong>{r.participant_id||'—'}</strong></td><td><strong>{r.full_name||'Unnamed applicant'}</strong></td><td>{r.email||'—'}</td><td><span className={'status '+(r.status==='submitted'?'blue':'neutral')}>{statusLabel(r.status as AppStatus)}</span></td><td>{r.submitted_at?formatDate(r.submitted_at):'—'}</td><td><button className="text-button" onClick={e=>{e.stopPropagation();open(r)}}>View</button></td></tr>)}</tbody></table></div>}</div>
+    {selected&&<div className="applicant-drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSelected(null)}}><aside className="applicant-drawer"><div className="drawer-header"><div><p className="eyebrow">Application</p><h2>{selected.participant_id||'Application'}</h2><p>{selected.full_name||'Unnamed applicant'} · {selected.email||'No email provided'}</p></div><button className="icon-button" onClick={()=>setSelected(null)}><X size={18}/></button></div><div className="drawer-meta"><div><span>Applicant</span><strong>{selected.full_name||'Unnamed applicant'}</strong></div><div><span>Status</span><strong>{statusLabel(selected.status as AppStatus)}</strong></div><div><span>Submitted</span><strong>{selected.submitted_at?formatDate(selected.submitted_at):'—'}</strong></div></div><div className="drawer-section"><p className="eyebrow">Application answers</p>{answerRows.length?answerRows.map((a,i)=><div className="answer-item" key={i}><strong>{a.label}</strong><span>{a.value||'Not provided'}</span></div>):<p className="muted">No answers recorded.</p>}</div></aside></div>}
   </div>
 }
 
@@ -864,18 +844,18 @@ function ApplicationDetails({ application, settings, tab, setTab, loading, savin
   onSave:(patch:Partial<Application>, settingsPatch?:Partial<{public_slug:string;confirmation_message:string}>)=>Promise<void>
 }) {
   const [name,setName]=useState(application.name), [description,setDescription]=useState(application.description||'')
-  const [deadline,setDeadline]=useState(application.deadline||''), [target,setTarget]=useState(application.target_count?.toString()||''), [participantCode,setParticipantCode]=useState(application.participant_code||'APP')
+  const [deadline,setDeadline]=useState(application.deadline||''), [target,setTarget]=useState(application.target_count?.toString()||''), [participantCode,setParticipantCode]=useState(application.participant_id_prefix||'APP')
   const [slug,setSlug]=useState(settings?.public_slug||''), [message,setMessage]=useState(settings?.confirmation_message||'')
-  useEffect(()=>{setName(application.name);setDescription(application.description||'');setDeadline(application.deadline||'');setTarget(application.target_count?.toString()||'');setParticipantCode(application.participant_code||'APP')},[application])
+  useEffect(()=>{setName(application.name);setDescription(application.description||'');setDeadline(application.deadline||'');setTarget(application.target_count?.toString()||'');setParticipantCode(application.participant_id_prefix||'APP')},[application])
   useEffect(()=>{setSlug(settings?.public_slug||'');setMessage(settings?.confirmation_message||'')},[settings])
   const tabs=['Overview','Form','Eligibility','Screening','Applicants','Reviews','Selection','Communications'] as const
   return <section className="application-detail">
     <button className="back-link" onClick={onBack}>← Back to applications</button>
     <div className="detail-header"><div><p className="eyebrow">Application programme</p><div className="detail-title-row"><h1>{application.name}</h1><span className={'status '+(application.status==='published'?'blue':application.status==='screening'?'amber':'neutral')}>{statusLabel(application.status)}</span></div><p className="subtitle">{application.description||'No description yet.'}</p></div><div className="detail-actions">{application.status==='draft'&&<button className="primary-button" disabled={saving} onClick={()=>onSave({status:'published'})}>Publish</button>}{application.status==='published'&&<button className="secondary-button" disabled={saving} onClick={()=>onSave({status:'closed'})}>Close applications</button>}</div></div>
-    <div className="detail-meta"><div><span>Deadline</span><strong>{formatDate(application.deadline)}</strong></div><div><span>Target</span><strong>{application.target_count?.toLocaleString()||'Not set'}</strong></div><div><span>Participant IDs</span><strong>{application.participant_code}-{new Date(application.created_at).getFullYear()}-0001</strong></div><div><span>Public URL</span><strong>/apply/{settings?.public_slug||'not-configured'}</strong></div></div>
+    <div className="detail-meta"><div><span>Deadline</span><strong>{formatDate(application.deadline)}</strong></div><div><span>Target</span><strong>{application.target_count?.toLocaleString()||'Not set'}</strong></div><div><span>Participant IDs</span><strong>{application.participant_id_prefix}-{new Date(application.created_at).getFullYear()}-0001</strong></div><div><span>Public URL</span><strong>/apply/{settings?.public_slug||'not-configured'}</strong></div></div>
     <div className="detail-tabs">{tabs.map(t=><button key={t} className={tab===t?'detail-tab active':'detail-tab'} onClick={()=>setTab(t)}>{t}</button>)}</div>
     {loading?<div className="loading-card card">Loading programme settings…</div>:error?<div className="form-error page-error">{error}</div>:tab==='Overview'?<div className="detail-grid">
-      <div className="card detail-card"><div className="card-header"><div><h2>Programme details</h2><p>Update the basic information for this programme.</p></div></div><div className="detail-form"><label>Programme name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Participant ID code<input value={participantCode} onChange={e=>setParticipantCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''))} minLength={2} maxLength={12} required/><small className="field-help">Format: <strong>{participantCode||'HC2'}-{new Date(application.created_at).getFullYear()}-0001</strong>. The year and sequence are generated automatically.</small></label><label>Description<textarea rows={5} value={description} onChange={e=>setDescription(e.target.value)}/></label><div className="form-grid"><label>Application deadline<input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)}/></label><label>Target number<input type="number" min="0" value={target} onChange={e=>setTarget(e.target.value)}/></label></div><div className="detail-form-footer"><button className="primary-button" disabled={saving} onClick={()=>onSave({name:name.trim(),description:description.trim()||null,deadline:deadline||null,target_count:target?Number(target):null,participant_code:participantCode.trim().toUpperCase()})}>{saving?'Saving…':'Save changes'}</button></div></div></div>
+      <div className="card detail-card"><div className="card-header"><div><h2>Programme details</h2><p>Update the basic information for this programme.</p></div></div><div className="detail-form"><label>Programme name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Participant ID code<input value={participantCode} onChange={e=>setParticipantCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''))} minLength={2} maxLength={12} required/><small className="field-help">Format: <strong>{participantCode||'HC2'}-{new Date(application.created_at).getFullYear()}-0001</strong>. Participant IDs are generated automatically when a response is created or imported.</small></label><label>Description<textarea rows={5} value={description} onChange={e=>setDescription(e.target.value)}/></label><div className="form-grid"><label>Application deadline<input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)}/></label><label>Target number<input type="number" min="0" value={target} onChange={e=>setTarget(e.target.value)}/></label></div><div className="detail-form-footer"><button className="primary-button" disabled={saving} onClick={()=>onSave({name:name.trim(),description:description.trim()||null,deadline:deadline||null,target_count:target?Number(target):null,participant_id_prefix:participantCode.trim().toUpperCase()})}>{saving?'Saving…':'Save changes'}</button></div></div></div>
       <div className="card detail-card"><div className="card-header"><div><h2>Public application</h2><p>Settings applicants will see.</p></div></div><div className="detail-form"><label>Public slug<input value={slug} onChange={e=>setSlug(e.target.value)}/></label><label>Confirmation message<textarea rows={5} value={message} onChange={e=>setMessage(e.target.value)}/></label><div className="detail-form-footer"><button className="secondary-button" disabled={saving} onClick={()=>onSave({}, {public_slug:slug.trim(),confirmation_message:message.trim()||'Thank you. Your application has been received.'})}>Save public settings</button></div></div></div>
     </div>:tab==='Form'?<FormBuilder applicationId={application.id}/>:tab==='Applicants'?<ApplicantsPanel applicationId={application.id}/>:tab==='Eligibility'?<EligibilityBuilder applicationId={application.id}/>:tab==='Screening'?<ScreeningPanel applicationId={application.id}/>:tab==='Reviews'?<ReviewsPanel applicationId={application.id}/>:tab==='Selection'?<SelectionPanel applicationId={application.id}/>:tab==='Communications'?<CommunicationsPanel applicationId={application.id}/>:<div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>{tab} is next</h2><p>This section is connected to the programme workspace and will be built on the live data model.</p></div>}
   </section>
@@ -1173,7 +1153,7 @@ function ScreeningPanel({applicationId}:{applicationId:string}){
     supabase.from('submission_eligibility').select('submission_id,status').in('submission_id',submissionIds),
     supabase.from('submission_scores').select('submission_id,overall_score').in('submission_id',submissionIds),
     supabase.from('ai_screenings').select('submission_id,status,overall_assessment').in('submission_id',submissionIds),
-    supabase.from('applicants').select('id,full_name,email,unique_id').in('id',(subs||[]).map(s=>s.applicant_id).filter(Boolean))
+    supabase.from('applicants').select('id,full_name,email,participant_id').in('id',(subs||[]).map(s=>s.applicant_id).filter(Boolean))
    ])
    if(ee)throw ee;if(sce)throw sce;if(ae)throw ae;if(ape)throw ape
    const em=new Map((elig||[]).map(x=>[x.submission_id,x]))
@@ -1184,7 +1164,7 @@ function ScreeningPanel({applicationId}:{applicationId:string}){
     const p=pm.get(s.applicant_id),a=am.get(s.id),score=sm.get(s.id),e=em.get(s.id)
     const assessment=String(a?.overall_assessment||'').toLowerCase()
     const recommendation=assessment.includes('not recommended')||assessment.includes('poor match')?'Not recommended':assessment.includes('strong match')||assessment.includes('recommended')?'Recommended':a?.status==='completed'?'Reviewed':a?.status==='failed'?'Failed':'Not screened'
-    return {submissionId:s.id,applicationId:s.application_id,uniqueId:p?.unique_id||'—',applicantName:p?.full_name||'Unnamed applicant',email:p?.email||null,submittedAt:s.submitted_at||null,eligibility:e?.status==='eligible'?'eligible':e?.status==='ineligible'?'ineligible':'pending',score:score?.overall_score==null?null:Number(score.overall_score),aiStatus:a?.status||'pending',aiRecommendation:recommendation,decision:s.decision==='approved'||s.decision==='rejected'?s.decision:'pending'}
+    return {submissionId:s.id,applicationId:s.application_id,participantId:p?.participant_id||'—',applicantName:p?.full_name||'Unnamed applicant',email:p?.email||null,submittedAt:s.submitted_at||null,eligibility:e?.status==='eligible'?'eligible':e?.status==='ineligible'?'ineligible':'pending',score:score?.overall_score==null?null:Number(score.overall_score),aiStatus:a?.status||'pending',aiRecommendation:recommendation,decision:s.decision==='approved'||s.decision==='rejected'?s.decision:'pending'}
    }))
   }catch(e){setNotice(e instanceof Error?e.message:'Could not load screening data.')}finally{setLoading(false)}
  }
