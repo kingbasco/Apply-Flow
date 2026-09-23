@@ -392,7 +392,7 @@ function LandingPage() {
       </section>
 
       <section className="afx-section afx-ai" id="ai">
-        <div className="afx-ai-card afx-reveal">
+        <div className="afx-ai-card afx-reveal afx-ai-card-light">
           <div className="afx-ai-copy"><div className="afx-section-label">04 / AI WITH OVERSIGHT</div><h2>Let AI handle the volume.<br/><em>Keep people in charge.</em></h2><p>ApplyFlow can assess configured criteria against the information an applicant actually provided. It surfaces evidence, strengths, concerns and missing information — then leaves the final decision with your team.</p><ul><li><Check size={14}/> Evidence-backed criterion assessments</li><li><Check size={14}/> Clear reviewer context before a decision</li><li><Check size={14}/> Human decisions and review history</li></ul><a className="afx-inline-link" href="/login">Explore the workspace <ArrowRight size={15}/></a></div>
           <div className="afx-ai-console"><div className="afx-console-bar"><span><Brain size={14}/> AI SCREENING</span><b>COMPLETED</b></div><div className="afx-ai-score"><div><small>SUGGESTED SCORE</small><strong>82<span>/100</span></strong></div><div className="afx-confidence"><b>92%</b><small>confidence</small></div></div><div className="afx-ai-rows"><div><span>Business experience</span><b>17/20</b><i style={{width:'85%'}}></i></div><div><span>Programme fit</span><b>16/20</b><i style={{width:'80%'}}></i></div><div><span>Application quality</span><b>13/15</b><i style={{width:'87%'}}></i></div><div><span>Need</span><b>18/20</b><i style={{width:'90%'}}></i></div></div><div className="afx-ai-note"><Sparkles size={13}/> Evidence found across 8 submitted answers. <strong>1 concern</strong> flagged for reviewer.</div></div>
         </div>
