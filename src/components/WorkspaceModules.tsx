@@ -794,7 +794,7 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
     const {data:authData}=await supabase.auth.getUser();
     const reviewerId=authData.user?.id;
     if(reviewerId){
-     const {data:mine,error:mineError}=await supabase.from('review_assignments').select('submission_id').in('submission_id',submissionIds).eq('reviewer_id',currentReviewerId);
+     const {data:mine,error:mineError}=await supabase.from('review_assignments').select('submission_id').in('submission_id',submissionIds).eq('reviewer_id',reviewerId);
      if(mineError)throw mineError;
      const assignedIds=new Set((mine||[]).map(x=>x.submission_id));
      visibleSubs=visibleSubs.filter(s=>assignedIds.has(s.id));
@@ -817,7 +817,7 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
     const as=grouped.get(s.id)||[],p=applicantMap.get(s.applicant_id),app=appMap.get(s.application_id),reviewerList=as.map(x=>reviewerMap.get(x.reviewer_id)).filter(Boolean);
     const workflowStatus=as.length===0?'unassigned':as.some(x=>x.status==='in_progress')?'in_progress':as.every(x=>x.status==='completed')?'reviewed':'assigned';
     const displayStatus=s.decision==='approved'?'approved':s.decision==='rejected'?'rejected':workflowStatus;
-    return{submissionId:s.id,applicationId:s.application_id,assignmentId:role==='reviewer'?as.find(x=>x.reviewer_id===currentReviewerId)?.id:undefined,participantId:p?.participant_id||'—',applicantName:p?.full_name||'Unnamed applicant',email:p?.email||null,submittedAt:s.submitted_at||null,programmeName:app?.name||'Programme',reviewers:reviewerList,status:displayStatus,decision:s.decision==='approved'||s.decision==='rejected'?s.decision:'pending',updatedAt:as.reduce((latest,x)=>!latest||x.updated_at>latest?x.updated_at:latest,s.created_at)}
+    return{submissionId:s.id,applicationId:s.application_id,assignmentId:role==='reviewer'?as.find(x=>x.reviewer_id===reviewerId)?.id:undefined,participantId:p?.participant_id||'—',applicantName:p?.full_name||'Unnamed applicant',email:p?.email||null,submittedAt:s.submitted_at||null,programmeName:app?.name||'Programme',reviewers:reviewerList,status:displayStatus,decision:s.decision==='approved'||s.decision==='rejected'?s.decision:'pending',updatedAt:as.reduce((latest,x)=>!latest||x.updated_at>latest?x.updated_at:latest,s.created_at)}
    }))
    setSelectedIds([]);
   }catch(e:any){setError(e.message||'Unable to load reviews.')}finally{setLoading(false)}
