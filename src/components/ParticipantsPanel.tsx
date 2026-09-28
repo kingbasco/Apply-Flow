@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { BadgeCheck, CalendarCheck2, Gift, Upload, Plus, Search, X, Users, CheckCircle2, ChevronDown, Mail, Hash, ClipboardList, Link2, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { friendlyErrorMessage } from '../lib/errors'
 
 type Application = { id:string; name:string }
 type Participant = {
@@ -161,7 +162,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
         for(const row of benefitRows) row.recipient_count=counts.get(row.id)||0
       }
       setParticipants(participantRows);setSessions(sessionRows);setBenefits(benefitRows);setAssignments((a.data||[]) as Assignment[]);setProgrammeStaff(staff.data||[]);setParticipantStaff(staffAssignments.data||[])
-    }catch(e){setError(e instanceof Error?e.message:'Could not load programme participants.')}finally{setLoading(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not load programme participants.'))}finally{setLoading(false)}
   }
 
   useEffect(()=>{load()},[organizationId])
@@ -212,7 +213,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       const count=selectedParticipantIds.length
       setSelectedParticipantIds([]);setBulkStaffId('')
       setNotice(count+' participant'+(count===1?'':'s')+' assigned to staff.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not assign selected participants.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not assign selected participants.'))}finally{setSaving(false)}
   }
 
   async function updateParticipantStaffAssignment(participantId:string,staffId:string,assigned:boolean){
@@ -223,7 +224,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       if(error)throw error
       setParticipantStaff(current=>assigned?[...current.filter(x=>!(x.participant_id===participantId&&x.staff_id===staffId)),{participant_id:participantId,staff_id:staffId}]:current.filter(x=>!(x.participant_id===participantId&&x.staff_id===staffId)))
       setNotice(assigned?'Staff member assigned to participant.':'Staff assignment removed.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not update staff assignment.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not update staff assignment.'))}finally{setSaving(false)}
   }
 
   async function openParticipant(participant:Participant){
@@ -236,7 +237,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
         .order('marked_at',{ascending:false})
       if(error)throw error
       setParticipantAttendance((data||[]) as ParticipantAttendance[])
-    }catch(e){setError(e instanceof Error?e.message:'Could not load participant attendance history.')}finally{setParticipantAttendanceLoading(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not load participant attendance history.'))}finally{setParticipantAttendanceLoading(false)}
   }
 
   async function updateParticipantStatus(participantId:string,status:Participant['status']){
@@ -247,7 +248,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       setParticipants(current=>current.map(p=>p.id===participantId?{...p,...data}:p))
       setSelectedParticipant(current=>current?.id===participantId?{...current,...data}:current)
       setNotice(status==='active'?'Participant enrolled.':status==='completed'?'Participant marked completed.':'Participant withdrawn.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not update participant status.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not update participant status.'))}finally{setSaving(false)}
   }
 
   async function openSession(session:Session){
@@ -261,7 +262,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
         ...row,
         participants:Array.isArray(row.participants)?{...row.participants[0],applicants:row.participants[0]?.applicants}:row.participants
       })) as AttendanceRow[])
-    }catch(e){setError(e instanceof Error?e.message:'Could not load session attendance.')}finally{setAttendanceLoading(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not load session attendance.'))}finally{setAttendanceLoading(false)}
   }
 
   async function createSession(e:FormEvent){
@@ -279,7 +280,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       setSessions(x=>[row,...x]);setSelectedSession(row);setSessionAttendance([])
       setSessionForm(current=>({...current,title:''}))
       setIds('');setNotice('Attendance session created.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not create session.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not create session.'))}finally{setSaving(false)}
   }
 
   async function saveCheckInSlug(){
@@ -300,7 +301,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       setCheckInSlugDraft(row.check_in_slug)
       setEditingCheckInSlug(false)
       setNotice('Attendance link updated.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not update attendance link.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not update attendance link.'))}finally{setSaving(false)}
   }
 
   async function setCheckInOpen(open:boolean){
@@ -311,7 +312,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       if(error)throw error
       setSessions(x=>x.map(s=>s.id===data.id?data as Session:s));setSelectedSession(data as Session)
       setNotice(open?'Self check-in is open. Share the check-in link with participants.':'Self check-in closed. Manual attendance remains available.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not update self check-in.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not update self check-in.'))}finally{setSaving(false)}
   }
 
   async function importAttendance(){
@@ -333,7 +334,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       }
       setNotice('Marked '+matches.length+' present.'+(unknown.length?' '+unknown.length+' ID(s) not found or from another programme.':''))
       setIds('')
-    }catch(e){setError(e instanceof Error?e.message:'Could not import attendance.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not import attendance.'))}finally{setSaving(false)}
   }
 
   async function markAbsent(participantId:string){
@@ -346,7 +347,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       },{onConflict:'attendance_session_id,participant_id'})
       if(error)throw error
       await openSession(selectedSession);setNotice('Attendance updated.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not update attendance.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not update attendance.'))}finally{setSaving(false)}
   }
 
   async function createBenefit(e:FormEvent){
@@ -362,7 +363,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       setBenefits(x=>[{...data,recipient_count:0},...x])
       setBenefitForm({application_id:'',name:'',description:'',distribution_date:''})
       setNotice('Benefit distribution created.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not create distribution.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not create distribution.'))}finally{setSaving(false)}
   }
 
   async function createAssignment(e:FormEvent){
@@ -380,7 +381,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       if(error)throw error
       setAssignments(x=>[data as Assignment,...x]);setSelectedAssignment(data as Assignment);setAssignmentQuestions(x=>({...x,[data.id]:[]}))
       setAssignmentForm({title:'',description:'',instructions:'',deadline:'',max_score:'100',pass_mark:'50'});setNotice('Assignment draft created.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not create assignment.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not create assignment.'))}finally{setSaving(false)}
   }
   async function openAssignment(assignment:Assignment){
     setSelectedAssignment(assignment);setSelectedSubmission(null);setEditingAssignment(false);setEditAssignmentForm({title:assignment.title,description:assignment.description||'',instructions:assignment.instructions||'',deadline:assignment.deadline?new Date(assignment.deadline).toISOString().slice(0,16):'',max_score:String(assignment.max_score),pass_mark:String(assignment.pass_mark)});setError('')
@@ -403,7 +404,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       const {data,error}=await supabase.from('assignments').update(patch).eq('id',selectedAssignment.id).select('id,application_id,title,description,instructions,deadline,max_score,pass_mark,status,public_slug,results_released,results_released_at,created_at').single()
       if(error)throw error
       setSelectedAssignment(data as Assignment);setAssignments(x=>x.map(a=>a.id===data.id?data as Assignment:a));setEditingAssignment(false);setNotice('Assignment updated.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not update assignment.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not update assignment.'))}finally{setSaving(false)}
   }
   async function deleteAssignment(){
     if(!selectedAssignment||!window.confirm('Delete "'+selectedAssignment.title+'"? This permanently removes its questions, submissions, grades and uploaded files.'))return
@@ -417,7 +418,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       const {error}=await supabase.from('assignments').delete().eq('id',selectedAssignment.id)
       if(error)throw error
       setAssignments(x=>x.filter(a=>a.id!==selectedAssignment.id));setSelectedAssignment(null);setAssignmentSubmissions([]);setLeaderboard([]);setNotice('Assignment deleted.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not delete assignment.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not delete assignment.'))}finally{setSaving(false)}
   }
 
   async function openAssignmentSubmission(submission:AssignmentSubmission){
@@ -440,7 +441,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       if(error)throw error
       const updated={...selectedSubmission,score,status:'graded' as const,feedback:gradeForm.feedback||null,graded_at:data.graded_at}
       setSelectedSubmission(updated);setAssignmentSubmissions(x=>x.map(s=>s.id===updated.id?updated:s));await loadLeaderboard(selectedAssignment.application_id);setNotice('Grade saved.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not save grade.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not save grade.'))}finally{setSaving(false)}
   }
   async function openAssignmentDocument(doc:AssignmentDocument){
     const {data,error}=await supabase.storage.from(doc.storage_bucket).createSignedUrl(doc.storage_path,300)
@@ -458,7 +459,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       const {data,error}=await supabase.from('assignment_questions').insert({assignment_id:selectedAssignment.id,type:questionForm.type,label:questionForm.label.trim(),required:questionForm.required,position,config:choiceType?{options}:{}}).select('id,assignment_id,type,label,description,required,position,config').single()
       if(error)throw error
       setAssignmentQuestions(x=>({...x,[selectedAssignment.id]:[...(x[selectedAssignment.id]||[]),data as AssignmentQuestion]}));setQuestionForm({label:'',type:'long_text',required:true,options:['','']})
-    }catch(e){setError(e instanceof Error?e.message:'Could not add question.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not add question.'))}finally{setSaving(false)}
   }
   function startEditQuestion(q:AssignmentQuestion){
     setEditingQuestionId(q.id)
@@ -474,7 +475,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       const {data,error}=await supabase.from('assignment_questions').update({label:editQuestionForm.label.trim(),type:editQuestionForm.type,required:editQuestionForm.required,config:choiceType?{options}:{},updated_at:new Date().toISOString()}).eq('id',editingQuestionId).select('id,assignment_id,type,label,description,required,position,config').single()
       if(error)throw error
       setAssignmentQuestions(x=>({...x,[selectedAssignment.id]:(x[selectedAssignment.id]||[]).map(q=>q.id===data.id?data as AssignmentQuestion:q)}));setEditingQuestionId(null);setNotice('Question updated.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not update question.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not update question.'))}finally{setSaving(false)}
   }
   async function deleteAssignmentQuestion(q:AssignmentQuestion){
     if(!selectedAssignment||!window.confirm('Delete this question?'))return
@@ -483,7 +484,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       const {error}=await supabase.from('assignment_questions').delete().eq('id',q.id)
       if(error)throw error
       setAssignmentQuestions(x=>({...x,[selectedAssignment.id]:(x[selectedAssignment.id]||[]).filter(item=>item.id!==q.id)}));if(editingQuestionId===q.id)setEditingQuestionId(null);setNotice('Question deleted.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not delete question.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not delete question.'))}finally{setSaving(false)}
   }
 
   async function setResultsReleased(released:boolean){
@@ -493,7 +494,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       const {data,error}=await supabase.from('assignments').update({results_released:released,results_released_at:released?new Date().toISOString():null,updated_at:new Date().toISOString()}).eq('id',selectedAssignment.id).select('id,application_id,title,description,instructions,deadline,max_score,pass_mark,status,public_slug,results_released,results_released_at,created_at').single()
       if(error)throw error
       setAssignments(x=>x.map(a=>a.id===data.id?data as Assignment:a));setSelectedAssignment(data as Assignment);setNotice(released?'Results released. Participants can now check their results.':'Results hidden from participants.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not update results visibility.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not update results visibility.'))}finally{setSaving(false)}
   }
 
   async function setAssignmentStatus(status:Assignment['status']){
@@ -503,7 +504,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       const {data,error}=await supabase.from('assignments').update({status,published_at:status==='published'?new Date().toISOString():undefined,updated_at:new Date().toISOString()}).eq('id',selectedAssignment.id).select('id,application_id,title,description,instructions,deadline,max_score,pass_mark,status,public_slug,results_released,results_released_at,created_at').single()
       if(error)throw error
       setAssignments(x=>x.map(a=>a.id===data.id?data as Assignment:a));setSelectedAssignment(data as Assignment);setNotice(status==='published'?'Assignment published. The participant link will be activated in Phase 2.':status==='closed'?'Assignment closed.':'Assignment returned to draft.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not update assignment.')}finally{setSaving(false)}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not update assignment.'))}finally{setSaving(false)}
   }
 
   const selectedAttendance=selectedSession?sessionAttendance:[]
