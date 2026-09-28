@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { CheckCircle2, ChevronDown, FileSpreadsheet, Search, Upload, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { friendlyErrorMessage } from '../lib/errors'
 
 type Application = { id: string; name: string }
 
@@ -193,7 +194,7 @@ export function GoogleFormImport({
 
       setParsed(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not read this CSV file.')
+      setError(friendlyErrorMessage(err,'Could not read this CSV file.'))
     }
   }
 
