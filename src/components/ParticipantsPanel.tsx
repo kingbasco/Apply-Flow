@@ -8,7 +8,7 @@ type Participant = {
   application_id:string; status:'active'|'completed'|'withdrawn'; joined_at:string
   attendance_count?:number
 }
-type Session = { id:string; application_id:string; title:string; session_date:string }
+type Session = { id:string; application_id:string; title:string; session_date:string; check_in_slug:string; check_in_open:boolean; check_in_opened_at:string|null }
 type Benefit = {
   id:string; application_id:string; name:string; description:string|null
   distribution_date:string|null; status:'draft'|'ready'|'distributed'; recipient_count?:number
@@ -84,7 +84,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     try{
       const [p,s,b,recipients,a]=await Promise.all([
         supabase.from('participants').select('id,participant_id,application_id,status,joined_at,applicants(full_name,email)').eq('organization_id',organizationId).order('participant_id'),
-        supabase.from('attendance_sessions').select('id,application_id,title,session_date').eq('organization_id',organizationId).order('session_date',{ascending:false}),
+        supabase.from('attendance_sessions').select('id,application_id,title,session_date,check_in_slug,check_in_open,check_in_opened_at').eq('organization_id',organizationId).order('session_date',{ascending:false}),
         supabase.from('benefit_distributions').select('id,application_id,name,description,distribution_date,status').eq('organization_id',organizationId).order('created_at',{ascending:false}),
         supabase.from('benefit_recipients').select('distribution_id,participant_id'),
         supabase.from('assignments').select('id,application_id,title,description,instructions,deadline,max_score,pass_mark,status,public_slug,results_released,results_released_at,created_at').eq('organization_id',organizationId).order('created_at',{ascending:false})
@@ -189,11 +189,22 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
       const {data,error}=await supabase.from('attendance_sessions').insert({
         organization_id:organizationId,application_id:sessionForm.application_id,
         title:sessionForm.title.trim(),session_date:sessionForm.session_date,created_by:user?.id
-      }).select('id,application_id,title,session_date').single()
+      }).select('id,application_id,title,session_date,check_in_slug,check_in_open,check_in_opened_at').single()
       if(error)throw error
       setSessions(x=>[data,...x]);setSelectedSession(data);setSessionAttendance([])
       setIds('');setNotice('Attendance session created.')
     }catch(e){setError(e instanceof Error?e.message:'Could not create session.')}finally{setSaving(false)}
+  }
+
+  async function setCheckInOpen(open:boolean){
+    if(!selectedSession)return
+    setSaving(true);setError('');setNotice('')
+    try{
+      const {data,error}=await supabase.from('attendance_sessions').update({check_in_open:open,check_in_opened_at:open?new Date().toISOString():null}).eq('id',selectedSession.id).select('id,application_id,title,session_date,check_in_slug,check_in_open,check_in_opened_at').single()
+      if(error)throw error
+      setSessions(x=>x.map(s=>s.id===data.id?data as Session:s));setSelectedSession(data as Session)
+      setNotice(open?'Self check-in is open. Share the check-in link with participants.':'Self check-in closed. Manual attendance remains available.')
+    }catch(e){setError(e instanceof Error?e.message:'Could not update self check-in.')}finally{setSaving(false)}
   }
 
   async function importAttendance(){
@@ -471,7 +482,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
       <div className="attendance-column">
         <div className="card table-card attendance-record-card">
           <div className="card-header"><div><p className="eyebrow">Selected session</p><h2>{selectedSession?selectedSession.title:'Session attendance'}</h2><p>{selectedSession?appName(selectedSession.application_id):'Select a session from the list.'}</p></div><CalendarCheck2 size={20}/></div>
-          {!selectedSession?<div className="table-empty">Select an attendance session to see participants.</div>:attendanceLoading?<div className="loading-card">Loading attendance…</div>:<>
+          {!selectedSession?<div className="table-empty">Select an attendance session to see participants.</div>:attendanceLoading?<div className="loading-card">Loading attendance…</div>:<><div className="attendance-checkin-card"><div><p className="eyebrow">Participant self check-in</p><h3>{selectedSession.check_in_open?'Check-in is open':'Check-in is closed'}</h3><p>{selectedSession.check_in_open?'Participants can use the shared link and their Participant ID to mark themselves present.':'Open check-in when you are ready for participants to record their attendance.'}</p></div><div className="attendance-checkin-actions"><button type="button" className={selectedSession.check_in_open?'secondary-button':'primary-button'} onClick={()=>setCheckInOpen(!selectedSession.check_in_open)} disabled={saving}>{selectedSession.check_in_open?'Close check-in':'Open check-in'}</button><button type="button" className="secondary-button" onClick={()=>navigator.clipboard.writeText(window.location.origin+'/attendance/'+selectedSession.check_in_slug).then(()=>setNotice('Attendance check-in link copied.')).catch(()=>setError('Could not copy the attendance link.'))}><Link2 size={15}/> Copy check-in link</button></div></div>
             <div className="table-wrap"><table><thead><tr><th>Participant</th><th>ID</th><th>Status</th><th></th></tr></thead><tbody>
               {selectedAttendance.length?selectedAttendance.map(r=><tr key={r.participant_id}><td><strong>{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.full_name:r.participants?.applicants?.full_name||'Unnamed participant'}</strong><span className="table-sub">{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.email:r.participants?.applicants?.email||''}</span></td><td>{r.participants?.participant_id}</td><td><span className={'status '+(r.status==='present'?'green':'neutral')}>{r.status}</span></td><td>{r.status==='present'?<button className="text-button" disabled={saving} onClick={()=>markAbsent(r.participant_id)}>Mark absent</button>:null}</td></tr>):<tr><td colSpan={4}><div className="table-empty">No attendance recorded for this session.</div></td></tr>}
             </tbody></table></div>
