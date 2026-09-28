@@ -189,41 +189,54 @@ function ResetPasswordScreen({ onComplete }: { onComplete: () => Promise<void> |
 }
 
 function InviteSetupScreen({ email, onComplete }: { email: string; onComplete: () => Promise<void> | void }) {
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [name,setName]=useState('')
+  const [username,setUsername]=useState('')
+  const [birthMonth,setBirthMonth]=useState('')
+  const [birthDay,setBirthDay]=useState('')
+  const [password,setPassword]=useState('')
+  const [confirmPassword,setConfirmPassword]=useState('')
+  const [busy,setBusy]=useState(false)
+  const [error,setError]=useState('')
+
+  useEffect(()=>{(async()=>{
+    const {data}=await supabase.from('profiles').select('full_name,username,birth_month,birth_day').maybeSingle()
+    if(data){setName(data.full_name||'');setUsername(data.username||'');setBirthMonth(data.birth_month?String(data.birth_month):'');setBirthDay(data.birth_day?String(data.birth_day):'')}
+  })()},[])
 
   async function submit(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-    if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
-    if (password !== confirmPassword) { setError('Passwords do not match.'); return }
+    e.preventDefault();setError('')
+    const normalizedUsername=username.trim().toLowerCase()
+    if(name.trim().length<2){setError('Enter your full name.');return}
+    if(!/^[a-z0-9_]{3,30}$/.test(normalizedUsername)){setError('Username must be 3–30 characters and use only letters, numbers, or underscores.');return}
+    if(!birthMonth||!birthDay){setError('Select your date of birth.');return}
+    if(password.length<6){setError('Password must be at least 6 characters.');return}
+    if(password!==confirmPassword){setError('Passwords do not match.');return}
     setBusy(true)
-    try {
-      const { error: updateError } = await supabase.auth.updateUser({ password })
-      if (updateError) throw updateError
+    try{
+      const {error:updateError}=await supabase.auth.updateUser({password,data:{full_name:name.trim(),username:normalizedUsername,birth_month:Number(birthMonth),birth_day:Number(birthDay)}})
+      if(updateError)throw updateError
+      const {error:profileError}=await supabase.rpc('complete_invited_member_profile',{p_full_name:name.trim(),p_username:normalizedUsername,p_birth_month:Number(birthMonth),p_birth_day:Number(birthDay)})
+      if(profileError)throw profileError
       await onComplete()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not finish setting up your account.')
-    } finally {
-      setBusy(false)
-    }
+    }catch(err){setError(err instanceof Error?err.message:'Could not finish setting up your account.')}finally{setBusy(false)}
   }
 
   return <div className="auth-shell">
     <div className="auth-panel">
       <div className="brand auth-brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Application OS</span></div></div>
-      <div className="auth-copy"><p className="eyebrow">Team invitation</p><h1>Create your account.</h1><p>You’ve been invited to join an ApplyFlow workspace. Create your password, then sign in normally to access the workspace.</p></div>
+      <div className="auth-copy"><p className="eyebrow">Team invitation</p><h1>Set up your account.</h1><p>Complete your profile and create a password. Your workspace and access role have already been assigned by the person who invited you.</p></div>
       <form onSubmit={submit} className="auth-form">
-        <label>Email<input type="email" value={email} readOnly /></label>
-        <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Create a password" minLength={6} required /></label>
-        <label>Confirm password<input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter your password" minLength={6} required /></label>
-        {error && <div className="form-error">{error}</div>}
-        <button className="primary-button auth-submit" disabled={busy}>{busy ? 'Setting up…' : 'Finish account setup'}</button>
+        <label>Full name<input value={name} onChange={e=>setName(e.target.value)} placeholder="Your full name" autoComplete="name" required/></label>
+        <label>Username<input value={username} onChange={e=>setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g,''))} placeholder="yourusername" minLength={3} maxLength={30} autoComplete="username" required/><small className="field-help">3–30 characters · letters, numbers and underscores</small></label>
+        <label>Date of birth <span className="optional">Month and day</span><div className="dob-fields"><select className="dob-month" aria-label="Birth month" value={birthMonth} onChange={e=>setBirthMonth(e.target.value)} required><option value="">Month</option>{['January','February','March','April','May','June','July','August','September','October','November','December'].map((month,index)=><option key={month} value={index+1}>{month}</option>)}</select><select className="dob-day" aria-label="Birth day" value={birthDay} onChange={e=>setBirthDay(e.target.value)} required><option value="">Day</option>{Array.from({length:31},(_,i)=>i+1).map(day=><option key={day} value={day}>{day}</option>)}</select></div></label>
+        <label>Email address<input type="email" value={email} readOnly autoComplete="email"/><small className="field-help">This is the email address your workspace invitation was sent to.</small></label>
+        <label>Create password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Create a password" minLength={6} autoComplete="new-password" required/></label>
+        <label>Confirm password<input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter your password" minLength={6} autoComplete="new-password" required/></label>
+        {error&&<div className="form-error">{error}</div>}
+        <button className="primary-button auth-submit" disabled={busy}>{busy?'Creating account…':'Create account & continue'}</button>
       </form>
     </div>
-    <div className="auth-aside"><div><span className="aside-kicker">APPLYFLOW</span><h2>Your account is almost ready.</h2><p>Set your password first. After that, you’ll return to the normal ApplyFlow sign-in screen and use your email and password to enter the workspace.</p></div><div className="aside-stat"><strong>Invited workspace member</strong><span>Create password · Sign in · Start working</span></div></div>
+    <div className="auth-aside"><div><span className="aside-kicker">APPLYFLOW</span><h2>Join your team workspace.</h2><p>Your invitation controls which workspace you join and what role you have. Your personal account details remain yours to manage after setup.</p></div><div className="aside-stat"><strong>One-time account setup</strong><span>Profile · Password · Sign in · Workspace access</span></div></div>
   </div>
 }
 
@@ -702,13 +715,8 @@ function App() {
   if (window.location.pathname.startsWith('/a/')) return <PublicAssignment slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
   if (window.location.pathname.startsWith('/apply/')) return <PublicApplication slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
   if (invitePending && session) return <InviteSetupScreen email={session.user.email || ''} onComplete={async () => {
-    const { error: profileError } = await supabase.from('profiles')
-      .update({ invitation_status: 'active' })
-      .eq('id', session.user.id)
-    if (profileError) throw profileError
-
-    // Invitation links create a temporary authenticated session so the invited
-    // user can set their password. Do not send them into the workspace yet.
+    // Invitation links create a temporary authenticated session. Once profile
+    // setup is complete, sign out so the member proves their new credentials.
     await supabase.auth.signOut()
     setSession(null)
     setProfile(null)
