@@ -3576,3 +3576,24 @@ html.dark-theme .screening-review-answer a{color:#c4beff!important}
 html.dark-theme .screening-review-footer button:disabled,
 html.dark-theme .screening-review-decision button:disabled,
 html.dark-theme .screening-decision-panel button:disabled{opacity:.62;color:#c5cad3!important}
+
+/* Checkbox-first data tables — keep selection control compact */
+.screening-applicants-card .table-wrap table{min-width:820px}
+.screening-applicants-card .table-wrap th:first-child,
+.screening-applicants-card .table-wrap td:first-child{width:52px;min-width:52px;max-width:52px;padding-left:18px;padding-right:8px;white-space:nowrap}
+.screening-applicants-card .table-wrap th:nth-child(2),
+.screening-applicants-card .table-wrap td:nth-child(2){min-width:210px;padding-left:8px}
+.review-filter-toolbar + .table-wrap th:first-child,
+.review-filter-toolbar + .table-wrap td:first-child{width:52px;min-width:52px;max-width:52px;padding-left:18px;padding-right:8px;white-space:nowrap}
+.review-filter-toolbar + .table-wrap th:nth-child(2),
+.review-filter-toolbar + .table-wrap td:nth-child(2){padding-left:8px}
+@media(max-width:700px){
+ .screening-applicants-card .table-wrap th:first-child,
+ .screening-applicants-card .table-wrap td:first-child,
+ .review-filter-toolbar + .table-wrap th:first-child,
+ .review-filter-toolbar + .table-wrap td:first-child{width:46px;min-width:46px;max-width:46px;padding-left:12px;padding-right:6px}
+ .screening-applicants-card .table-wrap th:nth-child(2),
+ .screening-applicants-card .table-wrap td:nth-child(2),
+ .review-filter-toolbar + .table-wrap th:nth-child(2),
+ .review-filter-toolbar + .table-wrap td:nth-child(2){padding-left:6px}
+}
