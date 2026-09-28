@@ -3488,3 +3488,26 @@ html.dark-theme .content table tbody tr{background-color:transparent}
 html.dark-theme .notification-item{background:#171b23;border-color:#292f3a}
 html.dark-theme .notification-item.unread{background:#1d2030}
 html.dark-theme .notification-footer{background:#12161d;border-color:#292f3a}
+
+/* Final nested-surface dark-mode coverage */
+html.dark-theme .forms-toolbar{background:#171b23!important;border-color:#292f3a!important}
+html.dark-theme .forms-filters{background:#12161d!important;border-color:#343a47!important}
+html.dark-theme .forms-search{background:#12161d!important;border-color:#343a47!important}
+html.dark-theme .forms-search:focus-within{background:#12161d!important}
+html.dark-theme .filter-button{background:#1b2029!important;border-color:#343a47!important;color:#a5adba!important}
+html.dark-theme .filter-button.active{background:rgba(109,93,252,.2)!important;border-color:rgba(109,93,252,.58)!important;color:#c1bbff!important}
+html.dark-theme .filter-button span{background:#242a34!important;color:#aab2bf!important}
+html.dark-theme .filter-button.active span{background:#e9e7ff!important;color:#5549c8!important}
+html.dark-theme .table-wrap,html.dark-theme .applicants-table-wrap,html.dark-theme .selection-table,html.dark-theme .reviews-table,html.dark-theme .import-preview-table{background:#171b23!important}
+html.dark-theme .table-wrap table,html.dark-theme .applicants-table,html.dark-theme .import-preview-table table{background:#171b23!important}
+html.dark-theme .table-wrap thead,html.dark-theme .applicants-table thead,html.dark-theme .selection-head,html.dark-theme .review-table-head{background:#151920!important}
+html.dark-theme .screening-review-modal,html.dark-theme .screening-review-header,html.dark-theme .screening-summary-card,html.dark-theme .screening-review-section{background:#171b23!important;border-color:#292f3a!important;color:#e4e8ee!important}
+html.dark-theme .screening-review-content{background:#12161d!important}
+html.dark-theme .review-assignment-toolbar,html.dark-theme .import-question-list,html.dark-theme .participant-profile-footer,html.dark-theme .attendance-import-box,html.dark-theme .attendance-checkin-card,html.dark-theme .eligibility-summary-stats>div,html.dark-theme .eligibility-rule-footer .toggle-row,html.dark-theme .assignment-meta,html.dark-theme .assignment-options-editor,html.dark-theme .assignment-answer-row,html.dark-theme .public-assignment-instructions{background:#12161d!important;border-color:#303642!important;color:#dce1e8!important}
+html.dark-theme .assignment-meta>div,html.dark-theme .assignment-grade-form{background:#171b23!important;border-color:#303642!important}
+html.dark-theme .import-dropzone{background:#12161d!important;border-color:#3a414d!important}
+html.dark-theme .import-dropzone:hover{background:#1b2029!important;border-color:#646ed0!important}
+html.dark-theme .import-question-list span{background:#1b2029!important;border-color:#343a47!important;color:#b8bfca!important}
+html.dark-theme .participant-profile-statusbar{background:#12161d!important;border-color:#303642!important}
+html.dark-theme .eligibility-value-field .public-options{background:#12161d!important;border-color:#343a47!important}
+html.dark-theme .notification-footer{background:#12161d!important}
