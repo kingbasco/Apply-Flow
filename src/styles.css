@@ -3265,3 +3265,65 @@ html.dark-theme .assignment-welcome-details strong{color:#eef1f5}
 @media(max-width:430px){
  .assignment-welcome-details{grid-template-columns:1fr}
 }
+
+
+/* Public assignment answer surface — refined cards and controls */
+.public-assignment-form{display:grid!important;gap:14px!important}
+.public-assignment-question{
+  display:block!important;
+  margin:0!important;
+  padding:20px!important;
+  border:1px solid #e4e7ed!important;
+  border-radius:15px;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(26,34,54,.025);
+}
+.public-assignment-question:last-of-type{border-bottom:1px solid #e4e7ed!important;margin-bottom:4px!important}
+.public-question-label{margin:0 0 13px!important;font-size:15px!important;line-height:1.4;color:#303846!important}
+.public-question-label b{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;border-radius:7px;background:#f0efff;color:#6259df!important;font-size:11px}
+.public-assignment-question .field-help{display:block;margin:-6px 0 12px;color:#9299a6;line-height:1.45}
+.public-assignment-question>input:not([type="file"]),
+.public-assignment-question>textarea{
+  display:block;
+  width:100%;
+  margin:0!important;
+  padding:13px 14px!important;
+  border:1px solid #dfe3ea!important;
+  border-radius:11px!important;
+  background:#fbfcfd!important;
+  color:#202735!important;
+  font:inherit!important;
+  font-size:15px!important;
+  line-height:1.5!important;
+  box-sizing:border-box;
+  box-shadow:none!important;
+}
+.public-assignment-question>input:not([type="file"]){height:50px!important;min-height:50px!important}
+.public-assignment-question>textarea{height:auto!important;min-height:116px!important;max-height:280px;resize:vertical}
+.public-assignment-question>input:focus,.public-assignment-question>textarea:focus{outline:none;border-color:#756de7!important;background:#fff!important;box-shadow:0 0 0 3px rgba(98,89,223,.1)!important}
+.public-choice-list{gap:9px!important}
+.public-choice{min-height:52px;padding:12px 14px!important;border-radius:11px!important;transition:border-color .15s,background .15s}
+.public-choice:has(input:checked){border-color:#8d86ef!important;background:#f8f7ff!important}
+.public-choice input[type="radio"],.public-choice input[type="checkbox"]{appearance:none;-webkit-appearance:none;width:20px!important;height:20px!important;min-width:20px;border:1.5px solid #a9afba!important;background:#fff!important;display:grid;place-content:center;box-shadow:none!important}
+.public-choice input[type="radio"]{border-radius:50%!important}
+.public-choice input[type="radio"]:checked{border:6px solid #6259df!important}
+.public-choice input[type="checkbox"]{border-radius:6px!important}
+.public-choice input[type="checkbox"]:checked{background:#6259df!important;border-color:#6259df!important}
+.public-choice input[type="checkbox"]:checked:after{content:"";width:8px;height:4px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(1px,-1px)}
+.public-choice span{font-size:14px!important;font-weight:650!important}
+.public-file-field{min-height:76px!important;padding:12px!important;border-radius:12px!important;background:#fbfcfd!important}
+.public-file-button{min-height:46px!important;background:#efeeff!important;border:1px solid #e2e0ff;border-radius:10px!important}
+.public-file-name{flex:1}
+.public-assignment-form>.auth-submit{margin-top:6px!important;border-radius:12px!important;min-height:54px!important;font-size:15px!important}
+html.dark-theme .public-assignment-question{background:#171c25;border-color:#303642!important}
+html.dark-theme .public-assignment-question>input:not([type="file"]),html.dark-theme .public-assignment-question>textarea,html.dark-theme .public-file-field{background:#1b202a!important;border-color:#343a46!important;color:#eef1f5!important}
+html.dark-theme .public-choice:has(input:checked){background:#24223b!important}
+@media(max-width:760px){
+ .public-assignment-form{gap:12px!important}
+ .public-assignment-question{padding:16px!important;border-radius:13px}
+ .public-question-label{font-size:14px!important;margin-bottom:11px!important}
+ .public-assignment-question>input:not([type="file"]){height:48px!important;min-height:48px!important;font-size:16px!important}
+ .public-assignment-question>textarea{min-height:104px!important;font-size:16px!important}
+ .public-choice{min-height:50px;padding:11px 12px!important}
+ .public-file-field{padding:10px!important}
+}
