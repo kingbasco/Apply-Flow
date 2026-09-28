@@ -3611,3 +3611,12 @@ html.dark-theme .screening-answer-number{background:rgba(109,93,252,.14)!importa
 html.dark-theme .screening-answer-question{background:transparent!important;color:#e7ebf1!important}
 html.dark-theme .screening-answer-description{color:#8f98a8!important}
 html.dark-theme .screening-answer-value{background:transparent!important;color:#cbd1db!important;border-color:#3a414d!important}
+
+/* Programme Staff participant assignment */
+.participant-staff-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.participant-staff-option{display:flex;align-items:center;gap:10px;padding:12px 13px;border:1px solid #e3e6ec;border-radius:12px;background:#fafbfc;cursor:pointer}
+.participant-staff-option input{width:17px;height:17px;flex:0 0 auto}
+.participant-staff-option span{display:flex;min-width:0;flex-direction:column;gap:2px}.participant-staff-option strong{font-size:13px}.participant-staff-option small{font-size:10px;color:#89919e}
+html.dark-theme .participant-staff-option{background:#12161d;border-color:#303642;color:#e4e8ee}
+html.dark-theme .participant-staff-option small{color:#8f98a8}
+@media(max-width:600px){.participant-staff-list{grid-template-columns:1fr}}
