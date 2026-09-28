@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowRight, BarChart3, Bell, Check, ChevronDown, ChevronRight, ClipboardList, FileCheck2, FileText, Clock3,
   FolderKanban, LayoutDashboard, LogOut, Menu, Plus, Search, Settings,
@@ -588,6 +588,7 @@ function App() {
   const [deleteCandidate, setDeleteCandidate] = useState<Application | null>(null)
   const [deleteError, setDeleteError] = useState('')
   const [active, setActive] = useState(initialRoute.active)
+  const mainScrollRef = useRef<HTMLElement>(null)
   const [routeRestored, setRouteRestored] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -609,6 +610,14 @@ function App() {
   const [newTarget, setNewTarget] = useState('')
   const [newParticipantPrefix, setNewParticipantPrefix] = useState('APP')
   const [importOpen, setImportOpen] = useState(false)
+
+  useEffect(()=>{
+    const frame=window.requestAnimationFrame(()=>{
+      mainScrollRef.current?.scrollTo({top:0,left:0,behavior:'auto'})
+      window.scrollTo({top:0,left:0,behavior:'auto'})
+    })
+    return()=>window.cancelAnimationFrame(frame)
+  },[active,selectedApplication?.id,detailTab])
 
   async function loadWorkspace(currentSession = session) {
     if (!currentSession?.user) return
@@ -904,7 +913,7 @@ function App() {
       <nav className="nav-group bottom"><p className="nav-label">{profile?.role==='reviewer'?'Account':'Manage'}</p>{(profile?.role==='reviewer'?bottomNav.filter(item=>item.label==='Settings'):bottomNav).map(({label,icon:Icon})=><button key={label} className={active===label?'nav-item active':'nav-item'} onClick={()=>{closeApplication();setActive(label);setSidebarOpen(false)}}><Icon size={18}/><span>{label}</span></button>)}</nav>
       <div className="sidebar-footer"><div className="help-card"><Sparkles size={17}/><div><strong>AI screening</strong><span>Coming in the next phase</span></div></div><div className="profile-row"><div className="profile-avatar">{profile?.avatar_url?<img src={profile.avatar_url} alt="" />:profileName.slice(0,2).toUpperCase()}</div><div><strong>{profileName}</strong><span>{profile?.username ? '@'+profile.username : profile?.role==='reviewer'?'Programme Staff':profile?.role || 'Owner'}</span></div><button className="icon-button" onClick={signOut} aria-label="Sign out"><LogOut size={15}/></button></div></div>
     </aside>
-    <main className="main"><header className="topbar"><button className="mobile-menu" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Menu size={20}/></button><div className="breadcrumbs"><span>Workspace</span><span>/</span><strong>{active}</strong></div><div className="top-actions"><NotificationCenter userId={session?.user?.id||""} onNavigate={(target)=>setActive(target as typeof active)} /><ThemeToggle/><div className="top-avatar">{profile?.avatar_url?<img src={profile.avatar_url} alt="" />:profileName.slice(0,2).toUpperCase()}</div></div></header>
+    <main ref={mainScrollRef} className="main"><header className="topbar"><button className="mobile-menu" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Menu size={20}/></button><div className="breadcrumbs"><span>Workspace</span><span>/</span><strong>{active}</strong></div><div className="top-actions"><NotificationCenter userId={session?.user?.id||""} onNavigate={(target)=>setActive(target as typeof active)} /><ThemeToggle/><div className="top-avatar">{profile?.avatar_url?<img src={profile.avatar_url} alt="" />:profileName.slice(0,2).toUpperCase()}</div></div></header>
       <div className="content">
         {selectedApplication ? <ApplicationDetails application={selectedApplication} settings={applicationSettings} tab={detailTab} setTab={setDetailTab} loading={detailLoading} saving={detailSaving} error={detailError} onBack={closeApplication} onSave={saveApplicationDetails} /> : loading ? <div className="loading-card card">Loading your workspace…</div> : error ? <div className="form-error page-error">{error}</div> : active==='Dashboard' ? <>
           <section className="page-heading"><div><p className="eyebrow">Your workspace</p><h1>Good evening, {firstName}.</h1><p className="subtitle">Here’s what is happening across your programmes.</p></div><button className="primary-button" onClick={()=>openCreate()}><Plus size={17}/> New application</button></section>
