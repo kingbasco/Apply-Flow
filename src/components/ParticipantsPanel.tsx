@@ -94,7 +94,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
         supabase.from('benefit_distributions').select('id,application_id,name,description,distribution_date,status').eq('organization_id',organizationId).order('created_at',{ascending:false}),
         supabase.from('benefit_recipients').select('distribution_id,participant_id'),
         supabase.from('assignments').select('id,application_id,title,description,instructions,deadline,max_score,pass_mark,status,public_slug,results_released,results_released_at,created_at').eq('organization_id',organizationId).order('created_at',{ascending:false}),
-        supabase.from('profiles').select('id,full_name').eq('organization_id',organizationId).eq('role','reviewer').order('full_name'),
+        supabase.from('profiles').select('id,full_name').eq('organization_id',organizationId).in('role',['admin','reviewer']).order('full_name'),
         supabase.from('participant_staff_assignments').select('participant_id,staff_id').eq('organization_id',organizationId)
       ])
       if(p.error)throw p.error;if(s.error)throw s.error;if(b.error)throw b.error;if(a.error)throw a.error;if(staff.error)throw staff.error;if(staffAssignments.error)throw staffAssignments.error
@@ -170,7 +170,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       })
       const count=selectedParticipantIds.length
       setSelectedParticipantIds([]);setBulkStaffId('')
-      setNotice(count+' participant'+(count===1?'':'s')+' assigned to Programme Staff.')
+      setNotice(count+' participant'+(count===1?'':'s')+' assigned to staff.')
     }catch(e){setError(e instanceof Error?e.message:'Could not assign selected participants.')}finally{setSaving(false)}
   }
 
@@ -181,8 +181,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       const {error}=await supabase.rpc('set_participant_staff_assignment',{p_participant_id:participantId,p_staff_id:staffId,p_assigned:assigned})
       if(error)throw error
       setParticipantStaff(current=>assigned?[...current.filter(x=>!(x.participant_id===participantId&&x.staff_id===staffId)),{participant_id:participantId,staff_id:staffId}]:current.filter(x=>!(x.participant_id===participantId&&x.staff_id===staffId)))
-      setNotice(assigned?'Programme Staff assigned to participant.':'Programme Staff assignment removed.')
-    }catch(e){setError(e instanceof Error?e.message:'Could not update Programme Staff assignment.')}finally{setSaving(false)}
+      setNotice(assigned?'Staff member assigned to participant.':'Staff assignment removed.')
+    }catch(e){setError(e instanceof Error?e.message:'Could not update staff assignment.')}finally{setSaving(false)}
   }
 
   async function openParticipant(participant:Participant){
@@ -494,8 +494,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           <span className="participant-filter-count">{filtered.length} participant{filtered.length===1?'':'s'}</span>
         </div>
         {isAdmin&&<div className="participant-bulk-bar">
-          <div className="participant-bulk-summary"><strong>{selectedParticipantIds.length} selected</strong><span>Select participants below, then assign them to Programme Staff.</span></div>
-          <div className="participant-bulk-actions"><div className="participant-select-wrap"><select aria-label="Choose Programme Staff" value={bulkStaffId} onChange={e=>setBulkStaffId(e.target.value)}><option value="">Choose Programme Staff</option>{programmeStaff.map(staff=><option key={staff.id} value={staff.id}>{staff.full_name||'Programme Staff'}</option>)}</select><ChevronDown size={16}/></div><button type="button" className="primary-button" disabled={saving||!bulkStaffId||!selectedParticipantIds.length} onClick={bulkAssignProgrammeStaff}>Assign selected</button>{selectedParticipantIds.length>0&&<button type="button" className="text-button" onClick={()=>setSelectedParticipantIds([])}>Clear</button>}</div>
+          <div className="participant-bulk-summary"><strong>{selectedParticipantIds.length} selected</strong><span>Select participants below, then assign them to a staff member.</span></div>
+          <div className="participant-bulk-actions"><div className="participant-select-wrap"><select aria-label="Choose staff member" value={bulkStaffId} onChange={e=>setBulkStaffId(e.target.value)}><option value="">Choose staff member</option>{programmeStaff.map(staff=><option key={staff.id} value={staff.id}>{staff.full_name||'Staff member'}</option>)}</select><ChevronDown size={16}/></div><button type="button" className="primary-button" disabled={saving||!bulkStaffId||!selectedParticipantIds.length} onClick={bulkAssignProgrammeStaff}>Assign selected</button>{selectedParticipantIds.length>0&&<button type="button" className="text-button" onClick={()=>setSelectedParticipantIds([])}>Clear</button>}</div>
         </div>}
         <div className="table-wrap"><table><thead><tr>{isAdmin&&<th className="participant-select-cell"><input type="checkbox" aria-label="Select all visible participants" checked={filtered.length>0&&filtered.every(p=>selectedParticipantIds.includes(p.id))} onChange={e=>toggleAllVisibleParticipants(e.target.checked)}/></th>}<th>Participant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
           {filtered.length?filtered.map(p=><tr key={p.id} className="clickable-row" onClick={()=>openParticipant(p)}>
@@ -617,7 +617,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
             <div><span className="eyebrow">Participation status</span><strong>{selectedParticipant.status==='active'?'Active / Enrolled':selectedParticipant.status==='completed'?'Completed':'Withdrawn'}</strong><small>Update the participant's current programme status.</small></div>
             {isAdmin&&<label className="participant-status-select"><span>Change status</span><div className="participant-select-wrap"><select value={selectedParticipant.status} disabled={saving} onChange={e=>updateParticipantStatus(selectedParticipant.id,e.target.value as Participant['status'])}><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select><ChevronDown size={16}/></div></label>}
           </div>
-          {isAdmin&&<section className="participant-profile-section participant-staff-section"><div className="participant-section-heading"><div><p className="eyebrow">Programme Staff</p><h3>Assigned follow-up staff</h3><p>Assign staff who can follow attendance, submissions and grade this participant.</p></div><Users size={19}/></div>{programmeStaff.length?<div className="participant-staff-list">{programmeStaff.map(staff=>{const assigned=participantStaff.some(x=>x.participant_id===selectedParticipant.id&&x.staff_id===staff.id);return <label key={staff.id} className="participant-staff-option"><input type="checkbox" checked={assigned} disabled={saving} onChange={e=>updateParticipantStaffAssignment(selectedParticipant.id,staff.id,e.target.checked)}/><span><strong>{staff.full_name||'Programme Staff'}</strong><small>{assigned?'Assigned to this participant':'Not assigned'}</small></span></label>})}</div>:<div className="table-empty">No Programme Staff members are available yet.</div>}</section>}
+          {isAdmin&&<section className="participant-profile-section participant-staff-section"><div className="participant-section-heading"><div><p className="eyebrow">Staff assignment</p><h3>Assigned follow-up staff</h3><p>Assign staff who can follow attendance, submissions and grade this participant.</p></div><Users size={19}/></div>{programmeStaff.length?<div className="participant-staff-list">{programmeStaff.map(staff=>{const assigned=participantStaff.some(x=>x.participant_id===selectedParticipant.id&&x.staff_id===staff.id);return <label key={staff.id} className="participant-staff-option"><input type="checkbox" checked={assigned} disabled={saving} onChange={e=>updateParticipantStaffAssignment(selectedParticipant.id,staff.id,e.target.checked)}/><span><strong>{staff.full_name||'Staff member'}</strong><small>{assigned?'Assigned to this participant':'Not assigned'}</small></span></label>})}</div>:<div className="table-empty">No Admin or Programme Staff members are available yet.</div>}</section>}
           <div className="participant-profile-stats">
             <div><span>Attendance</span><strong>{selectedParticipant.attendance_count||0}</strong><small>sessions present</small></div>
             <div><span>Joined</span><strong>{new Date(selectedParticipant.joined_at).toLocaleDateString()}</strong><small>programme start</small></div>
