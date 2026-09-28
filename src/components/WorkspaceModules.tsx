@@ -4,6 +4,14 @@ import { supabase } from '../lib/supabase'
 
 function ActionFeedback({message,type='success',onDismiss}:{message:string;type?:'success'|'error';onDismiss?:()=>void}){useEffect(()=>{const timer=window.setTimeout(()=>onDismiss?.(),5000);return()=>window.clearTimeout(timer)},[message,onDismiss]);return <div className={'action-feedback-toast '+(type==='error'?'is-error':'is-success')} role={type==='error'?'alert':'status'} aria-live="polite"><div className="action-feedback-icon">{type==='error'?<X size={18}/>:<CheckCircle2 size={18}/>}</div><div className="action-feedback-copy"><strong>{type==='error'?'Action failed':'Success'}</strong><span>{message}</span></div>{onDismiss&&<button type="button" className="action-feedback-close" aria-label="Dismiss notification" onClick={onDismiss}><X size={16}/></button>}<span className="action-feedback-timer" aria-hidden="true"/></div>}
 
+async function persistSubmissionDecision(submissionId:string,decision:'approved'|'rejected'){
+ const {data,error}=await supabase.rpc('set_submission_decision',{p_submission_id:submissionId,p_decision:decision})
+ if(error)throw error
+ const saved=Array.isArray(data)?data[0]:data
+ if(!saved||saved.decision!==decision)throw new Error('The application decision was not confirmed by the server.')
+ return saved
+}
+
 type Application={id:string;name:string;description:string|null;status:'draft'|'published'|'screening'|'closed'|'completed';deadline:string|null;target_count:number|null;participant_id_prefix:string;created_at:string}
 type FormSummary={application:Application;version:number|null;versionStatus:'draft'|'published'|'none';hasPublishedVersion:boolean;questionCount:number;submissionCount:number;publicSlug:string|null;settings?:FormSettings}
 async function loadFormSummaries(applications:Application[]):Promise<FormSummary[]>{
@@ -410,11 +418,12 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
 
  const setDecision=async(row:ScreeningRow,decision:'approved'|'rejected')=>{
   setError('')
-  const {error}=await supabase.from('submissions').update({decision}).eq('id',row.submissionId)
-  if(error){setError(error.message);return}
-  setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision}:r))
-  setReviewing(current=>current?.submissionId===row.submissionId?{...current,decision}:current)
-  setDecisionNotice({decision,applicantName:row.applicantName,participantId:row.participantId})
+  try{
+   await persistSubmissionDecision(row.submissionId,decision)
+   setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision}:r))
+   setReviewing(current=>current?.submissionId===row.submissionId?{...current,decision}:current)
+   setDecisionNotice({decision,applicantName:row.applicantName,participantId:row.participantId})
+  }catch(e:any){setError(e.message||'Could not save the application decision.')}
  }
 
  const screenWithAI=async()=>{
@@ -830,11 +839,12 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
  const setReviewDecision=async(row:any,decision:'approved'|'rejected')=>{
   setError('');
   if(role==='reviewer'){setError('Programme Staff can review and score assigned applications, but final approval or rejection is reserved for Owner/Admin.');return}
-  const {error}=await supabase.from('submissions').update({decision}).eq('id',row.submissionId);
-  if(error){setError(error.message);return}
-  setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision,status:decision}:r));
-  setReviewing((current:any)=>current?.submissionId===row.submissionId?{...current,decision}:current);
-  setAssignmentNotice(decision==='approved'?'Applicant approved.':'Applicant rejected.');
+  try{
+   await persistSubmissionDecision(row.submissionId,decision)
+   setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision,status:decision}:r));
+   setReviewing((current:any)=>current?.submissionId===row.submissionId?{...current,decision}:current);
+   setAssignmentNotice(decision==='approved'?'Applicant approved and enrolled as a participant.':'Applicant rejected successfully.');
+  }catch(e:any){setError(e.message||'Could not save the application decision.')}
  }
  const allFilteredSelected=filtered.length>0&&filtered.every(r=>selectedIds.includes(r.submissionId))
  const toggleSelected=(id:string)=>setSelectedIds(current=>current.includes(id)?current.filter(x=>x!==id):[...current,id])
