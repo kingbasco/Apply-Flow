@@ -2986,3 +2986,27 @@ html.dark-theme .afx-landing .afx-floating-card-two{
   .content button,.content a,.content input,.content select,.content textarea,
   .nav-item,.workspace-switcher,.brand-mark,.empty-state{transition:none!important}
 }
+
+
+/* Participants summary — responsive card layout */
+.participant-stats-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:15px;
+  margin-bottom:16px;
+}
+.participant-stats-grid .stat-card>div:last-child{
+  min-width:0;
+}
+.participant-stats-grid .muted{
+  white-space:normal;
+  overflow-wrap:anywhere;
+  line-height:1.35;
+}
+@media(max-width:760px){
+  .participant-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .participant-stats-grid .stat-card{min-width:0}
+}
+@media(max-width:360px){
+  .participant-stats-grid{grid-template-columns:1fr}
+}
