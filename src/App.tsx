@@ -586,6 +586,9 @@ function App() {
   async function loadWorkspace(currentSession = session) {
     if (!currentSession?.user) return
     setLoading(true); setError('')
+    // Reconcile an accepted team invitation on the member's first authenticated workspace load.
+    // This keeps Team Management in sync with Supabase Auth confirmation/sign-in state.
+    await supabase.rpc('reconcile_my_team_invitation')
     let { data: p, error: pError } = await supabase.from('profiles').select('id,full_name,username,birth_month,birth_day,avatar_url,organization_id,role').eq('id', currentSession.user.id).maybeSingle()
     if (pError) { setError(pError.message); setLoading(false); return }
     if (!p) {
