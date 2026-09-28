@@ -207,7 +207,7 @@ function TeamInviteLinkSignup({token}:{token:string}){
   useEffect(()=>{(async()=>{
     if(!token){setDetails({organization_name:null,role:null,expires_at:null,is_valid:false,invalid_reason:'Invitation link is missing.'});setLoading(false);return}
     const {data,error}=await supabase.rpc('get_team_invite_link_details',{p_token:token})
-    if(error){setError(error.message);setLoading(false);return}
+    if(error){setError(friendlyErrorMessage(error));setLoading(false);return}
     const row=Array.isArray(data)?data[0]:data
     setDetails(row||{organization_name:null,role:null,expires_at:null,is_valid:false,invalid_reason:'Invitation link not found.'})
     setLoading(false)
@@ -712,7 +712,7 @@ function App() {
     // This keeps Team Management in sync with Supabase Auth confirmation/sign-in state.
     await supabase.rpc('reconcile_my_team_invitation')
     let { data: p, error: pError } = await supabase.from('profiles').select('id,full_name,username,birth_month,birth_day,avatar_url,organization_id,role').eq('id', currentSession.user.id).maybeSingle()
-    if (pError) { setError(pError.message); setLoading(false); return }
+    if (pError) { setError(friendlyErrorMessage(pError)); setLoading(false); return }
     if (!p) {
       const inviteMetadata=currentSession.user.user_metadata||{}
       const teamInviteToken=String(inviteMetadata.team_invite_token||'').trim()
@@ -724,9 +724,9 @@ function App() {
           p_birth_month:Number(inviteMetadata.birth_month||1),
           p_birth_day:Number(inviteMetadata.birth_day||1)
         })
-        if(acceptError){setError(acceptError.message);setLoading(false);return}
+        if(acceptError){setError(friendlyErrorMessage(acceptError));setLoading(false);return}
         const {data:acceptedProfile,error:acceptedProfileError}=await supabase.from('profiles').select('id,full_name,username,birth_month,birth_day,avatar_url,organization_id,role').eq('id',currentSession.user.id).single()
-        if(acceptedProfileError){setError(acceptedProfileError.message);setLoading(false);return}
+        if(acceptedProfileError){setError(friendlyErrorMessage(acceptedProfileError));setLoading(false);return}
         p=acceptedProfile
         await supabase.auth.updateUser({data:{...inviteMetadata,team_invite_token:null}})
       }
@@ -745,9 +745,9 @@ function App() {
       const slugBase = organizationName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'applyflow'
       const slug = slugBase + '-' + currentSession.user.id.slice(0, 8)
       const { data: org, error: orgError } = await supabase.from('organizations').insert({ name: organizationName, slug, created_by: currentSession.user.id }).select('id,name,slug,avatar_url').single()
-      if (orgError) { setError(orgError.message); setLoading(false); return }
+      if (orgError) { setError(friendlyErrorMessage(orgError)); setLoading(false); return }
       const { data: createdProfile, error: profileError } = await supabase.from('profiles').insert({ id: currentSession.user.id, full_name: fullName, username, birth_month: googleSignup?.birth_month ?? (metadata.birth_month as number | undefined) ?? null, birth_day: googleSignup?.birth_day ?? (metadata.birth_day as number | undefined) ?? null, avatar_url: null, organization_id: org.id, role: 'owner' }).select('id,full_name,username,birth_month,birth_day,avatar_url,organization_id,role').single()
-      if (profileError) { setError(profileError.message); setLoading(false); return }
+      if (profileError) { setError(friendlyErrorMessage(profileError)); setLoading(false); return }
       p = createdProfile
       localStorage.removeItem('applyflow-google-signup')
     }
@@ -758,8 +758,8 @@ function App() {
         supabase.from('organizations').select('id,name,slug,avatar_url').eq('id', p.organization_id).single(),
         supabase.from('applications').select('id,name,description,status,deadline,target_count,participant_id_prefix,created_at').eq('organization_id', p.organization_id).order('created_at', { ascending: false }),
       ])
-      if (oError) setError(oError.message); else setOrganization(org)
-      if (aError) setError(aError.message)
+      if (oError) setError(friendlyErrorMessage(oError)); else setOrganization(org)
+      if (aError) setError(friendlyErrorMessage(aError))
       else {
         const nextApplications = apps ?? []
         setApplications(nextApplications)
@@ -770,7 +770,7 @@ function App() {
             .in('application_id', nextApplications.map(application => application.id))
             .eq('status', 'submitted')
             .eq('decision', 'pending')
-          if (screeningCountError) setError(screeningCountError.message)
+          if (screeningCountError) setError(friendlyErrorMessage(screeningCountError))
           else setScreeningCount(count ?? 0)
         } else {
           setScreeningCount(0)
@@ -1065,7 +1065,7 @@ function ApplicantsPanel({applicationId}:{applicationId:string}) {
   async function open(row:Row){
     setSelected(row);setAnswerRows([])
     const {data,error}=await supabase.from('answers').select('question_id,value').eq('submission_id',row.id)
-    if(error){setError(error.message);return}
+    if(error){setError(friendlyErrorMessage(error));return}
     if(data?.length){const ids=data.map(x=>x.question_id);const {data:qs}=await supabase.from('questions').select('id,label').in('id',ids);const labels=new Map((qs||[]).map(q=>[q.id,q.label]));setAnswerRows(data.map(x=>({label:labels.get(x.question_id)||'Question',value:Array.isArray(x.value)?x.value.join(', '):String(x.value??'')})))}
   }
   if(loading)return <div className="loading-card card">Loading applications…</div>
