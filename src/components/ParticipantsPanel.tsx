@@ -485,12 +485,12 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       <div className="status green"><BadgeCheck size={15}/> Participant IDs active</div>
     </div>
 
-    {(error||notice)&&<div className={'action-feedback-toast '+(error?'is-error':'is-success')} role={error?'alert':'status'} aria-live="polite">
+    {(error||notice)&&createPortal(<div className={'action-feedback-toast '+(error?'is-error':'is-success')} role={error?'alert':'status'} aria-live="polite">
       <div className="action-feedback-icon">{error?<X size={18}/>:<CheckCircle2 size={18}/>}</div>
       <div className="action-feedback-copy"><strong>{error?'Action failed':'Success'}</strong><span>{error||notice}</span></div>
       <button type="button" className="action-feedback-close" aria-label="Dismiss notification" onClick={()=>{setError('');setNotice('')}}><X size={16}/></button>
       <span className="action-feedback-timer" aria-hidden="true"/>
-    </div>}
+    </div>,document.body)}
 
     <div className="card" style={{padding:16,marginBottom:18}}>
       <div style={{display:'flex',gap:12,alignItems:'flex-start'}}>
