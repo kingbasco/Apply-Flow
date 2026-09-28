@@ -6,6 +6,7 @@ import {
   ShieldCheck, Sparkles, Users, X, Download, Upload, TrendingUp, MapPin, Tags, Target, CheckCircle2, Layers, Workflow, Brain, BadgeCheck, Sun, Moon, Trash2,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
+import { friendlyErrorMessage } from './lib/errors'
 import { NIGERIAN_STATES, getNigerianLgas } from './lib/nigeria'
 import ParticipantsPanel from './components/ParticipantsPanel'
 import { FormsWorkspace, ScreeningWorkspace, ReviewsWorkspace, TeamWorkspace, SettingsWorkspace, ScreeningReviewModal } from './components/WorkspaceModules'
@@ -73,7 +74,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
       if (error) throw error
     } catch (err) {
       localStorage.removeItem('applyflow-google-signup')
-      setError(err instanceof Error ? err.message : 'Could not continue with Google.')
+      setError(friendlyErrorMessage(err,'Could not continue with Google.'))
       setBusy(false)
     }
   }
@@ -121,7 +122,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
         if (profileError) throw profileError
         onSignedIn()
       }
-    } catch (err) { setError(err instanceof Error ? err.message : 'Something went wrong.') }
+    } catch (err) { setError(friendlyErrorMessage(err,'Something went wrong.')) }
     finally { setBusy(false) }
   }
 
@@ -170,7 +171,7 @@ function ResetPasswordScreen({ onComplete }: { onComplete: () => Promise<void> |
       setMessage('Your password has been updated. Redirecting to sign in…')
       window.setTimeout(() => { void onComplete() }, 900)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not reset your password.')
+      setError(friendlyErrorMessage(err,'Could not reset your password.'))
     } finally { setBusy(false) }
   }
 
@@ -246,7 +247,7 @@ function TeamInviteLinkSignup({token}:{token:string}){
       if(signInError)throw signInError
       if(!signInData.session)throw new Error('Your account was created, but ApplyFlow could not sign you in automatically. Please sign in from the login page.')
       window.location.replace('/')
-    }catch(err){setError(err instanceof Error?err.message:'Could not create your staff account.')}
+    }catch(err){setError(friendlyErrorMessage(err,'Could not create your staff account.'))}
     finally{setBusy(false)}
   }
 
@@ -308,7 +309,7 @@ function InviteSetupScreen({ email, onComplete }: { email: string; onComplete: (
       const {error:profileError}=await supabase.rpc('complete_invited_member_profile',{p_full_name:name.trim(),p_username:normalizedUsername,p_birth_month:Number(birthMonth),p_birth_day:Number(birthDay)})
       if(profileError)throw profileError
       setCompleted(true)
-    }catch(err){setError(err instanceof Error?err.message:'Could not finish setting up your account.')}finally{setBusy(false)}
+    }catch(err){setError(friendlyErrorMessage(err,'Could not finish setting up your account.'))}finally{setBusy(false)}
   }
 
   if(completed)return <div className="auth-shell">
@@ -375,7 +376,7 @@ function PublicAssignment({slug}:{slug:string}) {
     const r=await supabase.rpc('submit_public_assignment',{p_slug:slug,p_participant_code:code.trim(),p_upload_token:data.upload_token,p_answers:payload})
     if(r.error)throw r.error
     setDone(r.data)
-  }catch(e){setError(e instanceof Error?e.message:'Could not submit this assignment.')}finally{setBusy(false)}}
+  }catch(e){setError(friendlyErrorMessage(e,'Could not submit this assignment.'))}finally{setBusy(false)}}
   if(done)return <div className="auth-shell assignment-success-shell"><div className="auth-panel assignment-success-panel"><div className="brand auth-brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Assignment submitted</span></div></div><div className="assignment-success-content"><div className="assignment-success-check"><Check size={38}/></div><p className="eyebrow">Submission received</p><h1>Successfully submitted!</h1><p className="assignment-success-lead">Thank you, <strong>{data?.participant_name||'Participant'}</strong>, for submitting <strong>{done.title}</strong>.</p><p className="assignment-success-copy">Your response has been received and saved. This assignment can only be taken once, so no further submission is required. We look forward to seeing you in the next class.</p><div className="assignment-success-receipt"><div><span>Participant ID</span><strong>{done.participant_code}</strong></div><div><span>Submitted</span><strong>{new Date(done.submitted_at).toLocaleString()}</strong></div></div><a className="primary-button assignment-leaderboard-link" href={'/results/'+encodeURIComponent(slug)}>View results & leaderboard <ArrowRight size={17}/></a><p className="assignment-success-note">Results will appear after your programme team grades the assignment and releases them.</p></div></div><div className="auth-aside"><div><span className="aside-kicker">ALL DONE</span><h2>Assignment received.</h2><p>You can safely close this page. Your submission has been recorded.</p></div></div></div>
   if(!data)return <div className="auth-shell"><div className="auth-panel"><div className="brand auth-brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Participant assignment</span></div></div><div className="auth-copy"><p className="eyebrow">Programme assignment</p><h1>Open your assignment.</h1><p>Enter the Participant ID issued to you for this programme.</p></div><form className="auth-form" onSubmit={open}><label>Participant ID<input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="ECA-2026-00001" required autoFocus/></label>{error&&<div className="form-error">{error}</div>}<button className="primary-button auth-submit" disabled={busy}>{busy?'Checking…':'Continue'}</button></form></div><div className="auth-aside"><div><span className="aside-kicker">APPLYFLOW</span><h2>Your programme assignment.</h2><p>Your Participant ID securely connects you to assignments for your programme.</p></div></div></div>
   if(!started)return <div className="auth-shell"><div className="auth-panel public-assignment-panel assignment-welcome-panel"><div className="brand auth-brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>{data.participant_code}</span></div></div><div className="assignment-welcome-copy"><p className="eyebrow">Assignment ready</p><h1>Welcome, {data.participant_name}.</h1><p>{data.description||'Your assignment is ready. Review the details below before you begin.'}</p></div><div className="assignment-welcome-details"><div><span>Assignment</span><strong>{data.title}</strong></div><div><span>Deadline</span><strong>{data.deadline?new Date(data.deadline).toLocaleString():'No deadline'}</strong></div><div><span>Maximum score</span><strong>{data.max_score}</strong></div><div><span>Pass mark</span><strong>{data.pass_mark}</strong></div></div>{data.instructions&&<div className="public-assignment-instructions welcome-instructions"><span>Instructions</span><p>{data.instructions}</p></div>}<button type="button" className="primary-button assignment-start-button" onClick={()=>setStarted(true)}>Take Assignment</button><p className="assignment-welcome-note">Your answers are not submitted until you press Submit assignment at the end.</p></div><div className="auth-aside"><div><span className="aside-kicker">READY TO BEGIN</span><h2>{data.title}</h2><p>Read the instructions and assignment details carefully before you start.</p></div></div></div>
@@ -397,7 +398,7 @@ function PublicApplication({slug}:{slug:string}) {
     const {data:qs,error:qe}=await supabase.from('questions').select('id,type,label,description,required,placeholder,position,config,conditional_rules').eq('form_version_id',v.id).order('position'); if(qe)throw qe
     const full=await Promise.all((qs||[]).map(async q=>{const {data:o,error:oe}=await supabase.from('question_options').select('id,label,value,position').eq('question_id',q.id).order('position');if(oe)throw oe;return {...q,options:o||[]}}))
     setApp(a);setSettings(s);setQuestions(full as BuilderQuestion[])
-  }catch(e){setError(e instanceof Error?e.message:'This application is unavailable.')}finally{setLoading(false)}})()},[slug])
+  }catch(e){setError(friendlyErrorMessage(e,'This application is unavailable.'))}finally{setLoading(false)}})()},[slug])
   const visible=(q:BuilderQuestion)=>{const r=q.conditional_rules?.[0];if(!r)return true;return answers[r.question_id]===r.value}
   const stateQuestion=questions.find(q=>q.type==='nigeria_state')
   const selectedState=stateQuestion?String(answers[stateQuestion.id]||''):''
@@ -804,7 +805,7 @@ function App() {
       } catch (err) {
         // Keep public pages usable if Supabase is unavailable, but surface the error
         // when the app needs an authenticated workspace.
-        setError(err instanceof Error ? err.message : 'Could not connect to the authentication service.')
+        setError(friendlyErrorMessage(err,'Could not connect to the authentication service.'))
       } finally {
         setSessionReady(true)
       }
@@ -952,7 +953,7 @@ function App() {
       setApplicationSettings(nextSettings)
       setApplications(current => current.map(item => item.id === data.id ? data : item))
     } catch (err) {
-      setDetailError(err instanceof Error ? err.message : 'Could not save changes.')
+      setDetailError(friendlyErrorMessage(err,'Could not save changes.'))
     } finally { setDetailSaving(false) }
   }
 
@@ -1004,7 +1005,7 @@ function App() {
         setActive('Applications')
       }
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Could not create the application.')
+      setCreateError(friendlyErrorMessage(err,'Could not create the application.'))
     } finally {
       setCreating(false)
     }
@@ -1057,7 +1058,7 @@ function ApplicantsPanel({applicationId}:{applicationId:string}) {
     const {data,error}=await supabase.from('submissions').select('id,applicant_id,status,submitted_at,created_at,applicants!inner(full_name,email,participant_id)').eq('application_id',applicationId).order('submitted_at',{ascending:false})
     if(error)throw error
     setRows((data||[]).map((r:any)=>({id:r.id,applicant_id:r.applicant_id,participant_id:r.applicants?.participant_id||null,status:r.status,submitted_at:r.submitted_at,created_at:r.created_at,full_name:r.applicants?.full_name||null,email:r.applicants?.email||null})))
-  }catch(e){setError(e instanceof Error?e.message:'Could not load applications.')}finally{setLoading(false)}})()},[applicationId])
+  }catch(e){setError(friendlyErrorMessage(e,'Could not load applications.'))}finally{setLoading(false)}})()},[applicationId])
   const filtered=useMemo(()=>rows.filter(r=>{const haystack=[r.participant_id,r.full_name,r.email,r.status].filter(Boolean).join(' ').toLowerCase();return(!query.trim()||haystack.includes(query.trim().toLowerCase()))&&(statusFilter==='all'||r.status===statusFilter)}),[rows,query,statusFilter])
   const submittedCount=rows.filter(r=>r.status==='submitted').length
   const draftCount=rows.filter(r=>r.status==='draft').length
@@ -1139,7 +1140,7 @@ function EligibilityBuilder({applicationId}:{applicationId:string}) {
       const {data:rs,error:re}=await supabase.from('eligibility_rules').select('id,application_id,question_id,operator,value,logic,position,enabled').eq('application_id',applicationId).order('position')
       if(re)throw re
       setRules((rs||[]).map((r:any)=>({...r,operator:r.operator==='IN'||r.operator==='NOT IN'?'in':r.operator==='between'?'between':'=',logic:'AND'})) as EligibilityRule[])
-    }catch(e){setNotice(e instanceof Error?e.message:'Could not load eligibility rules.')}finally{setLoading(false)}
+    }catch(e){setNotice(friendlyErrorMessage(e,'Could not load eligibility rules.'))}finally{setLoading(false)}
   }
 
   useEffect(()=>{load()},[applicationId])
@@ -1310,7 +1311,7 @@ function ScreeningPanel({applicationId}:{applicationId:string}){
     const recommendation=assessment.includes('not recommended')||assessment.includes('poor match')?'Not recommended':assessment.includes('strong match')||assessment.includes('recommended')?'Recommended':a?.status==='completed'?'Reviewed':a?.status==='failed'?'Failed':'Not screened'
     return {submissionId:s.id,applicationId:s.application_id,participantId:p?.participant_id||'—',applicantName:p?.full_name||'Unnamed applicant',email:p?.email||null,submittedAt:s.submitted_at||null,eligibility:e?.status==='eligible'?'eligible':e?.status==='ineligible'?'ineligible':'pending',score:score?.overall_score==null?null:Number(score.overall_score),aiStatus:a?.status||'pending',aiRecommendation:recommendation,decision:s.decision==='approved'||s.decision==='rejected'?s.decision:'pending'}
    }))
-  }catch(e){setNotice(e instanceof Error?e.message:'Could not load screening data.')}finally{setLoading(false)}
+  }catch(e){setNotice(friendlyErrorMessage(e,'Could not load screening data.'))}finally{setLoading(false)}
  }
 
  useEffect(()=>{load()},[applicationId])
@@ -1323,7 +1324,7 @@ function ScreeningPanel({applicationId}:{applicationId:string}){
    if(data?.error)throw new Error(data.error)
    await load()
    setSelected(current=>current?.submissionId===id?current:null)
-  }catch(e){setNotice(e instanceof Error?e.message:'Could not run AI screening.')}
+  }catch(e){setNotice(friendlyErrorMessage(e,'Could not run AI screening.'))}
   finally{setRunning(false)}
  }
 
@@ -1366,7 +1367,7 @@ function AnalyticsPanel({applications}:{applications:Application[]}){
    if(submissionsResult.error)throw submissionsResult.error
    if(participantsResult.error)throw participantsResult.error
    setRows(submissionsResult.data||[]);setParticipants(participantsResult.data||[]);setLastUpdated(new Date())
-  }catch(e){setNotice(e instanceof Error?e.message:'Could not load analytics.')}finally{setLoading(false);setRefreshing(false)}
+  }catch(e){setNotice(friendlyErrorMessage(e,'Could not load analytics.'))}finally{setLoading(false);setRefreshing(false)}
  }
  useEffect(()=>{load()},[applications])
  const selectedRows=useMemo(()=>selectedApplicationId==='all'?rows:rows.filter(r=>r.application_id===selectedApplicationId),[rows,selectedApplicationId])
@@ -1485,7 +1486,7 @@ function FormBuilder({applicationId}:{applicationId:string}) {
       for(const rule of eligibilityRules||[]){const mapped=questionMap.get(rule.question_id);if(mapped){const {error}=await supabase.from('eligibility_rules').update({question_id:mapped,updated_at:new Date().toISOString()}).eq('id',rule.id);if(error)throw error}}
     }
     setVersionId(newVersion.id);setVersion(newVersion.version_number);await loadQuestions(newVersion.id)
-  }catch(e){showNotice(e instanceof Error?e.message:'Could not load form.')}})()},[applicationId])
+  }catch(e){showNotice(friendlyErrorMessage(e,'Could not load form.'))}})()},[applicationId])
 
   async function ensureVersion(){
     if(versionId)return versionId
@@ -1504,7 +1505,7 @@ function FormBuilder({applicationId}:{applicationId:string}) {
       let item={...(data as Omit<BuilderQuestion,'options'>),options:[]} as BuilderQuestion
       if(type==='yes_no'){const {data:opts,error:o}=await supabase.from('question_options').insert([{question_id:item.id,label:'Yes',value:'yes',position:0},{question_id:item.id,label:'No',value:'no',position:1}]).select('id,label,value,position');if(o)throw o;item.options=(opts||[]) as BuilderOption[]}
       setQuestions(x=>[...x,item]);setSelectedId(item.id)
-    }catch(e){showNotice(e instanceof Error?e.message:'Could not add question.')}finally{setBusy(false)}
+    }catch(e){showNotice(friendlyErrorMessage(e,'Could not add question.'))}finally{setBusy(false)}
   }
   function conditionValue(q:BuilderQuestion){return q.conditional_rules?.[0]?.value||''}
   function conditionQuestionId(q:BuilderQuestion){return q.conditional_rules?.[0]?.question_id||''}
@@ -1542,7 +1543,7 @@ function FormBuilder({applicationId}:{applicationId:string}) {
     const next=index+direction;if(next<0||next>=questions.length)return
     const copy=[...questions];[copy[index],copy[next]]=[copy[next],copy[index]]
     setBusy(true)
-    try{for(let i=0;i<copy.length;i++){const {error}=await supabase.from('questions').update({position:i}).eq('id',copy[i].id);if(error)throw error}setQuestions(copy.map((q,i)=>({...q,position:i})))}catch(e){showNotice(e instanceof Error?e.message:'Could not reorder questions.')}finally{setBusy(false)}
+    try{for(let i=0;i<copy.length;i++){const {error}=await supabase.from('questions').update({position:i}).eq('id',copy[i].id);if(error)throw error}setQuestions(copy.map((q,i)=>({...q,position:i})))}catch(e){showNotice(friendlyErrorMessage(e,'Could not reorder questions.'))}finally{setBusy(false)}
   }
   async function removeQuestion(){if(!selected)return;setBusy(true);const {error}=await supabase.from('questions').delete().eq('id',selected.id);if(!error){const left=questions.filter(q=>q.id!==selected.id).map((q,i)=>({...q,position:i}));for(const q of left)await supabase.from('questions').update({position:q.position}).eq('id',q.id);setQuestions(left);setSelectedId(left[0]?.id||null)}else showNotice(error.message);setBusy(false)}
   async function publish(){
@@ -1598,7 +1599,7 @@ function FormBuilder({applicationId}:{applicationId:string}) {
       setVersion(newVersion.version_number)
       await loadQuestions(newVersion.id)
       showNotice('Form published successfully.','success')
-    }catch(e){showNotice(e instanceof Error?e.message:'Could not publish form.')}finally{setBusy(false)}
+    }catch(e){showNotice(friendlyErrorMessage(e,'Could not publish form.'))}finally{setBusy(false)}
   }
 
   return <div className="form-builder">
