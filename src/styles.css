@@ -3224,3 +3224,19 @@ html.dark-theme .public-assignment-instructions p,html.dark-theme .public-choice
  .public-file-button{width:100%}
  .public-file-name strong{max-width:280px}
 }
+
+/* Assignment edit/delete controls */
+.assignment-header-actions{display:flex;align-items:center;gap:7px}
+.danger-icon-button{color:#c94d57!important}
+.danger-icon-button:hover{background:#fff0f1!important;color:#ad3540!important}
+.assignment-edit-form{padding:20px 24px;border-bottom:1px solid #e8eaf0;background:#fafbfc}
+.assignment-edit-form textarea{resize:vertical}
+.assignment-edit-actions{display:flex;justify-content:flex-end;gap:10px}
+.assignment-edit-actions button{min-width:120px}
+html.dark-theme .assignment-edit-form{background:#171c25;border-color:#303642}
+@media(max-width:760px){
+ .assignment-header-actions{gap:5px}
+ .assignment-edit-form{padding:18px 16px}
+ .assignment-edit-actions{display:grid;grid-template-columns:1fr 1fr}
+ .assignment-edit-actions button{width:100%;min-width:0}
+}
