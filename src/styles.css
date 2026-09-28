@@ -3424,3 +3424,21 @@ html.dark-theme .public-choice:has(input:checked){background:#24223b!important}
 .attendance-confirm-content{max-width:620px;padding:34px 0 10px;text-align:center}.attendance-confirm-content h1{margin:7px 0 12px;font-size:38px;letter-spacing:-.035em}.attendance-confirm-content>p{color:#747d8b;line-height:1.65}
 @media(max-width:760px){.attendance-checkin-card{align-items:flex-start;flex-direction:column}.attendance-checkin-actions{width:100%;justify-content:stretch}.attendance-checkin-actions button{flex:1}.attendance-confirm-content{padding-top:22px}.attendance-confirm-content h1{font-size:32px}}
 @media(max-width:430px){.attendance-checkin-actions{flex-direction:column}.attendance-checkin-actions button{width:100%}}
+
+/* Mobile workspace density — compact KPI/stat cards stay two-up */
+@media(max-width:480px){
+ .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .stats-grid .stat-card{min-width:0;min-height:112px;padding:13px 11px;gap:9px;align-items:flex-start}
+ .stats-grid .stat-icon{width:30px;height:30px;flex-basis:30px}
+ .stats-grid .stat-card>div:last-child{min-width:0}
+ .stats-grid .eyebrow{font-size:8px;letter-spacing:.07em;white-space:normal}
+ .stats-grid .stat-value{font-size:21px;margin-top:2px}
+ .stats-grid .muted{font-size:9px;line-height:1.35;overflow-wrap:anywhere}
+ .dashboard-stats{margin-bottom:14px}
+}
+@media(max-width:350px){
+ .stats-grid{gap:8px}
+ .stats-grid .stat-card{padding:11px 9px;gap:7px}
+ .stats-grid .stat-icon{width:28px;height:28px;flex-basis:28px}
+ .stats-grid .stat-value{font-size:19px}
+}
