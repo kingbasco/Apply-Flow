@@ -22,6 +22,7 @@ type AssignmentQuestion = { id:string; assignment_id:string; type:'short_text'|'
 type AssignmentSubmission = { id:string; assignment_id:string; participant_id:string; status:'submitted'|'graded'; submitted_at:string; score:number|null; feedback:string|null; graded_at:string|null; participants?:{participant_id:string;full_name:string|null;email:string|null}|null }
 type AssignmentAnswer = { id:string; question_id:string; value:any; assignment_questions?:{label:string;type:string;position:number}|null }
 type AssignmentDocument = { id:string; question_id:string; storage_bucket:string; storage_path:string; original_name:string; mime_type:string|null; file_size:number|null }
+type LeaderboardRow = { participant_record_id:string; participant_id:string; full_name:string|null; graded_assignments:number; submitted_assignments:number; total_assignments:number; average_percentage:number|null; completion_percentage:number; rank:number|null }
 type ParticipantAttendance = {
   id:string; status:'present'|'absent'; marked_at:string
   attendance_sessions?:{title:string;session_date:string;application_id:string}|{title:string;session_date:string;application_id:string}[]
@@ -42,6 +43,8 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   const [submissionAnswers,setSubmissionAnswers]=useState<AssignmentAnswer[]>([])
   const [submissionDocuments,setSubmissionDocuments]=useState<AssignmentDocument[]>([])
   const [gradeForm,setGradeForm]=useState({score:'',feedback:''})
+  const [leaderboard,setLeaderboard]=useState<LeaderboardRow[]>([])
+  const [leaderboardLoading,setLeaderboardLoading]=useState(false)
   const [selectedParticipant,setSelectedParticipant]=useState<Participant|null>(null)
   const [participantAttendance,setParticipantAttendance]=useState<ParticipantAttendance[]>([])
   const [participantAttendanceLoading,setParticipantAttendanceLoading]=useState(false)
@@ -128,8 +131,16 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     withdrawn:scopedParticipants.filter(p=>p.status==='withdrawn').length
   }),[scopedParticipants])
 
+  async function loadLeaderboard(applicationId:string){
+    if(!applicationId||applicationId==='all'){setLeaderboard([]);return}
+    setLeaderboardLoading(true)
+    const {data,error}=await supabase.rpc('get_assignment_leaderboard',{p_application_id:applicationId})
+    if(error)setError(error.message);else setLeaderboard((data||[]) as LeaderboardRow[])
+    setLeaderboardLoading(false)
+  }
+
   async function openParticipant(participant:Participant){
-    setSelectedParticipant(participant);setParticipantAttendance([]);setParticipantAttendanceLoading(true);setError('')
+    setSelectedParticipant(participant);setParticipantAttendance([]);setParticipantAttendanceLoading(true);setError('');loadLeaderboard(participant.application_id)
     try{
       const {data,error}=await supabase.from('attendance_records')
         .select('id,status,marked_at,attendance_sessions!inner(title,session_date,application_id)')
@@ -258,7 +269,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     if(questions.error){setError(questions.error.message);return}
     if(submissions.error){setError(submissions.error.message);return}
     setAssignmentQuestions(x=>({...x,[assignment.id]:(questions.data||[]) as AssignmentQuestion[]}))
-    setAssignmentSubmissions((submissions.data||[]) as unknown as AssignmentSubmission[])
+    setAssignmentSubmissions((submissions.data||[]) as unknown as AssignmentSubmission[]);loadLeaderboard(assignment.application_id)
   }
   async function openAssignmentSubmission(submission:AssignmentSubmission){
     setSelectedSubmission(submission);setGradeForm({score:submission.score===null?'':String(submission.score),feedback:submission.feedback||''});setError('')
@@ -279,7 +290,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
       const {data,error}=await supabase.rpc('grade_assignment_submission',{p_submission_id:selectedSubmission.id,p_score:score,p_feedback:gradeForm.feedback})
       if(error)throw error
       const updated={...selectedSubmission,score,status:'graded' as const,feedback:gradeForm.feedback||null,graded_at:data.graded_at}
-      setSelectedSubmission(updated);setAssignmentSubmissions(x=>x.map(s=>s.id===updated.id?updated:s));setNotice('Grade saved.')
+      setSelectedSubmission(updated);setAssignmentSubmissions(x=>x.map(s=>s.id===updated.id?updated:s));await loadLeaderboard(selectedAssignment.application_id);setNotice('Grade saved.')
     }catch(e){setError(e instanceof Error?e.message:'Could not save grade.')}finally{setSaving(false)}
   }
   async function openAssignmentDocument(doc:AssignmentDocument){
