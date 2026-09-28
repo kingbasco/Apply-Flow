@@ -28,9 +28,9 @@ type ParticipantAttendance = {
   attendance_sessions?:{title:string;session_date:string;application_id:string}|{title:string;session_date:string;application_id:string}[]
 }
 
-export default function ParticipantsPanel({organizationId,applications}:{organizationId:string;applications:Application[]}) {
+export default function ParticipantsPanel({organizationId,applications,role}:{organizationId:string;applications:Application[];role?:'owner'|'admin'|'reviewer'}) {
   const [tab,setTab]=useState<'participants'|'attendance'|'assignments'|'benefits'>('participants')
-  const [participants,setParticipants]=useState<Participant[]>([])
+  const isAdmin=role==='owner'||role==='admin'\n  const isProgrammeStaff=role==='reviewer'\n  const [participants,setParticipants]=useState<Participant[]>([])\n  const [programmeStaff,setProgrammeStaff]=useState<{id:string;full_name:string|null}[]>([])\n  const [participantStaff,setParticipantStaff]=useState<{participant_id:string;staff_id:string}[]>([])
   const [sessions,setSessions]=useState<Session[]>([])
   const [benefits,setBenefits]=useState<Benefit[]>([])
   const [assignments,setAssignments]=useState<Assignment[]>([])
@@ -82,14 +82,14 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   async function load(){
     setLoading(true);setError('')
     try{
-      const [p,s,b,recipients,a]=await Promise.all([
+      const [p,s,b,recipients,a,staff,staffAssignments]=await Promise.all([
         supabase.from('participants').select('id,participant_id,application_id,status,joined_at,applicants(full_name,email)').eq('organization_id',organizationId).order('participant_id'),
         supabase.from('attendance_sessions').select('id,application_id,title,session_date,check_in_slug,check_in_open,check_in_opened_at').eq('organization_id',organizationId).order('session_date',{ascending:false}),
         supabase.from('benefit_distributions').select('id,application_id,name,description,distribution_date,status').eq('organization_id',organizationId).order('created_at',{ascending:false}),
         supabase.from('benefit_recipients').select('distribution_id,participant_id'),
-        supabase.from('assignments').select('id,application_id,title,description,instructions,deadline,max_score,pass_mark,status,public_slug,results_released,results_released_at,created_at').eq('organization_id',organizationId).order('created_at',{ascending:false})
+        supabase.from('assignments').select('id,application_id,title,description,instructions,deadline,max_score,pass_mark,status,public_slug,results_released,results_released_at,created_at').eq('organization_id',organizationId).order('created_at',{ascending:false}),\n        supabase.from('profiles').select('id,full_name').eq('organization_id',organizationId).eq('role','reviewer').order('full_name'),\n        supabase.from('participant_staff_assignments').select('participant_id,staff_id').eq('organization_id',organizationId)
       ])
-      if(p.error)throw p.error;if(s.error)throw s.error;if(b.error)throw b.error;if(a.error)throw a.error
+      if(p.error)throw p.error;if(s.error)throw s.error;if(b.error)throw b.error;if(a.error)throw a.error;if(staff.error)throw staff.error;if(staffAssignments.error)throw staffAssignments.error
       // Load attendance/recipient aggregates separately so an empty organisation does not
       // create an invalid IN () query in PostgREST.
       const participantRows=(p.data||[]).map((row:any)=>({
@@ -111,7 +111,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
         for(const row of recipients.data||[]) counts.set(row.distribution_id,(counts.get(row.distribution_id)||0)+1)
         for(const row of benefitRows) row.recipient_count=counts.get(row.id)||0
       }
-      setParticipants(participantRows);setSessions(sessionRows);setBenefits(benefitRows);setAssignments((a.data||[]) as Assignment[])
+      setParticipants(participantRows);setSessions(sessionRows);setBenefits(benefitRows);setAssignments((a.data||[]) as Assignment[]);setProgrammeStaff(staff.data||[]);setParticipantStaff(staffAssignments.data||[])
     }catch(e){setError(e instanceof Error?e.message:'Could not load programme participants.')}finally{setLoading(false)}
   }
 
@@ -141,6 +141,17 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     const {data,error}=await supabase.rpc('get_assignment_leaderboard',{p_application_id:applicationId})
     if(error)setError(error.message);else setLeaderboard((data||[]) as LeaderboardRow[])
     setLeaderboardLoading(false)
+  }
+
+  async function setParticipantStaff(participantId:string,staffId:string,assigned:boolean){
+    if(!isAdmin)return
+    setSaving(true);setError('');setNotice('')
+    try{
+      const {error}=await supabase.rpc('set_participant_staff_assignment',{p_participant_id:participantId,p_staff_id:staffId,p_assigned:assigned})
+      if(error)throw error
+      setParticipantStaff(current=>assigned?[...current.filter(x=>!(x.participant_id===participantId&&x.staff_id===staffId)),{participant_id:participantId,staff_id:staffId}]:current.filter(x=>!(x.participant_id===participantId&&x.staff_id===staffId)))
+      setNotice(assigned?'Programme Staff assigned to participant.':'Programme Staff assignment removed.')
+    }catch(e){setError(e instanceof Error?e.message:'Could not update Programme Staff assignment.')}finally{setSaving(false)}
   }
 
   async function openParticipant(participant:Participant){
@@ -430,7 +441,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
         ['participants','Participants'],
         ['attendance','Attendance'],
         ['assignments','Assignments'],
-        ['benefits','Benefits']
+        ...(isAdmin?[['benefits','Benefits']]:[])
       ].map(([key,label])=><button key={key} className={tab===key?'secondary-button':'text-button'} onClick={()=>setTab(key as any)}>{label}</button>)}
     </div>
 
@@ -568,8 +579,9 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
         <div className="participant-profile-body">
           <div className="participant-profile-statusbar">
             <div><span className="eyebrow">Participation status</span><strong>{selectedParticipant.status==='active'?'Active / Enrolled':selectedParticipant.status==='completed'?'Completed':'Withdrawn'}</strong><small>Update the participant's current programme status.</small></div>
-            <label className="participant-status-select"><span>Change status</span><div className="participant-select-wrap"><select value={selectedParticipant.status} disabled={saving} onChange={e=>updateParticipantStatus(selectedParticipant.id,e.target.value as Participant['status'])}><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select><ChevronDown size={16}/></div></label>
+            {isAdmin&&<label className="participant-status-select"><span>Change status</span><div className="participant-select-wrap"><select value={selectedParticipant.status} disabled={saving} onChange={e=>updateParticipantStatus(selectedParticipant.id,e.target.value as Participant['status'])}><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select><ChevronDown size={16}/></div></label>}
           </div>
+          {isAdmin&&<section className="participant-profile-section participant-staff-section"><div className="participant-section-heading"><div><p className="eyebrow">Programme Staff</p><h3>Assigned follow-up staff</h3><p>Assign staff who can follow attendance, submissions and grade this participant.</p></div><Users size={19}/></div>{programmeStaff.length?<div className="participant-staff-list">{programmeStaff.map(staff=>{const assigned=participantStaff.some(x=>x.participant_id===selectedParticipant.id&&x.staff_id===staff.id);return <label key={staff.id} className="participant-staff-option"><input type="checkbox" checked={assigned} disabled={saving} onChange={e=>setParticipantStaff(selectedParticipant.id,staff.id,e.target.checked)}/><span><strong>{staff.full_name||'Programme Staff'}</strong><small>{assigned?'Assigned to this participant':'Not assigned'}</small></span></label>})}</div>:<div className="table-empty">No Programme Staff members are available yet.</div>}</section>}
           <div className="participant-profile-stats">
             <div><span>Attendance</span><strong>{selectedParticipant.attendance_count||0}</strong><small>sessions present</small></div>
             <div><span>Joined</span><strong>{new Date(selectedParticipant.joined_at).toLocaleDateString()}</strong><small>programme start</small></div>
