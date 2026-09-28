@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { BadgeCheck, CalendarCheck2, Gift, Upload, Plus, Search, X, Users, CheckCircle2, ChevronDown, Mail, Hash, ClipboardList, Link2, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
@@ -54,6 +55,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [leaderboard,setLeaderboard]=useState<LeaderboardRow[]>([])
   const [leaderboardLoading,setLeaderboardLoading]=useState(false)
   const [selectedParticipant,setSelectedParticipant]=useState<Participant|null>(null)
+  const participantProfileScrollRef=useRef<HTMLDivElement>(null)
   const [participantAttendance,setParticipantAttendance]=useState<ParticipantAttendance[]>([])
   const [participantAttendanceLoading,setParticipantAttendanceLoading]=useState(false)
   const [selectedSession,setSelectedSession]=useState<Session|null>(null)
@@ -80,6 +82,31 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     return ()=>window.clearTimeout(timer)
   },[notice,error])
 
+
+  useEffect(()=>{
+    if(!selectedParticipant)return
+    const previousBodyOverflow=document.body.style.overflow
+    const previousHtmlOverflow=document.documentElement.style.overflow
+    const previousBodyOverscroll=document.body.style.overscrollBehavior
+    const previousHtmlOverscroll=document.documentElement.style.overscrollBehavior
+    document.body.style.overflow='hidden'
+    document.documentElement.style.overflow='hidden'
+    document.body.style.overscrollBehavior='none'
+    document.documentElement.style.overscrollBehavior='none'
+    const frame=window.requestAnimationFrame(()=>{
+      participantProfileScrollRef.current?.scrollTo({top:0,left:0,behavior:'auto'})
+    })
+    const onKeyDown=(event:KeyboardEvent)=>{if(event.key==='Escape')setSelectedParticipant(null)}
+    window.addEventListener('keydown',onKeyDown)
+    return()=>{
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('keydown',onKeyDown)
+      document.body.style.overflow=previousBodyOverflow
+      document.documentElement.style.overflow=previousHtmlOverflow
+      document.body.style.overscrollBehavior=previousBodyOverscroll
+      document.documentElement.style.overscrollBehavior=previousHtmlOverscroll
+    }
+  },[selectedParticipant?.id])
 
   useEffect(()=>{
     setApplicationFilter(current=>applications.some(a=>a.id===current)?current:(applications[0]?.id||''))
@@ -614,7 +641,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       </div>
     </div>}
 
-    {selectedParticipant&&<div className="preview-backdrop participant-profile-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSelectedParticipant(null)}}>
+    {selectedParticipant&&createPortal(<div ref={participantProfileScrollRef} className="participant-profile-backdrop" role="dialog" aria-modal="true" aria-label="Participant profile">
       <div className="participant-profile-modal">
         <div className="participant-profile-header">
           <div className="participant-profile-identity">
@@ -649,6 +676,6 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
         </div>
         <div className="participant-profile-footer"><button className="secondary-button" onClick={()=>setSelectedParticipant(null)}>Close profile</button></div>
       </div>
-    </div>}
+    </div>,document.body)}
   </section>
 }
