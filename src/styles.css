@@ -3240,3 +3240,28 @@ html.dark-theme .assignment-edit-form{background:#171c25;border-color:#303642}
  .assignment-edit-actions{display:grid;grid-template-columns:1fr 1fr}
  .assignment-edit-actions button{width:100%;min-width:0}
 }
+
+
+/* Participant assignment welcome step */
+.assignment-welcome-copy{margin:0 0 26px}
+.assignment-welcome-copy h1{margin:7px 0 10px;font-size:42px;line-height:1.08;letter-spacing:-.035em}
+.assignment-welcome-copy>p:last-child{margin:0;max-width:620px;color:#8e96a3;font-size:16px;line-height:1.55}
+.assignment-welcome-details{display:grid;grid-template-columns:1.4fr 1fr;gap:10px;margin-bottom:14px}
+.assignment-welcome-details>div{padding:16px 17px;border:1px solid #e3e6ec;border-radius:12px;background:#fff;display:flex;flex-direction:column;gap:6px;min-width:0}
+.assignment-welcome-details span{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#969daa}
+.assignment-welcome-details strong{font-size:14px;color:#303746;overflow-wrap:anywhere}
+.welcome-instructions{margin:0 0 18px}
+.assignment-start-button{width:100%;min-height:54px;font-size:15px}
+.assignment-welcome-note{text-align:center;margin:11px 0 0;color:#9aa1ac;font-size:12px}
+html.dark-theme .assignment-welcome-details>div{background:#1b202a;border-color:#303642}
+html.dark-theme .assignment-welcome-details strong{color:#eef1f5}
+@media(max-width:760px){
+ .assignment-welcome-copy{margin-bottom:22px}
+ .assignment-welcome-copy h1{font-size:34px}
+ .assignment-welcome-copy>p:last-child{font-size:14px}
+ .assignment-welcome-details{grid-template-columns:1fr 1fr;gap:8px}
+ .assignment-welcome-details>div{padding:14px}
+}
+@media(max-width:430px){
+ .assignment-welcome-details{grid-template-columns:1fr}
+}
