@@ -17,7 +17,7 @@ type AttendanceRow = {
   participant_id:string; status:'present'|'absent'; marked_at:string
   participants?:{participant_id:string;application_id:string;applicants?:{full_name:string|null;email:string|null}|{full_name:string|null;email:string|null}[]}
 }
-type Assignment = { id:string; application_id:string; title:string; description:string|null; instructions:string|null; deadline:string|null; max_score:number; status:'draft'|'published'|'closed'; public_slug:string; created_at:string }
+type Assignment = { id:string; application_id:string; title:string; description:string|null; instructions:string|null; deadline:string|null; max_score:number; pass_mark:number; status:'draft'|'published'|'closed'; public_slug:string; created_at:string }
 type AssignmentQuestion = { id:string; assignment_id:string; type:'short_text'|'long_text'|'number'|'single_choice'|'multiple_choice'|'file'|'url'; label:string; description:string|null; required:boolean; position:number; config:any }
 type AssignmentSubmission = { id:string; assignment_id:string; participant_id:string; status:'submitted'|'graded'; submitted_at:string; score:number|null; feedback:string|null; graded_at:string|null; participants?:{participant_id:string;applicants?:{full_name:string|null;email:string|null}|null}|null }
 type AssignmentAnswer = { id:string; question_id:string; value:any; assignment_questions?:{label:string;type:string;position:number}|null }
@@ -35,13 +35,13 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   const [benefits,setBenefits]=useState<Benefit[]>([])
   const [assignments,setAssignments]=useState<Assignment[]>([])
   const [assignmentQuestions,setAssignmentQuestions]=useState<Record<string,AssignmentQuestion[]>>({})
-  const [assignmentForm,setAssignmentForm]=useState({title:'',description:'',instructions:'',deadline:'',max_score:'100'})
+  const [assignmentForm,setAssignmentForm]=useState({title:'',description:'',instructions:'',deadline:'',max_score:'100',pass_mark:'50'})
   const [questionForm,setQuestionForm]=useState({label:'',type:'long_text' as AssignmentQuestion['type'],required:true,options:['','']})
   const [editingQuestionId,setEditingQuestionId]=useState<string|null>(null)
   const [editQuestionForm,setEditQuestionForm]=useState({label:'',type:'long_text' as AssignmentQuestion['type'],required:true,options:['','']})
   const [selectedAssignment,setSelectedAssignment]=useState<Assignment|null>(null)
   const [editingAssignment,setEditingAssignment]=useState(false)
-  const [editAssignmentForm,setEditAssignmentForm]=useState({title:'',description:'',instructions:'',deadline:'',max_score:'100'})
+  const [editAssignmentForm,setEditAssignmentForm]=useState({title:'',description:'',instructions:'',deadline:'',max_score:'100',pass_mark:'50'})
   const [assignmentSubmissions,setAssignmentSubmissions]=useState<AssignmentSubmission[]>([])
   const [selectedSubmission,setSelectedSubmission]=useState<AssignmentSubmission|null>(null)
   const [submissionAnswers,setSubmissionAnswers]=useState<AssignmentAnswer[]>([])
@@ -87,7 +87,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
         supabase.from('attendance_sessions').select('id,application_id,title,session_date').eq('organization_id',organizationId).order('session_date',{ascending:false}),
         supabase.from('benefit_distributions').select('id,application_id,name,description,distribution_date,status').eq('organization_id',organizationId).order('created_at',{ascending:false}),
         supabase.from('benefit_recipients').select('distribution_id,participant_id'),
-        supabase.from('assignments').select('id,application_id,title,description,instructions,deadline,max_score,status,public_slug,created_at').eq('organization_id',organizationId).order('created_at',{ascending:false})
+        supabase.from('assignments').select('id,application_id,title,description,instructions,deadline,max_score,pass_mark,status,public_slug,created_at').eq('organization_id',organizationId).order('created_at',{ascending:false})
       ])
       if(p.error)throw p.error;if(s.error)throw s.error;if(b.error)throw b.error;if(a.error)throw a.error
       // Load attendance/recipient aggregates separately so an empty organisation does not
@@ -257,15 +257,15 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
       const {data,error}=await supabase.from('assignments').insert({
         organization_id:organizationId,application_id:applicationFilter,created_by:user.id,title:assignmentForm.title.trim(),
         description:assignmentForm.description.trim()||null,instructions:assignmentForm.instructions.trim()||null,
-        deadline:assignmentForm.deadline||null,max_score:Number(assignmentForm.max_score)||100,public_slug:slug
-      }).select('id,application_id,title,description,instructions,deadline,max_score,status,public_slug,created_at').single()
+        deadline:assignmentForm.deadline||null,max_score:Number(assignmentForm.max_score)||100,pass_mark:Number(assignmentForm.pass_mark)||50,public_slug:slug
+      }).select('id,application_id,title,description,instructions,deadline,max_score,pass_mark,status,public_slug,created_at').single()
       if(error)throw error
       setAssignments(x=>[data as Assignment,...x]);setSelectedAssignment(data as Assignment);setAssignmentQuestions(x=>({...x,[data.id]:[]}))
-      setAssignmentForm({title:'',description:'',instructions:'',deadline:'',max_score:'100'});setNotice('Assignment draft created.')
+      setAssignmentForm({title:'',description:'',instructions:'',deadline:'',max_score:'100',pass_mark:'50'});setNotice('Assignment draft created.')
     }catch(e){setError(e instanceof Error?e.message:'Could not create assignment.')}finally{setSaving(false)}
   }
   async function openAssignment(assignment:Assignment){
-    setSelectedAssignment(assignment);setSelectedSubmission(null);setEditingAssignment(false);setEditAssignmentForm({title:assignment.title,description:assignment.description||'',instructions:assignment.instructions||'',deadline:assignment.deadline?new Date(assignment.deadline).toISOString().slice(0,16):'',max_score:String(assignment.max_score)});setError('')
+    setSelectedAssignment(assignment);setSelectedSubmission(null);setEditingAssignment(false);setEditAssignmentForm({title:assignment.title,description:assignment.description||'',instructions:assignment.instructions||'',deadline:assignment.deadline?new Date(assignment.deadline).toISOString().slice(0,16):'',max_score:String(assignment.max_score),pass_mark:String(assignment.pass_mark)});setError('')
     const [questions,submissions]=await Promise.all([
       supabase.from('assignment_questions').select('id,assignment_id,type,label,description,required,position,config').eq('assignment_id',assignment.id).order('position'),
       supabase.from('assignment_submissions').select('id,assignment_id,participant_id,status,submitted_at,score,feedback,graded_at,participants(participant_id,applicants(full_name,email))').eq('assignment_id',assignment.id).order('submitted_at',{ascending:false})
@@ -281,8 +281,8 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     try{
       const maxScore=Number(editAssignmentForm.max_score)
       if(!Number.isFinite(maxScore)||maxScore<=0)throw new Error('Maximum score must be greater than zero.')
-      const patch={title:editAssignmentForm.title.trim(),description:editAssignmentForm.description.trim()||null,instructions:editAssignmentForm.instructions.trim()||null,deadline:editAssignmentForm.deadline||null,max_score:maxScore,updated_at:new Date().toISOString()}
-      const {data,error}=await supabase.from('assignments').update(patch).eq('id',selectedAssignment.id).select('id,application_id,title,description,instructions,deadline,max_score,status,public_slug,created_at').single()
+      const passMark=Number(editAssignmentForm.pass_mark);if(!Number.isFinite(passMark)||passMark<0||passMark>maxScore)throw new Error('Pass mark must be between 0 and the maximum score.');const patch={title:editAssignmentForm.title.trim(),description:editAssignmentForm.description.trim()||null,instructions:editAssignmentForm.instructions.trim()||null,deadline:editAssignmentForm.deadline||null,max_score:maxScore,pass_mark:passMark,updated_at:new Date().toISOString()}
+      const {data,error}=await supabase.from('assignments').update(patch).eq('id',selectedAssignment.id).select('id,application_id,title,description,instructions,deadline,max_score,pass_mark,status,public_slug,created_at').single()
       if(error)throw error
       setSelectedAssignment(data as Assignment);setAssignments(x=>x.map(a=>a.id===data.id?data as Assignment:a));setEditingAssignment(false);setNotice('Assignment updated.')
     }catch(e){setError(e instanceof Error?e.message:'Could not update assignment.')}finally{setSaving(false)}
@@ -291,7 +291,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     if(!selectedAssignment||!window.confirm('Delete "'+selectedAssignment.title+'"? This permanently removes its questions, submissions, grades and uploaded files.'))return
     setSaving(true);setError('');setNotice('')
     try{
-      const {data:docs,error:docsError}=await supabase.from('assignment_documents').select('storage_bucket,storage_path').eq('assignment_id',selectedAssignment.id)
+      const submissionIds=assignmentSubmissions.map(s=>s.id);const docsResult=submissionIds.length?await supabase.from('assignment_documents').select('storage_bucket,storage_path').in('submission_id',submissionIds):{data:[],error:null};const {data:docs,error:docsError}=docsResult
       if(docsError)throw docsError
       const byBucket=new Map<string,string[]>()
       for(const doc of docs||[])byBucket.set(doc.storage_bucket,[...(byBucket.get(doc.storage_bucket)||[]),doc.storage_path])
@@ -372,7 +372,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     if(!selectedAssignment)return
     setSaving(true);setError('');setNotice('')
     try{
-      const {data,error}=await supabase.from('assignments').update({status,published_at:status==='published'?new Date().toISOString():undefined,updated_at:new Date().toISOString()}).eq('id',selectedAssignment.id).select('id,application_id,title,description,instructions,deadline,max_score,status,public_slug,created_at').single()
+      const {data,error}=await supabase.from('assignments').update({status,published_at:status==='published'?new Date().toISOString():undefined,updated_at:new Date().toISOString()}).eq('id',selectedAssignment.id).select('id,application_id,title,description,instructions,deadline,max_score,pass_mark,status,public_slug,created_at').single()
       if(error)throw error
       setAssignments(x=>x.map(a=>a.id===data.id?data as Assignment:a));setSelectedAssignment(data as Assignment);setNotice(status==='published'?'Assignment published. The participant link will be activated in Phase 2.':status==='closed'?'Assignment closed.':'Assignment returned to draft.')
     }catch(e){setError(e instanceof Error?e.message:'Could not update assignment.')}finally{setSaving(false)}
