@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowRight, Users, Settings, FileText, ShieldCheck, ClipboardList, Save, Eye, Search, Plus, History, Lock, LockOpen, SlidersHorizontal, MoreHorizontal, Download, X, CheckCircle2, UserRoundPlus, UserCheck, Clock3, Link2, Copy, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { friendlyErrorMessage } from '../lib/errors'
 
 function ActionFeedback({message,type='success',onDismiss}:{message:string;type?:'success'|'error';onDismiss?:()=>void}){useEffect(()=>{const timer=window.setTimeout(()=>onDismiss?.(),5000);return()=>window.clearTimeout(timer)},[message,onDismiss]);return createPortal(<div className={'action-feedback-toast '+(type==='error'?'is-error':'is-success')} role={type==='error'?'alert':'status'} aria-live="polite"><div className="action-feedback-icon">{type==='error'?<X size={18}/>:<CheckCircle2 size={18}/>}</div><div className="action-feedback-copy"><strong>{type==='error'?'Action failed':'Success'}</strong><span>{message}</span></div>{onDismiss&&<button type="button" className="action-feedback-close" aria-label="Dismiss notification" onClick={onDismiss}><X size={16}/></button>}<span className="action-feedback-timer" aria-hidden="true"/></div>,document.body)}
 
@@ -64,7 +65,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
  const [summaries,setSummaries]=useState<FormSummary[]>([]); const [loading,setLoading]=useState(true); const [error,setError]=useState(''); const [query,setQuery]=useState(''); const [filter,setFilter]=useState<'all'|'draft'|'published'|'closed'|'none'>('all')
  const [versions,setVersions]=useState<VersionRecord[]>([]); const [historyFor,setHistoryFor]=useState<FormSummary|null>(null); const [historyLoading,setHistoryLoading]=useState(false); const [busyId,setBusyId]=useState(''); const [settingsFor,setSettingsFor]=useState<FormSummary|null>(null); const [settingsDraft,setSettingsDraft]=useState<FormSettings>({start_date:null,deadline:null,submission_limit:null,confirmation_message:'Thank you. Your application has been received.',applicant_instructions:null}); const [settingsSaving,setSettingsSaving]=useState(false)
 
- async function load(){setLoading(true);setError('');try{setSummaries(await loadFormSummaries(applications))}catch(e){setError(e instanceof Error?e.message:'Could not load forms.')}finally{setLoading(false)}}
+ async function load(){setLoading(true);setError('');try{setSummaries(await loadFormSummaries(applications))}catch(e){setError(friendlyErrorMessage(e,'Could not load forms.'))}finally{setLoading(false)}}
  useEffect(()=>{load()},[applications])
 
  const filtered=useMemo(()=>summaries.filter(s=>{const q=query.trim().toLowerCase();const status=formWorkspaceStatus(s);return(!q||s.application.name.toLowerCase().includes(q))&&(filter==='all'||status===filter)}),[summaries,query,filter])
@@ -77,7 +78,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
      const {error}=await supabase.from('applications').update({status:next,updated_at:new Date().toISOString()}).eq('id',summary.application.id)
      if(error)throw error
      setSummaries(current=>current.map(s=>s.application.id===summary.application.id?{...s,application:{...s.application,status:next}}:s))
-   }catch(e){setError(e instanceof Error?e.message:'Could not update form status.')}finally{setBusyId('')}
+   }catch(e){setError(friendlyErrorMessage(e,'Could not update form status.'))}finally{setBusyId('')}
  }
 
  function openSettings(summary:FormSummary){
@@ -106,7 +107,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
      },{onConflict:'application_id'})
      if(error)throw error
      setSettingsFor(null);await load()
-   }catch(e){setError(e instanceof Error?e.message:'Could not save form settings.')}finally{setSettingsSaving(false)}
+   }catch(e){setError(friendlyErrorMessage(e,'Could not save form settings.'))}finally{setSettingsSaving(false)}
  }
  
  async function openHistory(summary:FormSummary){
@@ -134,7 +135,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
      await load()
      setError('') 
      return data as string
-   }catch(e){setError(e instanceof Error?e.message:'Could not duplicate this version.')}finally{setBusyId('')}
+   }catch(e){setError(friendlyErrorMessage(e,'Could not duplicate this version.'))}finally{setBusyId('')}
  }
 
  function preview(s:FormSummary){if(!s.publicSlug){setError('This programme does not have a public application link yet.');return}window.open('/apply/'+s.publicSlug,'_blank','noopener,noreferrer')}
@@ -386,7 +387,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
      decision:s.decision==='approved'||s.decision==='rejected'?s.decision:'pending'
     }
    }))
-  }catch(e){setError(e instanceof Error?e.message:'Could not load screening data.')}
+  }catch(e){setError(friendlyErrorMessage(e,'Could not load screening data.'))}
   finally{setLoading(false)}
  }
 
@@ -603,7 +604,7 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
       if(role==='reviewer') setManualNotes(assignmentForReviewer?.notes||'')
     }
    }catch(e){
-    if(active)setError(e instanceof Error?e.message:'Could not load this application.')
+    if(active)setError(friendlyErrorMessage(e,'Could not load this application.'))
    }finally{
     if(active)setLoading(false)
    }
@@ -626,7 +627,7 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
    if(invokeError)throw invokeError
    if(result?.error)throw new Error(result.error)
    await refreshDocuments()
-  }catch(e){setAiError(e instanceof Error?e.message:'Document extraction failed.')}
+  }catch(e){setAiError(friendlyErrorMessage(e,'Document extraction failed.'))}
   finally{setExtractingId('')}
  }
 
@@ -673,7 +674,7 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
    setData(prev=>prev?{...prev,score}:prev)
    setScoreNotice('Score saved.')
   }catch(e){
-   setScoreNotice(e instanceof Error?e.message:'Could not save score.')
+   setScoreNotice(friendlyErrorMessage(e,'Could not save score.'))
   }finally{setScoreSaving(false)}
  }
 
@@ -994,7 +995,7 @@ export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSa
      if(organizationError)throw new Error('Organisation update failed: '+organizationError.message)
      onOrganizationSaved({name:organization.name,slug:organization.slug,avatar_url:publicUrl})
      flash('Organisation profile image updated.')
-   }catch(e){setError(e instanceof Error?e.message:'Could not upload your organisation image.')}
+   }catch(e){setError(friendlyErrorMessage(e,'Could not upload your organisation image.'))}
    finally{setOrganizationImageSaving(false)}
  }
  async function saveProfile(){
@@ -1007,7 +1008,7 @@ export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSa
     const {error}=await supabase.from('profiles').update({full_name:profileName.trim()||null,username:normalizedUsername,birth_month:Number(birthMonth),birth_day:Number(birthDay),updated_at:new Date().toISOString()}).eq('id',profile.id)
     if(error)throw error
     onProfileSaved({full_name:profileName.trim()||null,username:normalizedUsername,birth_month:Number(birthMonth),birth_day:Number(birthDay),avatar_url:avatarUrl||null});flash('Profile updated.')
-   }catch(e){setError(e instanceof Error?e.message:'Could not update your profile.')}
+   }catch(e){setError(friendlyErrorMessage(e,'Could not update your profile.'))}
    finally{setProfileSaving(false)}
  }
  async function uploadAvatar(file:File){
@@ -1026,7 +1027,7 @@ export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSa
      const {error:profileError}=await supabase.from('profiles').update({avatar_url:publicUrl,updated_at:new Date().toISOString()}).eq('id',profile.id)
      if(profileError)throw new Error(`Profile update failed: ${profileError.message}`)
      setAvatarUrl(publicUrl);onProfileSaved({full_name:profileName.trim()||null,username:username.trim().toLowerCase()||null,birth_month:birthMonth?Number(birthMonth):null,birth_day:birthDay?Number(birthDay):null,avatar_url:publicUrl});flash('Profile photo updated.')
-   }catch(e){setError(e instanceof Error?e.message:'Could not upload your profile image.')}
+   }catch(e){setError(friendlyErrorMessage(e,'Could not upload your profile image.'))}
    finally{setProfileSaving(false)}
  }
  async function changePassword(){
@@ -1043,7 +1044,7 @@ export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSa
      const {error:updateError}=await supabase.auth.updateUser({password:newPassword})
      if(updateError)throw updateError
      setCurrentPassword('');setNewPassword('');setConfirmPassword('');flash('Password changed successfully.')
-   }catch(e){setError(e instanceof Error?e.message:'Could not change your password.')}
+   }catch(e){setError(friendlyErrorMessage(e,'Could not change your password.'))}
    finally{setPasswordSaving(false)}
  }
  async function changeEmail(){
@@ -1054,12 +1055,12 @@ export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSa
      const {error:updateError}=await supabase.auth.updateUser({email:email.trim()})
      if(updateError)throw updateError
      setEmailNotice('A confirmation link has been sent to your new email address. Your current email remains active until you confirm it.')
-   }catch(e){setEmailNotice(e instanceof Error?e.message:'Could not update your email address.')}
+   }catch(e){setEmailNotice(friendlyErrorMessage(e,'Could not update your email address.'))}
    finally{setEmailSaving(false)}
  }
  async function signOutEverywhere(){
    setSigningOut(true);setError('')
-   try{const {error}=await supabase.auth.signOut({scope:'global'});if(error)throw error}catch(e){setError(e instanceof Error?e.message:'Could not sign out all sessions.')}finally{setSigningOut(false)}
+   try{const {error}=await supabase.auth.signOut({scope:'global'});if(error)throw error}catch(e){setError(friendlyErrorMessage(e,'Could not sign out all sessions.'))}finally{setSigningOut(false)}
  }
  const initials=(profileName||username||email||'U').split(/\\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'U'
  return <section>
