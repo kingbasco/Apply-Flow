@@ -30,7 +30,11 @@ type ParticipantAttendance = {
 
 export default function ParticipantsPanel({organizationId,applications,role}:{organizationId:string;applications:Application[];role?:'owner'|'admin'|'reviewer'}) {
   const [tab,setTab]=useState<'participants'|'attendance'|'assignments'|'benefits'>('participants')
-  const isAdmin=role==='owner'||role==='admin'\n  const isProgrammeStaff=role==='reviewer'\n  const [participants,setParticipants]=useState<Participant[]>([])\n  const [programmeStaff,setProgrammeStaff]=useState<{id:string;full_name:string|null}[]>([])\n  const [participantStaff,setParticipantStaff]=useState<{participant_id:string;staff_id:string}[]>([])
+  const isAdmin=role==='owner'||role==='admin'
+  const isProgrammeStaff=role==='reviewer'
+  const [participants,setParticipants]=useState<Participant[]>([])
+  const [programmeStaff,setProgrammeStaff]=useState<{id:string;full_name:string|null}[]>([])
+  const [participantStaff,setParticipantStaff]=useState<{participant_id:string;staff_id:string}[]>([])
   const [sessions,setSessions]=useState<Session[]>([])
   const [benefits,setBenefits]=useState<Benefit[]>([])
   const [assignments,setAssignments]=useState<Assignment[]>([])
@@ -87,7 +91,9 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
         supabase.from('attendance_sessions').select('id,application_id,title,session_date,check_in_slug,check_in_open,check_in_opened_at').eq('organization_id',organizationId).order('session_date',{ascending:false}),
         supabase.from('benefit_distributions').select('id,application_id,name,description,distribution_date,status').eq('organization_id',organizationId).order('created_at',{ascending:false}),
         supabase.from('benefit_recipients').select('distribution_id,participant_id'),
-        supabase.from('assignments').select('id,application_id,title,description,instructions,deadline,max_score,pass_mark,status,public_slug,results_released,results_released_at,created_at').eq('organization_id',organizationId).order('created_at',{ascending:false}),\n        supabase.from('profiles').select('id,full_name').eq('organization_id',organizationId).eq('role','reviewer').order('full_name'),\n        supabase.from('participant_staff_assignments').select('participant_id,staff_id').eq('organization_id',organizationId)
+        supabase.from('assignments').select('id,application_id,title,description,instructions,deadline,max_score,pass_mark,status,public_slug,results_released,results_released_at,created_at').eq('organization_id',organizationId).order('created_at',{ascending:false}),
+        supabase.from('profiles').select('id,full_name').eq('organization_id',organizationId).eq('role','reviewer').order('full_name'),
+        supabase.from('participant_staff_assignments').select('participant_id,staff_id').eq('organization_id',organizationId)
       ])
       if(p.error)throw p.error;if(s.error)throw s.error;if(b.error)throw b.error;if(a.error)throw a.error;if(staff.error)throw staff.error;if(staffAssignments.error)throw staffAssignments.error
       // Load attendance/recipient aggregates separately so an empty organisation does not
@@ -499,7 +505,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
             </tbody></table></div>
             <div className="attendance-import-box">
               <div className="attendance-import-heading"><div><p className="eyebrow">Import attendance</p><h3>Participant IDs</h3><p>Paste participant IDs from Google Meet, one per line or separated by commas.</p></div><Upload size={19}/></div>
-              <textarea rows={7} value={ids} onChange={e=>setIds(e.target.value)} placeholder={'HC2-2026-0001\nHC2-2026-0007'} />
+              <textarea rows={7} value={ids} onChange={e=>setIds(e.target.value)} placeholder={'HC2-2026-0001
+HC2-2026-0007'} />
               <button className="primary-button" onClick={importAttendance} disabled={saving}>{saving?'Importing…':'Import attendance IDs'}</button>
               <p className="muted">Only IDs belonging to this session’s programme are accepted.</p>
             </div>
