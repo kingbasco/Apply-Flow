@@ -594,8 +594,12 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
 
     if(active){
       setData({submission:s,applicant,answers:ans||[],questions:questions||[],eligibility:e,score:sc,criteria:cr||[],ai,documents:documents||[],options:options||[]})
-      setManualScore(role==='reviewer' ? (row.score==null?'':String(row.score)) : (sc?.overall_score==null?'':String(sc.overall_score)))
-      const assignmentForReviewer=(await supabase.from('review_assignments').select('id,score,notes,status').eq('id',row.assignmentId||'').maybeSingle()).data
+      const assignmentForReviewer=role==='reviewer'
+        ? (await supabase.from('review_assignments').select('id,score,notes,status').eq('id',row.assignmentId||'').maybeSingle()).data
+        : null
+      setManualScore(role==='reviewer'
+        ? (assignmentForReviewer?.score==null?'':String(assignmentForReviewer.score))
+        : (sc?.overall_score==null?'':String(sc.overall_score)))
       if(role==='reviewer') setManualNotes(assignmentForReviewer?.notes||'')
     }
    }catch(e){
@@ -790,7 +794,7 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
        <section className="screening-review-section screening-ai-section">
         <div className="screening-section-heading">
          <div><span className="screening-section-kicker">Optional</span><h3>AI recommendation</h3><p>AI reviews the complete application and gives you a recommendation.</p></div>
-         {role!=='reviewer'&&<button className="secondary-button" onClick={runAiScreening} disabled={aiRunning}>{aiRunning?'Screening…':data.ai?'Run again':'Screen with AI'}</button>}
+         <button className="secondary-button screening-ai-button" onClick={runAiScreening} disabled={aiRunning}>{aiRunning?'Screening…':data.ai?'Run again':'Screen with AI'}</button>
         </div>
         {aiError&&<div className="form-error screening-inline-error">{aiError}</div>}
         {data.ai ? (
