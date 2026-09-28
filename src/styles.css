@@ -3146,3 +3146,25 @@ html.dark-theme .assignment-question-form select{
     border-radius:12px;
   }
 }
+
+
+/* Assignment choice option editor */
+.assignment-options-editor{padding:16px;border:1px solid #e4e6ed;border-radius:12px;background:#fafbfc;display:grid;gap:13px}
+.assignment-options-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.assignment-options-heading>div{display:flex;flex-direction:column;gap:3px}
+.assignment-options-heading strong{font-size:14px;color:#303746}
+.assignment-options-heading small{font-size:12px;color:#8e96a3}
+.assignment-options-heading .text-button{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.assignment-option-list{display:grid;gap:9px}
+.assignment-option-row{display:grid;grid-template-columns:28px minmax(0,1fr) 36px;gap:9px;align-items:center}
+.assignment-option-row>span{width:28px;height:28px;display:grid;place-items:center;border-radius:8px;background:#efefff;color:#6259df;font-size:11px;font-weight:800}
+.assignment-option-row input{min-width:0;margin:0}
+.assignment-option-row .icon-button{width:36px;height:36px}
+html.dark-theme .assignment-options-editor{background:#171c25;border-color:#303642}
+html.dark-theme .assignment-options-heading strong{color:#eef1f5}
+@media(max-width:520px){
+ .assignment-options-editor{padding:13px}
+ .assignment-options-heading{align-items:flex-start;flex-direction:column}
+ .assignment-options-heading .text-button{padding-left:0}
+ .assignment-option-row{grid-template-columns:26px minmax(0,1fr) 34px;gap:7px}
+}
