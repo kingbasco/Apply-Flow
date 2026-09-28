@@ -3597,3 +3597,17 @@ html.dark-theme .screening-decision-panel button:disabled{opacity:.62;color:#c5c
  .review-filter-toolbar + .table-wrap th:nth-child(2),
  .review-filter-toolbar + .table-wrap td:nth-child(2){padding-left:6px}
 }
+
+/* Screening review — exact current component dark surfaces */
+html.dark-theme .screening-review-section,
+html.dark-theme .screening-section-heading,
+html.dark-theme .screening-answer-list{background:#171b23!important;border-color:#303642!important;color:#e4e8ee!important}
+html.dark-theme .screening-section-heading h3{color:#e7ebf1!important}
+html.dark-theme .screening-section-heading p{color:#9ca5b4!important}
+html.dark-theme .screening-section-kicker{color:#8f98a8!important}
+html.dark-theme .screening-count{background:#242a34!important;border-color:#343a47!important;color:#b5bdca!important}
+html.dark-theme .screening-answer{background:#171b23!important;border-color:#303642!important}
+html.dark-theme .screening-answer-number{background:rgba(109,93,252,.14)!important;color:#b9b1ff!important}
+html.dark-theme .screening-answer-question{background:transparent!important;color:#e7ebf1!important}
+html.dark-theme .screening-answer-description{color:#8f98a8!important}
+html.dark-theme .screening-answer-value{background:transparent!important;color:#cbd1db!important;border-color:#3a414d!important}
