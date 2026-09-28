@@ -222,28 +222,29 @@ function TeamInviteLinkSignup({token}:{token:string}){
     if(password!==confirmPassword){setError('Passwords do not match.');return}
     setBusy(true)
     try{
-      const {data,error:signUpError}=await supabase.auth.signUp({
-        email:email.trim(),
-        password,
-        options:{data:{full_name:name.trim(),username:normalizedUsername,birth_month:Number(birthMonth),birth_day:Number(birthDay),team_invite_token:token}}
+      const {data:result,error:invokeError}=await supabase.functions.invoke('accept-team-invite-link',{
+        body:{
+          token,
+          email:email.trim(),
+          password,
+          full_name:name.trim(),
+          username:normalizedUsername,
+          birth_month:Number(birthMonth),
+          birth_day:Number(birthDay)
+        }
       })
-      if(signUpError){
-        const message=signUpError.message.toLowerCase().includes('rate limit')?'Too many account emails were requested recently. Please wait a few minutes and try again.':signUpError.message
+      if(invokeError){
+        let message=invokeError.message||'Could not create your staff account.'
+        const context=(invokeError as any)?.context
+        if(context&&typeof context.json==='function'){
+          try{const payload=await context.json();if(payload?.error)message=String(payload.error)}catch{}
+        }
         throw new Error(message)
       }
-      if(!data.user)throw new Error('Account could not be created.')
-      if(!data.session){
-        setMessage('Account created. Confirm your email, then sign in. Your workspace invitation will be applied automatically.')
-        return
-      }
-      const {error:acceptError}=await supabase.rpc('accept_team_invite_link',{
-        p_token:token,
-        p_full_name:name.trim(),
-        p_username:normalizedUsername,
-        p_birth_month:Number(birthMonth),
-        p_birth_day:Number(birthDay)
-      })
-      if(acceptError)throw acceptError
+      if(result?.error)throw new Error(result.error)
+      const {data:signInData,error:signInError}=await supabase.auth.signInWithPassword({email:email.trim(),password})
+      if(signInError)throw signInError
+      if(!signInData.session)throw new Error('Your account was created, but ApplyFlow could not sign you in automatically. Please sign in from the login page.')
       window.location.replace('/')
     }catch(err){setError(err instanceof Error?err.message:'Could not create your staff account.')}
     finally{setBusy(false)}
