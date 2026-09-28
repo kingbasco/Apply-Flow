@@ -661,6 +661,7 @@ function App() {
   const profileName = profile?.full_name || session?.user.email?.split('@')[0] || 'there'
   const firstName = profileName.split(' ')[0]
 
+  if (window.location.pathname.startsWith('/a/')) return <PublicAssignment slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
   if (window.location.pathname.startsWith('/apply/')) return <PublicApplication slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
   if (invitePending && session) return <InviteSetupScreen email={session.user.email || ''} onComplete={async () => {
     const { error: profileError } = await supabase.from('profiles')
