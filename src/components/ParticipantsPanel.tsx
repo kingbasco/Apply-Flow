@@ -60,6 +60,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [sessionAttendance,setSessionAttendance]=useState<AttendanceRow[]>([])
   const [attendanceLoading,setAttendanceLoading]=useState(false)
   const [query,setQuery]=useState('')
+  const [selectedParticipantIds,setSelectedParticipantIds]=useState<string[]>([])
+  const [bulkStaffId,setBulkStaffId]=useState('')
   const [applicationFilter,setApplicationFilter]=useState(applications[0]?.id||'')
   const [statusFilter,setStatusFilter]=useState<'all'|'active'|'completed'|'withdrawn'>('all')
   const [loading,setLoading]=useState(true)
@@ -147,6 +149,29 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     const {data,error}=await supabase.rpc('get_assignment_leaderboard',{p_application_id:applicationId})
     if(error)setError(error.message);else setLeaderboard((data||[]) as LeaderboardRow[])
     setLeaderboardLoading(false)
+  }
+
+  function toggleParticipantSelection(participantId:string,checked:boolean){
+    setSelectedParticipantIds(current=>checked?[...new Set([...current,participantId])]:current.filter(id=>id!==participantId))
+  }
+  function toggleAllVisibleParticipants(checked:boolean){
+    const visibleIds=filtered.map(p=>p.id)
+    setSelectedParticipantIds(current=>checked?[...new Set([...current,...visibleIds])]:current.filter(id=>!visibleIds.includes(id)))
+  }
+  async function bulkAssignProgrammeStaff(){
+    if(!isAdmin||!bulkStaffId||!selectedParticipantIds.length)return
+    setSaving(true);setError('');setNotice('')
+    try{
+      const {error}=await supabase.rpc('bulk_set_participant_staff_assignment',{p_participant_ids:selectedParticipantIds,p_staff_id:bulkStaffId,p_assigned:true})
+      if(error)throw error
+      setParticipantStaff(current=>{
+        const keep=current.filter(x=>!(x.staff_id===bulkStaffId&&selectedParticipantIds.includes(x.participant_id)))
+        return [...keep,...selectedParticipantIds.map(participant_id=>({participant_id,staff_id:bulkStaffId}))]
+      })
+      const count=selectedParticipantIds.length
+      setSelectedParticipantIds([]);setBulkStaffId('')
+      setNotice(count+' participant'+(count===1?'':'s')+' assigned to Programme Staff.')
+    }catch(e){setError(e instanceof Error?e.message:'Could not assign selected participants.')}finally{setSaving(false)}
   }
 
   async function updateParticipantStaffAssignment(participantId:string,staffId:string,assigned:boolean){
@@ -468,15 +493,20 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           <label className="participant-select-field"><span>Filter by status</span><div className="participant-select-wrap"><select aria-label="Filter participants by status" value={statusFilter} onChange={e=>setStatusFilter(e.target.value as any)}><option value="all">All statuses</option><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select><ChevronDown size={16}/></div></label>
           <span className="participant-filter-count">{filtered.length} participant{filtered.length===1?'':'s'}</span>
         </div>
-        <div className="table-wrap"><table><thead><tr><th>Participant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
+        {isAdmin&&<div className="participant-bulk-bar">
+          <div className="participant-bulk-summary"><strong>{selectedParticipantIds.length} selected</strong><span>Select participants below, then assign them to Programme Staff.</span></div>
+          <div className="participant-bulk-actions"><div className="participant-select-wrap"><select aria-label="Choose Programme Staff" value={bulkStaffId} onChange={e=>setBulkStaffId(e.target.value)}><option value="">Choose Programme Staff</option>{programmeStaff.map(staff=><option key={staff.id} value={staff.id}>{staff.full_name||'Programme Staff'}</option>)}</select><ChevronDown size={16}/></div><button type="button" className="primary-button" disabled={saving||!bulkStaffId||!selectedParticipantIds.length} onClick={bulkAssignProgrammeStaff}>Assign selected</button>{selectedParticipantIds.length>0&&<button type="button" className="text-button" onClick={()=>setSelectedParticipantIds([])}>Clear</button>}</div>
+        </div>}
+        <div className="table-wrap"><table><thead><tr>{isAdmin&&<th className="participant-select-cell"><input type="checkbox" aria-label="Select all visible participants" checked={filtered.length>0&&filtered.every(p=>selectedParticipantIds.includes(p.id))} onChange={e=>toggleAllVisibleParticipants(e.target.checked)}/></th>}<th>Participant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
           {filtered.length?filtered.map(p=><tr key={p.id} className="clickable-row" onClick={()=>openParticipant(p)}>
+            {isAdmin&&<td className="participant-select-cell" onClick={e=>e.stopPropagation()}><input type="checkbox" aria-label={'Select '+(p.full_name||p.participant_id)} checked={selectedParticipantIds.includes(p.id)} onChange={e=>toggleParticipantSelection(p.id,e.target.checked)}/></td>}
             <td><strong>{p.participant_id}</strong></td>
             <td><strong>{p.full_name||'Unnamed participant'}</strong><span className="table-sub">{p.email||'No email'}</span></td>
             <td>{appName(p.application_id)}</td>
             <td>{p.attendance_count||0} present</td>
             <td><span className={'status '+(p.status==='active'?'green':p.status==='completed'?'blue':'neutral')}>{p.status==='active'?'Active / Enrolled':p.status}</span></td>
             <td>{new Date(p.joined_at).toLocaleDateString()}</td>
-          </tr>):<tr><td colSpan={6}><div className="table-empty">{participants.length?'No participants match these filters.':'No approved participants yet. Approved applicants appear here automatically.'}</div></td></tr>}
+          </tr>):<tr><td colSpan={isAdmin?7:6}><div className="table-empty">{participants.length?'No participants match these filters.':'No approved participants yet. Approved applicants appear here automatically.'}</div></td></tr>}
         </tbody></table></div>
       </div>
     </>}
