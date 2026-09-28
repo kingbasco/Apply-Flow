@@ -3374,3 +3374,22 @@ html.dark-theme .public-choice:has(input:checked){background:#24223b!important}
  .results-section-heading{flex-direction:column}.results-section-heading .status{align-self:flex-start}
 }
 @media(max-width:430px){.results-score-grid{grid-template-columns:1fr}.results-score-card.primary{grid-column:auto}.results-page-header .brand span{display:none}}
+
+
+/* Assignment submission success */
+.assignment-success-content{max-width:620px;padding:34px 0 10px;text-align:center}
+.assignment-success-check{width:78px;height:78px;margin:0 auto 22px;border-radius:50%;display:grid;place-items:center;background:#eaf8ef;color:#27864d;animation:success-pop .5s cubic-bezier(.2,.9,.25,1.25) both}
+.assignment-success-check svg{animation:success-check .45s .18s ease both}
+.assignment-success-content h1{margin:7px 0 12px;font-size:38px;letter-spacing:-.035em}
+.assignment-success-lead,.assignment-success-copy{margin:0 auto;max-width:570px;color:#747d8b;line-height:1.65}
+.assignment-success-copy{margin-top:8px;font-size:14px}
+.assignment-success-receipt{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:24px 0 14px;text-align:left}
+.assignment-success-receipt>div{padding:15px 16px;border:1px solid #e3e6ec;border-radius:12px;background:#fafbfc;display:flex;flex-direction:column;gap:5px}
+.assignment-success-receipt span{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#969daa}
+.assignment-success-receipt strong{font-size:13px;color:#3c4452}
+.assignment-leaderboard-link{width:100%;min-height:52px;display:flex!important;align-items:center;justify-content:center;gap:8px;text-decoration:none}
+.assignment-success-note{margin:11px 0 0;color:#969daa;font-size:12px}
+@keyframes success-pop{0%{opacity:0;transform:scale(.45)}70%{transform:scale(1.08)}100%{opacity:1;transform:scale(1)}}
+@keyframes success-check{0%{opacity:0;transform:scale(.6) rotate(-12deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+@media(max-width:600px){.assignment-success-content{padding-top:22px}.assignment-success-content h1{font-size:32px}.assignment-success-receipt{grid-template-columns:1fr}.assignment-success-check{width:70px;height:70px}}
+@media(prefers-reduced-motion:reduce){.assignment-success-check,.assignment-success-check svg{animation:none}}
