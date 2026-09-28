@@ -3511,3 +3511,32 @@ html.dark-theme .import-question-list span{background:#1b2029!important;border-c
 html.dark-theme .participant-profile-statusbar{background:#12161d!important;border-color:#303642!important}
 html.dark-theme .eligibility-value-field .public-options{background:#12161d!important;border-color:#343a47!important}
 html.dark-theme .notification-footer{background:#12161d!important}
+
+/* Workspace dark-mode contract — final cascade authority */
+html.dark-theme body,html.dark-theme .app-shell,html.dark-theme .main,html.dark-theme .content{background:#0f1117!important;color:#e4e8ee}
+html.dark-theme .card,html.dark-theme .table-card,html.dark-theme .panel,html.dark-theme .analytics-card,html.dark-theme .review-card,html.dark-theme .settings-card,html.dark-theme .assignment-column,html.dark-theme .participant-profile-modal,html.dark-theme .modal,html.dark-theme .modal-panel{background:#171b23!important;border-color:#303642!important;color:#e4e8ee}
+html.dark-theme .card-header,html.dark-theme .toolbar,html.dark-theme .forms-toolbar,html.dark-theme .modal-header,html.dark-theme .modal-footer,html.dark-theme .drawer-header,html.dark-theme .detail-header{background:#171b23!important;border-color:#303642!important;color:#e4e8ee}
+html.dark-theme .card-header h2,html.dark-theme .card-header h3,html.dark-theme .toolbar h2,html.dark-theme .modal-header h2,html.dark-theme .modal-header h3{color:#e7ebf1!important}
+html.dark-theme .card-header p,html.dark-theme .toolbar p,html.dark-theme .modal-header p{color:#929baa!important}
+html.dark-theme .table-wrap,html.dark-theme .table-wrap table,html.dark-theme .table-wrap tbody,html.dark-theme .applicants-table-wrap,html.dark-theme .applicants-table{background:#171b23!important;color:#dce1e8}
+html.dark-theme .table-wrap thead,html.dark-theme .table-wrap th,html.dark-theme .applicants-table thead,html.dark-theme .applicants-table th{background:#151920!important;border-color:#303642!important;color:#8f98a8!important}
+html.dark-theme .table-wrap td,html.dark-theme .applicants-table td{border-color:#292f3a!important;color:#b8c0cc}
+html.dark-theme .table-wrap td strong,html.dark-theme .applicants-table td strong{color:#e4e8ee}
+html.dark-theme .forms-toolbar,html.dark-theme .applicants-toolbar,html.dark-theme .review-filter-toolbar,html.dark-theme .participant-directory-filters{background:#171b23!important;border-color:#303642!important}
+html.dark-theme .forms-search,html.dark-theme .search,html.dark-theme .applicant-search{background:#12161d!important;border-color:#3a414d!important;color:#929baa!important}
+html.dark-theme .forms-filters{background:#12161d!important;border-color:#343a47!important}
+html.dark-theme .secondary-button{background:#1b2029!important;border-color:#3a414d!important;color:#d7dce4!important}
+html.dark-theme .secondary-button:hover{background:#242a34!important;border-color:#4a5261!important;color:#f0f2f5!important}
+html.dark-theme input:not([type=checkbox]):not([type=radio]),html.dark-theme textarea,html.dark-theme select{background-color:#12161d;color:#e4e8ee;border-color:#3a414d}
+html.dark-theme input::placeholder,html.dark-theme textarea::placeholder{color:#697282}
+html.dark-theme .screening-current-application,html.dark-theme .screening-application-picker,html.dark-theme .screening-application-picker-header,html.dark-theme .screening-application-option,html.dark-theme .screening-status-card,html.dark-theme .screening-document,html.dark-theme .screening-document-text{background:#171b23!important;border-color:#303642!important;color:#dce1e8!important}
+html.dark-theme .screening-application-option.active{background:rgba(109,93,252,.13)!important;border-color:rgba(109,93,252,.55)!important}
+html.dark-theme .detail-meta,html.dark-theme .detail-meta>div,html.dark-theme .drawer-meta div,html.dark-theme .question-card,html.dark-theme .builder-settings,html.dark-theme .builder-palette,html.dark-theme .options-editor,html.dark-theme .condition-editor{background:#171b23!important;border-color:#303642!important;color:#dce1e8}
+html.dark-theme .preview-panel,html.dark-theme .preview-header,html.dark-theme .preview-form,html.dark-theme .preview-question{background:#171b23!important;border-color:#303642!important;color:#e4e8ee}
+html.dark-theme .settings-upload-label{background:#1b2029!important;border-color:#3a414d!important;color:#dce1e8!important}
+html.dark-theme .security-danger-zone{background:#21181c!important;border-color:#543039!important}
+html.dark-theme .eligibility-rule,html.dark-theme .eligibility-info-box,html.dark-theme .eligibility-summary-card{background:#171b23!important;border-color:#303642!important;color:#dce1e8}
+html.dark-theme .attendance-import-box,html.dark-theme .attendance-checkin-card,html.dark-theme .assignment-meta,html.dark-theme .assignment-grade-form,html.dark-theme .assignment-answer-row{border-color:#303642!important}
+@media(hover:hover) and (pointer:fine){
+ html.dark-theme .table-wrap tbody tr:hover,html.dark-theme .applicants-table tbody tr:hover,html.dark-theme .screening-application-option:hover{background:#1d222c!important}
+}
