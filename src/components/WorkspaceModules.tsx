@@ -295,6 +295,27 @@ function screeningRecommendation(ai:any):string{
  return ai.status==='failed'?'Failed':'In progress'
 }
 
+type ApplicationDecisionNotice={decision:'approved'|'rejected';applicantName:string;participantId:string}
+
+function ApplicationDecisionResultModal({notice,onContinue,onBack,backLabel}:{notice:ApplicationDecisionNotice;onContinue:()=>void;onBack:()=>void;backLabel:string}){
+ return <div className="modal-backdrop screening-decision-result" role="dialog" aria-modal="true" aria-labelledby="decision-result-title">
+  <div className="modal card" style={{maxWidth:460,textAlign:'center',padding:32}}>
+   <div style={{width:58,height:58,borderRadius:'50%',margin:'0 auto 16px',display:'grid',placeItems:'center',fontSize:28,fontWeight:700,background:notice.decision==='approved'?'#ecfdf3':'#fef2f2',color:notice.decision==='approved'?'#15803d':'#b91c1c'}}>
+    {notice.decision==='approved'?'✓':'×'}
+   </div>
+   <p className="eyebrow">{notice.decision==='approved'?'Approval successful':'Rejection successful'}</p>
+   <h2 id="decision-result-title" style={{margin:'6px 0 8px'}}>{notice.decision==='approved'?'Applicant approved':'Applicant rejected'}</h2>
+   <p style={{fontWeight:600,margin:'0 0 4px'}}>{notice.applicantName}</p>
+   <p className="muted" style={{margin:'0 0 18px'}}>Participant ID: {notice.participantId}</p>
+   <p className="muted" style={{margin:'0 0 22px'}}>{notice.decision==='approved'?'The applicant has been approved and the decision has been saved.':'The applicant has been rejected and the decision has been saved.'}</p>
+   <div style={{display:'flex',justifyContent:'center',gap:10}}>
+    <button className="secondary-button" onClick={onContinue}>Continue reviewing</button>
+    <button className="primary-button" onClick={onBack}>{backLabel}</button>
+   </div>
+  </div>
+ </div>
+}
+
 export function ScreeningWorkspace({applications,onOpen,role}:{applications:Application[];onOpen:(a:Application)=>void;role?:Profile['role']}){
  const [rows,setRows]=useState<ScreeningRow[]>([])
  const [selectedApplicationId,setSelectedApplicationId]=useState('')
@@ -304,7 +325,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
  const [filter,setFilter]=useState<'all'|'pending'|'approved'|'rejected'|'recommended'>('all')
  const [reviewing,setReviewing]=useState<ScreeningRow|null>(null)
  const [aiBulkRunning,setAiBulkRunning]=useState(false)
- const [decisionNotice,setDecisionNotice]=useState<{decision:'approved'|'rejected';applicantName:string;participantId:string}|null>(null)
+ const [decisionNotice,setDecisionNotice]=useState<ApplicationDecisionNotice|null>(null)
  const [selectedSubmissionIds,setSelectedSubmissionIds]=useState<string[]>([])
 
  async function load(){
@@ -489,22 +510,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
    </div>
   </section>
   {reviewing&&<ScreeningReviewModal row={reviewing} role={role} onClose={()=>setReviewing(null)} onDecision={setDecision}/>}
-  {decisionNotice&&<div className="modal-backdrop screening-decision-result" role="dialog" aria-modal="true" aria-labelledby="decision-result-title">
-   <div className="modal card" style={{maxWidth:460,textAlign:'center',padding:32}}>
-    <div style={{width:58,height:58,borderRadius:'50%',margin:'0 auto 16px',display:'grid',placeItems:'center',fontSize:28,fontWeight:700,background:decisionNotice.decision==='approved'?'#ecfdf3':'#fef2f2',color:decisionNotice.decision==='approved'?'#15803d':'#b91c1c'}}>
-     {decisionNotice.decision==='approved'?'✓':'×'}
-    </div>
-    <p className="eyebrow">{decisionNotice.decision==='approved'?'Approval successful':'Rejection successful'}</p>
-    <h2 id="decision-result-title" style={{margin:'6px 0 8px'}}>{decisionNotice.decision==='approved'?'Applicant approved':'Applicant rejected'}</h2>
-    <p style={{fontWeight:600,margin:'0 0 4px'}}>{decisionNotice.applicantName}</p>
-    <p className="muted" style={{margin:'0 0 18px'}}>Participant ID: {decisionNotice.participantId}</p>
-    <p className="muted" style={{margin:'0 0 22px'}}>{decisionNotice.decision==='approved'?'The applicant has been approved and the decision has been saved.':'The applicant has been rejected and the decision has been saved.'}</p>
-    <div style={{display:'flex',justifyContent:'center',gap:10}}>
-     <button className="secondary-button" onClick={()=>setDecisionNotice(null)}>Continue reviewing</button>
-     <button className="primary-button" onClick={()=>{setDecisionNotice(null);setReviewing(null)}}>Back to screening</button>
-    </div>
-   </div>
-  </div>}
+  {decisionNotice&&<ApplicationDecisionResultModal notice={decisionNotice} onContinue={()=>setDecisionNotice(null)} onBack={()=>{setDecisionNotice(null);setReviewing(null)}} backLabel="Back to screening"/>}
  </>
 }
 
@@ -786,7 +792,7 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
  )
 }
 export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{applications:Application[];organizationId:string;onOpen:(a:Application)=>void;role?:Profile['role']}){
- const [rows,setRows]=useState<any[]>([]),[reviewers,setReviewers]=useState<Profile[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[status,setStatus]=useState('all'),[selectedIds,setSelectedIds]=useState<string[]>([]),[assignmentReviewer,setAssignmentReviewer]=useState(''),[assigning,setAssigning]=useState(false),[assignmentNotice,setAssignmentNotice]=useState(''),[reviewing,setReviewing]=useState<any|null>(null);
+ const [rows,setRows]=useState<any[]>([]),[reviewers,setReviewers]=useState<Profile[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[status,setStatus]=useState('all'),[selectedIds,setSelectedIds]=useState<string[]>([]),[assignmentReviewer,setAssignmentReviewer]=useState(''),[assigning,setAssigning]=useState(false),[assignmentNotice,setAssignmentNotice]=useState(''),[reviewing,setReviewing]=useState<any|null>(null),[decisionNotice,setDecisionNotice]=useState<ApplicationDecisionNotice|null>(null);
 
  async function load(){
   setLoading(true);setError('');
@@ -843,7 +849,7 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
    await persistSubmissionDecision(row.submissionId,decision)
    setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision,status:decision}:r));
    setReviewing((current:any)=>current?.submissionId===row.submissionId?{...current,decision}:current);
-   setAssignmentNotice(decision==='approved'?'Applicant approved and enrolled as a participant.':'Applicant rejected successfully.');
+   setDecisionNotice({decision,applicantName:row.applicantName,participantId:row.participantId});
   }catch(e:any){setError(e.message||'Could not save the application decision.')}
  }
  const allFilteredSelected=filtered.length>0&&filtered.every(r=>selectedIds.includes(r.submissionId))
@@ -863,7 +869,8 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
   }catch(e:any){setError(e.message||'Could not assign the selected applicants.')}finally{setAssigning(false)}
  }
 
- return <section>
+ return <>
+ <section>
   <div className="page-heading compact">
    <div><p className="eyebrow">Human review</p><h1>{role==='reviewer'?'My reviews':'Reviews'}</h1><p className="subtitle">{role==='reviewer'?'Review the applications assigned to you.':'Assign submitted applications to team members and track their review status.'}</p></div>
    <div className="detail-actions"><button className="secondary-button" onClick={load}>Refresh</button></div>
@@ -886,6 +893,8 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
   </div>
   {reviewing&&<ScreeningReviewModal row={reviewing} role={role} onClose={()=>setReviewing(null)} onDecision={setReviewDecision}/>}
  </section>
+ {decisionNotice&&<ApplicationDecisionResultModal notice={decisionNotice} onContinue={()=>setDecisionNotice(null)} onBack={()=>{setDecisionNotice(null);setReviewing(null)}} backLabel="Back to reviews"/>}
+ </>
 }
 export function TeamWorkspace({organizationId,role:workspaceRole}:{organizationId:string;role?:'owner'|'admin'|'reviewer'}){
  const canManageTeam=workspaceRole==='owner'||workspaceRole==='admin';
