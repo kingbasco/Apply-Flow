@@ -19,6 +19,9 @@ type AttendanceRow = {
 }
 type Assignment = { id:string; application_id:string; title:string; description:string|null; instructions:string|null; deadline:string|null; max_score:number; status:'draft'|'published'|'closed'; public_slug:string; created_at:string }
 type AssignmentQuestion = { id:string; assignment_id:string; type:'short_text'|'long_text'|'number'|'single_choice'|'multiple_choice'|'file'|'url'; label:string; description:string|null; required:boolean; position:number; config:any }
+type AssignmentSubmission = { id:string; assignment_id:string; participant_id:string; status:'submitted'|'graded'; submitted_at:string; score:number|null; feedback:string|null; graded_at:string|null; participants?:{participant_id:string;full_name:string|null;email:string|null}|null }
+type AssignmentAnswer = { id:string; question_id:string; value:any; assignment_questions?:{label:string;type:string;position:number}|null }
+type AssignmentDocument = { id:string; question_id:string; storage_bucket:string; storage_path:string; original_name:string; mime_type:string|null; file_size:number|null }
 type ParticipantAttendance = {
   id:string; status:'present'|'absent'; marked_at:string
   attendance_sessions?:{title:string;session_date:string;application_id:string}|{title:string;session_date:string;application_id:string}[]
@@ -34,6 +37,11 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   const [assignmentForm,setAssignmentForm]=useState({title:'',description:'',instructions:'',deadline:'',max_score:'100'})
   const [questionForm,setQuestionForm]=useState({label:'',type:'long_text' as AssignmentQuestion['type'],required:true})
   const [selectedAssignment,setSelectedAssignment]=useState<Assignment|null>(null)
+  const [assignmentSubmissions,setAssignmentSubmissions]=useState<AssignmentSubmission[]>([])
+  const [selectedSubmission,setSelectedSubmission]=useState<AssignmentSubmission|null>(null)
+  const [submissionAnswers,setSubmissionAnswers]=useState<AssignmentAnswer[]>([])
+  const [submissionDocuments,setSubmissionDocuments]=useState<AssignmentDocument[]>([])
+  const [gradeForm,setGradeForm]=useState({score:'',feedback:''})
   const [selectedParticipant,setSelectedParticipant]=useState<Participant|null>(null)
   const [participantAttendance,setParticipantAttendance]=useState<ParticipantAttendance[]>([])
   const [participantAttendanceLoading,setParticipantAttendanceLoading]=useState(false)
@@ -242,10 +250,42 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     }catch(e){setError(e instanceof Error?e.message:'Could not create assignment.')}finally{setSaving(false)}
   }
   async function openAssignment(assignment:Assignment){
-    setSelectedAssignment(assignment);setError('')
-    const {data,error}=await supabase.from('assignment_questions').select('id,assignment_id,type,label,description,required,position,config').eq('assignment_id',assignment.id).order('position')
-    if(error){setError(error.message);return}
-    setAssignmentQuestions(x=>({...x,[assignment.id]:(data||[]) as AssignmentQuestion[]}))
+    setSelectedAssignment(assignment);setSelectedSubmission(null);setError('')
+    const [questions,submissions]=await Promise.all([
+      supabase.from('assignment_questions').select('id,assignment_id,type,label,description,required,position,config').eq('assignment_id',assignment.id).order('position'),
+      supabase.from('assignment_submissions').select('id,assignment_id,participant_id,status,submitted_at,score,feedback,graded_at,participants(participant_id,full_name,email)').eq('assignment_id',assignment.id).order('submitted_at',{ascending:false})
+    ])
+    if(questions.error){setError(questions.error.message);return}
+    if(submissions.error){setError(submissions.error.message);return}
+    setAssignmentQuestions(x=>({...x,[assignment.id]:(questions.data||[]) as AssignmentQuestion[]}))
+    setAssignmentSubmissions((submissions.data||[]) as unknown as AssignmentSubmission[])
+  }
+  async function openAssignmentSubmission(submission:AssignmentSubmission){
+    setSelectedSubmission(submission);setGradeForm({score:submission.score===null?'':String(submission.score),feedback:submission.feedback||''});setError('')
+    const [answers,documents]=await Promise.all([
+      supabase.from('assignment_answers').select('id,question_id,value,assignment_questions(label,type,position)').eq('submission_id',submission.id),
+      supabase.from('assignment_documents').select('id,question_id,storage_bucket,storage_path,original_name,mime_type,file_size').eq('submission_id',submission.id)
+    ])
+    if(answers.error){setError(answers.error.message);return}
+    if(documents.error){setError(documents.error.message);return}
+    setSubmissionAnswers((answers.data||[]) as unknown as AssignmentAnswer[]);setSubmissionDocuments((documents.data||[]) as AssignmentDocument[])
+  }
+  async function gradeSubmission(e:FormEvent){
+    e.preventDefault();if(!selectedSubmission||!selectedAssignment)return
+    setSaving(true);setError('');setNotice('')
+    try{
+      const score=Number(gradeForm.score)
+      if(!Number.isFinite(score)||score<0||score>selectedAssignment.max_score)throw new Error('Score must be between 0 and '+selectedAssignment.max_score+'.')
+      const {data,error}=await supabase.rpc('grade_assignment_submission',{p_submission_id:selectedSubmission.id,p_score:score,p_feedback:gradeForm.feedback})
+      if(error)throw error
+      const updated={...selectedSubmission,score,status:'graded' as const,feedback:gradeForm.feedback||null,graded_at:data.graded_at}
+      setSelectedSubmission(updated);setAssignmentSubmissions(x=>x.map(s=>s.id===updated.id?updated:s));setNotice('Grade saved.')
+    }catch(e){setError(e instanceof Error?e.message:'Could not save grade.')}finally{setSaving(false)}
+  }
+  async function openAssignmentDocument(doc:AssignmentDocument){
+    const {data,error}=await supabase.storage.from(doc.storage_bucket).createSignedUrl(doc.storage_path,300)
+    if(error||!data?.signedUrl){setError(error?.message||'Could not open file.');return}
+    window.open(data.signedUrl,'_blank','noopener,noreferrer')
   }
   async function addAssignmentQuestion(e:FormEvent){
     e.preventDefault();if(!selectedAssignment||!questionForm.label.trim()||selectedAssignment.status!=='draft')return
