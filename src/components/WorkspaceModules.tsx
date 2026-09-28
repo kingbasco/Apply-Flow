@@ -209,12 +209,12 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
           <div className="settings-fields">
             <label className="field settings-field-card">
               <span>Form opens</span>
-              <input type="date" value={settingsDraft.start_date||''} onChange={e=>setSettingsDraft(d=>({...d,start_date:e.target.value||null}))}/>
+              <input type="date" className="date-picker-input" onClick={e=>{try{e.currentTarget.showPicker?.()}catch{}}} value={settingsDraft.start_date||''} onChange={e=>setSettingsDraft(d=>({...d,start_date:e.target.value||null}))}/>
               <small className="muted">Applicants cannot submit before this date.</small>
             </label>
             <label className="field settings-field-card">
               <span>Application deadline</span>
-              <input type="date" value={settingsDraft.deadline||''} onChange={e=>setSettingsDraft(d=>({...d,deadline:e.target.value||null}))}/>
+              <input type="date" className="date-picker-input" onClick={e=>{try{e.currentTarget.showPicker?.()}catch{}}} value={settingsDraft.deadline||''} onChange={e=>setSettingsDraft(d=>({...d,deadline:e.target.value||null}))}/>
               <small className="muted">Applicants cannot submit after this date.</small>
             </label>
             <label className="field settings-field-card">
