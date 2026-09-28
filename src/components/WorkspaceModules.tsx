@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ArrowRight, Users, Settings, FileText, ShieldCheck, ClipboardList, Save, Eye, Search, Plus, History, Lock, LockOpen, SlidersHorizontal, MoreHorizontal, Download, X, CheckCircle2, UserRoundPlus, UserCheck, Clock3 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
-function ActionFeedback({message,type='success',onDismiss}:{message:string;type?:'success'|'error';onDismiss?:()=>void}){useEffect(()=>{const timer=window.setTimeout(()=>onDismiss?.(),5000);return()=>window.clearTimeout(timer)},[message,onDismiss]);return <div className={'action-feedback-toast '+(type==='error'?'is-error':'is-success')} role={type==='error'?'alert':'status'} aria-live="polite"><div className="action-feedback-icon">{type==='error'?<X size={18}/>:<CheckCircle2 size={18}/>}</div><div className="action-feedback-copy"><strong>{type==='error'?'Action failed':'Success'}</strong><span>{message}</span></div>{onDismiss&&<button type="button" className="action-feedback-close" aria-label="Dismiss notification" onClick={onDismiss}><X size={16}/></button>}<span className="action-feedback-timer" aria-hidden="true"/></div>}
+function ActionFeedback({message,type='success',onDismiss}:{message:string;type?:'success'|'error';onDismiss?:()=>void}){useEffect(()=>{const timer=window.setTimeout(()=>onDismiss?.(),5000);return()=>window.clearTimeout(timer)},[message,onDismiss]);return createPortal(<div className={'action-feedback-toast '+(type==='error'?'is-error':'is-success')} role={type==='error'?'alert':'status'} aria-live="polite"><div className="action-feedback-icon">{type==='error'?<X size={18}/>:<CheckCircle2 size={18}/>}</div><div className="action-feedback-copy"><strong>{type==='error'?'Action failed':'Success'}</strong><span>{message}</span></div>{onDismiss&&<button type="button" className="action-feedback-close" aria-label="Dismiss notification" onClick={onDismiss}><X size={16}/></button>}<span className="action-feedback-timer" aria-hidden="true"/></div>,document.body)}
 
 async function persistSubmissionDecision(submissionId:string,decision:'approved'|'rejected'){
  const {data,error}=await supabase.rpc('set_submission_decision',{p_submission_id:submissionId,p_decision:decision})
@@ -298,7 +299,7 @@ function screeningRecommendation(ai:any):string{
 type ApplicationDecisionNotice={decision:'approved'|'rejected';applicantName:string;participantId:string}
 
 function ApplicationDecisionResultModal({notice,onContinue,onBack,backLabel}:{notice:ApplicationDecisionNotice;onContinue:()=>void;onBack:()=>void;backLabel:string}){
- return <div className="modal-backdrop screening-decision-result" role="dialog" aria-modal="true" aria-labelledby="decision-result-title">
+ return createPortal(<div className="modal-backdrop screening-decision-result" role="dialog" aria-modal="true" aria-labelledby="decision-result-title">
   <div className="modal card" style={{maxWidth:460,textAlign:'center',padding:32}}>
    <div style={{width:58,height:58,borderRadius:'50%',margin:'0 auto 16px',display:'grid',placeItems:'center',fontSize:28,fontWeight:700,background:notice.decision==='approved'?'#ecfdf3':'#fef2f2',color:notice.decision==='approved'?'#15803d':'#b91c1c'}}>
     {notice.decision==='approved'?'✓':'×'}
@@ -313,7 +314,7 @@ function ApplicationDecisionResultModal({notice,onContinue,onBack,backLabel}:{no
     <button className="primary-button" onClick={onBack}>{backLabel}</button>
    </div>
   </div>
- </div>
+ </div>,document.body)
 }
 
 export function ScreeningWorkspace({applications,onOpen,role}:{applications:Application[];onOpen:(a:Application)=>void;role?:Profile['role']}){
@@ -527,6 +528,28 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
  const [scoreSaving,setScoreSaving]=useState(false)
  const [scoreNotice,setScoreNotice]=useState('')
  const [decisionToConfirm,setDecisionToConfirm]=useState<'approved'|'rejected'|null>(null)
+ const reviewScrollRef=useRef<HTMLDivElement>(null)
+
+ useEffect(()=>{
+  const previousBodyOverflow=document.body.style.overflow
+  const previousHtmlOverflow=document.documentElement.style.overflow
+  const previousBodyOverscroll=document.body.style.overscrollBehavior
+  const previousHtmlOverscroll=document.documentElement.style.overscrollBehavior
+  document.body.style.overflow='hidden'
+  document.documentElement.style.overflow='hidden'
+  document.body.style.overscrollBehavior='none'
+  document.documentElement.style.overscrollBehavior='none'
+  const frame=window.requestAnimationFrame(()=>{
+   if(reviewScrollRef.current){reviewScrollRef.current.scrollTop=0;reviewScrollRef.current.scrollLeft=0}
+  })
+  return()=>{
+   window.cancelAnimationFrame(frame)
+   document.body.style.overflow=previousBodyOverflow
+   document.documentElement.style.overflow=previousHtmlOverflow
+   document.body.style.overscrollBehavior=previousBodyOverscroll
+   document.documentElement.style.overscrollBehavior=previousHtmlOverscroll
+  }
+ },[row.submissionId])
 
  useEffect(()=>{
   let active=true
@@ -675,8 +698,8 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
  const score=data?.score?.overall_score
  const aiRecommendation=data?.ai?.recommendation||data?.ai?.decision||null
 
- return (
-  <div className="screening-review-backdrop" role="dialog" aria-modal="true" aria-label="Review application">
+ return createPortal((
+  <div ref={reviewScrollRef} className="screening-review-backdrop" role="dialog" aria-modal="true" aria-label="Review application">
    <div className="screening-review-modal">
     <header className="screening-review-header">
      <div className="screening-review-heading">
@@ -789,7 +812,7 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
     ) : null}
    </div>
   </div>
- )
+ ),document.body)
 }
 export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{applications:Application[];organizationId:string;onOpen:(a:Application)=>void;role?:Profile['role']}){
  const [rows,setRows]=useState<any[]>([]),[reviewers,setReviewers]=useState<Profile[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[status,setStatus]=useState('all'),[selectedIds,setSelectedIds]=useState<string[]>([]),[assignmentReviewer,setAssignmentReviewer]=useState(''),[assigning,setAssigning]=useState(false),[assignmentNotice,setAssignmentNotice]=useState(''),[reviewing,setReviewing]=useState<any|null>(null),[decisionNotice,setDecisionNotice]=useState<ApplicationDecisionNotice|null>(null);
