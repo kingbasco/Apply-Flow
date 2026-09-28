@@ -3671,3 +3671,128 @@ html.dark-theme .action-feedback-toast{background:#171c25;border-color:#343b47;c
 html.dark-theme .action-feedback-copy span{color:#9aa4b3}html.dark-theme .action-feedback-toast.is-success .action-feedback-icon{background:rgba(37,170,96,.14);color:#65d996}html.dark-theme .action-feedback-toast.is-error .action-feedback-icon{background:rgba(217,75,75,.14);color:#ff8b8b}
 @keyframes actionToastIn{from{opacity:0;transform:translate(-50%,-12px) scale(.98)}to{opacity:1;transform:translate(-50%,0) scale(1)}}@keyframes actionToastTimer{from{transform:scaleX(1)}to{transform:scaleX(0)}}
 @media(max-width:600px){.action-feedback-toast{top:max(12px,env(safe-area-inset-top));width:calc(100vw - 24px)}}
+
+
+/* Participant profile — full-screen application view */
+.participant-profile-backdrop{
+  position:fixed!important;
+  inset:0!important;
+  z-index:100000!important;
+  width:100%!important;
+  height:100dvh!important;
+  padding:0!important;
+  margin:0!important;
+  display:block!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  overscroll-behavior-y:contain;
+  scroll-behavior:auto;
+  -webkit-overflow-scrolling:touch;
+  background:#f7f8fa!important;
+}
+.participant-profile-modal{
+  width:100%!important;
+  min-height:100dvh!important;
+  max-height:none!important;
+  margin:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  overflow:visible!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  background:#f7f8fa!important;
+}
+.participant-profile-header{
+  position:sticky!important;
+  top:0!important;
+  z-index:6!important;
+  width:100%;
+  min-height:88px;
+  padding:18px max(28px,calc((100vw - 1120px)/2))!important;
+  align-items:center!important;
+  background:rgba(255,255,255,.97)!important;
+  border-bottom:1px solid #e5e8ee!important;
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+}
+.participant-profile-header>.icon-button{
+  flex:0 0 36px;
+  width:36px;
+  height:36px;
+  border:1px solid #e1e5eb;
+  background:#fff;
+}
+.participant-profile-body{
+  width:min(1120px,100%)!important;
+  margin:0 auto!important;
+  padding:24px 28px 42px!important;
+  overflow:visible!important;
+  flex:1 0 auto;
+}
+.participant-profile-footer{
+  width:100%;
+  margin-top:auto;
+  padding:15px max(28px,calc((100vw - 1120px)/2))!important;
+  background:#fff!important;
+  border-top:1px solid #e5e8ee!important;
+}
+.participant-profile-footer .secondary-button{min-width:118px}
+.participant-profile-statusbar,
+.participant-profile-section,
+.participant-profile-stats>div{
+  box-shadow:0 1px 2px rgba(16,24,40,.025);
+}
+.action-feedback-toast{z-index:100020!important}
+
+html.dark-theme .participant-profile-backdrop,
+html.dark-theme .participant-profile-modal{
+  background:#0f1117!important;
+  color:#e7ebf1!important;
+}
+html.dark-theme .participant-profile-header{
+  background:rgba(18,22,29,.97)!important;
+  border-color:#303642!important;
+}
+html.dark-theme .participant-profile-header>.icon-button{
+  background:#1b2029!important;
+  border-color:#3a414d!important;
+  color:#dce1e8!important;
+}
+html.dark-theme .participant-profile-body{background:#0f1117!important}
+html.dark-theme .participant-profile-footer{
+  background:#12161d!important;
+  border-color:#303642!important;
+}
+html.dark-theme .participant-profile-statusbar{
+  background:#171b23!important;
+  border-color:#303642!important;
+}
+html.dark-theme .participant-profile-stats>div,
+html.dark-theme .participant-profile-section{
+  background:#171b23!important;
+  border-color:#303642!important;
+}
+html.dark-theme .participant-contact-grid>div{
+  background:#12161d!important;
+  border-color:#303642!important;
+}
+
+@media(max-width:760px){
+  .participant-profile-header{
+    min-height:0;
+    padding:max(14px,env(safe-area-inset-top)) 16px 14px!important;
+    gap:12px!important;
+  }
+  .participant-profile-identity{align-items:flex-start!important}
+  .participant-avatar{width:40px;height:40px;flex-basis:40px;border-radius:12px}
+  .participant-profile-identity h2{font-size:18px}
+  .participant-profile-meta{font-size:10px;gap:5px 10px}
+  .participant-profile-body{padding:16px 14px 30px!important}
+  .participant-profile-footer{padding:12px 14px max(12px,env(safe-area-inset-bottom))!important}
+  .participant-profile-footer .secondary-button{width:100%}
+}
+@media(max-width:420px){
+  .participant-profile-header{align-items:flex-start!important}
+  .participant-profile-header>.icon-button{margin-left:auto}
+}
