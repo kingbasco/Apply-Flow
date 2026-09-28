@@ -189,6 +189,89 @@ function ResetPasswordScreen({ onComplete }: { onComplete: () => Promise<void> |
   </div>
 }
 
+function TeamInviteLinkSignup({token}:{token:string}){
+  const [details,setDetails]=useState<{organization_name:string|null;role:string|null;expires_at:string|null;is_valid:boolean;invalid_reason:string|null}|null>(null)
+  const [loading,setLoading]=useState(true)
+  const [name,setName]=useState('')
+  const [username,setUsername]=useState('')
+  const [birthMonth,setBirthMonth]=useState('')
+  const [birthDay,setBirthDay]=useState('')
+  const [email,setEmail]=useState('')
+  const [password,setPassword]=useState('')
+  const [confirmPassword,setConfirmPassword]=useState('')
+  const [busy,setBusy]=useState(false)
+  const [error,setError]=useState('')
+  const [message,setMessage]=useState('')
+
+  useEffect(()=>{(async()=>{
+    if(!token){setDetails({organization_name:null,role:null,expires_at:null,is_valid:false,invalid_reason:'Invitation link is missing.'});setLoading(false);return}
+    const {data,error}=await supabase.rpc('get_team_invite_link_details',{p_token:token})
+    if(error){setError(error.message);setLoading(false);return}
+    const row=Array.isArray(data)?data[0]:data
+    setDetails(row||{organization_name:null,role:null,expires_at:null,is_valid:false,invalid_reason:'Invitation link not found.'})
+    setLoading(false)
+  })()},[token])
+
+  async function submit(e:React.FormEvent){
+    e.preventDefault();setError('');setMessage('')
+    const normalizedUsername=username.trim().toLowerCase()
+    if(name.trim().length<2){setError('Enter your full name.');return}
+    if(!/^[a-z0-9_]{3,30}$/.test(normalizedUsername)){setError('Username must be 3–30 characters and use only letters, numbers, or underscores.');return}
+    if(!birthMonth||!birthDay){setError('Select your date of birth.');return}
+    if(password.length<8){setError('Password must be at least 8 characters.');return}
+    if(password!==confirmPassword){setError('Passwords do not match.');return}
+    setBusy(true)
+    try{
+      const {data,error:signUpError}=await supabase.auth.signUp({
+        email:email.trim(),
+        password,
+        options:{data:{full_name:name.trim(),username:normalizedUsername,birth_month:Number(birthMonth),birth_day:Number(birthDay),team_invite_token:token}}
+      })
+      if(signUpError){
+        const message=signUpError.message.toLowerCase().includes('rate limit')?'Too many account emails were requested recently. Please wait a few minutes and try again.':signUpError.message
+        throw new Error(message)
+      }
+      if(!data.user)throw new Error('Account could not be created.')
+      if(!data.session){
+        setMessage('Account created. Confirm your email, then sign in. Your workspace invitation will be applied automatically.')
+        return
+      }
+      const {error:acceptError}=await supabase.rpc('accept_team_invite_link',{
+        p_token:token,
+        p_full_name:name.trim(),
+        p_username:normalizedUsername,
+        p_birth_month:Number(birthMonth),
+        p_birth_day:Number(birthDay)
+      })
+      if(acceptError)throw acceptError
+      window.location.replace('/')
+    }catch(err){setError(err instanceof Error?err.message:'Could not create your staff account.')}
+    finally{setBusy(false)}
+  }
+
+  if(loading)return <div className="loading-screen"><div className="brand-mark">A</div><span>Checking invitation…</span></div>
+  if(!details?.is_valid)return <div className="auth-shell team-link-auth-shell"><div className="auth-panel"><div className="brand auth-brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Team invitation</span></div></div><div className="auth-copy"><p className="eyebrow">Invitation unavailable</p><h1>This link can’t be used.</h1><p>{details?.invalid_reason||error||'Ask your workspace Admin for a new invitation link.'}</p></div><a className="primary-button auth-submit" href="/login">Go to sign in</a></div><div className="auth-aside"><div><span className="aside-kicker">APPLYFLOW TEAM ACCESS</span><h2>Secure workspace invitations.</h2><p>Invitation links are role-specific, single-use and time-limited.</p></div></div></div>
+
+  const roleLabel=details.role==='admin'?'Admin':'Programme Staff'
+  return <div className="auth-shell team-link-auth-shell">
+    <div className="auth-panel">
+      <div className="brand auth-brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Team invitation</span></div></div>
+      <div className="auth-copy"><p className="eyebrow">Join {details.organization_name}</p><h1>Create your staff account.</h1><p>You’ve been invited as <strong>{roleLabel}</strong>. Set up your account to join the workspace.</p></div>
+      <form onSubmit={submit} className="auth-form">
+        <label>Full name<input value={name} onChange={e=>setName(e.target.value)} placeholder="Jane Doe" required/></label>
+        <label>Username<input value={username} onChange={e=>setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g,''))} placeholder="janedoe" minLength={3} maxLength={30} autoComplete="username" required/><small className="field-help">3–30 characters · letters, numbers and underscores</small></label>
+        <div className="form-grid signup-details-grid"><label>Date of birth <span className="optional">Month and day only</span><div className="dob-fields"><select value={birthMonth} onChange={e=>setBirthMonth(e.target.value)} required><option value="">Month</option>{['January','February','March','April','May','June','July','August','September','October','November','December'].map((month,index)=><option key={month} value={index+1}>{month}</option>)}</select><select value={birthDay} onChange={e=>setBirthDay(e.target.value)} required><option value="">Day</option>{Array.from({length:31},(_,i)=>i+1).map(day=><option key={day} value={day}>{day}</option>)}</select></div></label></div>
+        <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="jane@organisation.com" autoComplete="email" required/></label>
+        <label>Create password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength={8} autoComplete="new-password" required/></label>
+        <label>Confirm password<input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} minLength={8} autoComplete="new-password" required/></label>
+        {error&&<div className="form-error">{error}</div>}{message&&<div className="form-message">{message}</div>}
+        <button className="primary-button auth-submit" disabled={busy}>{busy?'Creating account…':'Join workspace'} <ArrowRight size={17}/></button>
+      </form>
+    </div>
+    <div className="auth-aside"><div><span className="aside-kicker">INVITED TO {details.organization_name?.toUpperCase()}</span><h2>{roleLabel} access is ready.</h2><p>This invitation can be used once and expires {details.expires_at?new Date(details.expires_at).toLocaleString():'soon'}.</p></div></div>
+  </div>
+}
+
 function InviteSetupScreen({ email, onComplete }: { email: string; onComplete: () => Promise<void> | void }) {
   const [name,setName]=useState('')
   const [username,setUsername]=useState('')
@@ -629,6 +712,24 @@ function App() {
     let { data: p, error: pError } = await supabase.from('profiles').select('id,full_name,username,birth_month,birth_day,avatar_url,organization_id,role').eq('id', currentSession.user.id).maybeSingle()
     if (pError) { setError(pError.message); setLoading(false); return }
     if (!p) {
+      const inviteMetadata=currentSession.user.user_metadata||{}
+      const teamInviteToken=String(inviteMetadata.team_invite_token||'').trim()
+      if(teamInviteToken){
+        const {error:acceptError}=await supabase.rpc('accept_team_invite_link',{
+          p_token:teamInviteToken,
+          p_full_name:String(inviteMetadata.full_name||currentSession.user.email?.split('@')[0]||'Team member'),
+          p_username:String(inviteMetadata.username||currentSession.user.email?.split('@')[0]||'member').toLowerCase().replace(/[^a-z0-9_]/g,'').slice(0,30),
+          p_birth_month:Number(inviteMetadata.birth_month||1),
+          p_birth_day:Number(inviteMetadata.birth_day||1)
+        })
+        if(acceptError){setError(acceptError.message);setLoading(false);return}
+        const {data:acceptedProfile,error:acceptedProfileError}=await supabase.from('profiles').select('id,full_name,username,birth_month,birth_day,avatar_url,organization_id,role').eq('id',currentSession.user.id).single()
+        if(acceptedProfileError){setError(acceptedProfileError.message);setLoading(false);return}
+        p=acceptedProfile
+        await supabase.auth.updateUser({data:{...inviteMetadata,team_invite_token:null}})
+      }
+    }
+    if (!p) {
       const metadata = currentSession.user.user_metadata || {}
       let googleSignup: { full_name?: string; username?: string; birth_month?: number | null; birth_day?: number | null; organization_name?: string } | null = null
       try {
@@ -734,6 +835,7 @@ function App() {
   const profileName = profile?.full_name || session?.user.email?.split('@')[0] || 'there'
   const firstName = profileName.split(' ')[0]
 
+  if (window.location.pathname === '/join') return <TeamInviteLinkSignup token={new URLSearchParams(window.location.search).get('token')||''} />
   if (window.location.pathname.startsWith('/attendance/')) return <PublicAttendanceCheckIn slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
   if (window.location.pathname.startsWith('/results/')) return <PublicAssignmentResults slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
   if (window.location.pathname.startsWith('/a/')) return <PublicAssignment slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
