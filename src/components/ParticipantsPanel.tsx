@@ -59,6 +59,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [participantAttendance,setParticipantAttendance]=useState<ParticipantAttendance[]>([])
   const [participantAttendanceLoading,setParticipantAttendanceLoading]=useState(false)
   const [selectedSession,setSelectedSession]=useState<Session|null>(null)
+  const [checkInSlugDraft,setCheckInSlugDraft]=useState('')
+  const [editingCheckInSlug,setEditingCheckInSlug]=useState(false)
   const [sessionAttendance,setSessionAttendance]=useState<AttendanceRow[]>([])
   const [attendanceLoading,setAttendanceLoading]=useState(false)
   const [query,setQuery]=useState('')
@@ -111,6 +113,11 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   useEffect(()=>{
     setApplicationFilter(current=>applications.some(a=>a.id===current)?current:(applications[0]?.id||''))
   },[applications])
+
+  useEffect(()=>{
+    setCheckInSlugDraft(selectedSession?.check_in_slug||'')
+    setEditingCheckInSlug(false)
+  },[selectedSession?.id,selectedSession?.check_in_slug])
 
   useEffect(()=>{
     if(applicationFilter){
@@ -258,18 +265,42 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   }
 
   async function createSession(e:FormEvent){
-    e.preventDefault();if(!sessionForm.application_id||!sessionForm.title.trim())return
+    e.preventDefault();if(!sessionForm.application_id||!sessionForm.title.trim()||!sessionForm.session_date)return
     setSaving(true);setError('');setNotice('')
     try{
-      const user=(await supabase.auth.getUser()).data.user
-      const {data,error}=await supabase.from('attendance_sessions').insert({
-        organization_id:organizationId,application_id:sessionForm.application_id,
-        title:sessionForm.title.trim(),session_date:sessionForm.session_date,created_by:user?.id
-      }).select('id,application_id,title,session_date,check_in_slug,check_in_open,check_in_opened_at').single()
+      const {data,error}=await supabase.rpc('create_attendance_session',{
+        p_application_id:sessionForm.application_id,
+        p_title:sessionForm.title.trim(),
+        p_session_date:sessionForm.session_date
+      })
       if(error)throw error
-      setSessions(x=>[data,...x]);setSelectedSession(data);setSessionAttendance([])
+      const row=(Array.isArray(data)?data[0]:data) as Session|null
+      if(!row?.id)throw new Error('Attendance session was not returned by the server.')
+      setSessions(x=>[row,...x]);setSelectedSession(row);setSessionAttendance([])
+      setSessionForm(current=>({...current,title:''}))
       setIds('');setNotice('Attendance session created.')
     }catch(e){setError(e instanceof Error?e.message:'Could not create session.')}finally{setSaving(false)}
+  }
+
+  async function saveCheckInSlug(){
+    if(!selectedSession)return
+    const normalized=checkInSlugDraft.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')
+    if(normalized.length<3){setError('Attendance link name must be at least 3 characters.');return}
+    setSaving(true);setError('');setNotice('')
+    try{
+      const {data,error}=await supabase.rpc('update_attendance_checkin_slug',{
+        p_session_id:selectedSession.id,
+        p_slug:normalized
+      })
+      if(error)throw error
+      const row=(Array.isArray(data)?data[0]:data) as Session|null
+      if(!row?.id)throw new Error('Attendance link was not returned by the server.')
+      setSelectedSession(row)
+      setSessions(current=>current.map(session=>session.id===row.id?row:session))
+      setCheckInSlugDraft(row.check_in_slug)
+      setEditingCheckInSlug(false)
+      setNotice('Attendance link updated.')
+    }catch(e){setError(e instanceof Error?e.message:'Could not update attendance link.')}finally{setSaving(false)}
   }
 
   async function setCheckInOpen(open:boolean){
@@ -556,7 +587,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           {isAdmin&&<form className="modal-form attendance-session-form" onSubmit={createSession}>
             <label className="attendance-field">Programme<div className="participant-select-wrap"><select value={sessionForm.application_id} onChange={e=>setSessionForm(x=>({...x,application_id:e.target.value}))} required><option value="">Select programme</option>{applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select><ChevronDown size={16}/></div></label>
             <label>Session title<input value={sessionForm.title} onChange={e=>setSessionForm(x=>({...x,title:e.target.value}))} placeholder="Class 1 — Introduction" required/></label>
-            <label>Date<input type="date" className="date-picker-input" onClick={e=>{try{e.currentTarget.showPicker?.()}catch{}}} value={sessionForm.session_date} onChange={e=>setSessionForm(x=>({...x,session_date:e.target.value}))} required/></label>
+            <label>Date<input type="date" className="date-picker-input" onClick={e=>{try{e.currentTarget.showPicker?.()}catch{}}} onFocus={e=>{try{e.currentTarget.showPicker?.()}catch{}}} value={sessionForm.session_date} onChange={e=>setSessionForm(x=>({...x,session_date:e.target.value}))} required/></label>
             <button className="primary-button" disabled={saving}><Plus size={16}/> Create session</button>
           </form>}
           <div className="table-wrap" style={{marginTop:18}}><table><thead><tr><th>Session</th><th>Programme</th><th>Date</th></tr></thead><tbody>
@@ -567,7 +598,22 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       <div className="attendance-column">
         <div className="card table-card attendance-record-card">
           <div className="card-header"><div><p className="eyebrow">Selected session</p><h2>{selectedSession?selectedSession.title:'Session attendance'}</h2><p>{selectedSession?appName(selectedSession.application_id):'Select a session from the list.'}</p></div><CalendarCheck2 size={20}/></div>
-          {!selectedSession?<div className="table-empty">Select an attendance session to see participants.</div>:attendanceLoading?<div className="loading-card">Loading attendance…</div>:<>{isAdmin&&<div className="attendance-checkin-card"><div><p className="eyebrow">Participant self check-in</p><h3>{selectedSession.check_in_open?'Check-in is open':'Check-in is closed'}</h3><p>{selectedSession.check_in_open?'Participants can use the shared link and their Participant ID to mark themselves present.':'Open check-in when you are ready for participants to record their attendance.'}</p></div><div className="attendance-checkin-actions"><button type="button" className={selectedSession.check_in_open?'secondary-button':'primary-button'} onClick={()=>setCheckInOpen(!selectedSession.check_in_open)} disabled={saving}>{selectedSession.check_in_open?'Close check-in':'Open check-in'}</button><button type="button" className="secondary-button" onClick={()=>navigator.clipboard.writeText(window.location.origin+'/attendance/'+selectedSession.check_in_slug).then(()=>setNotice('Attendance check-in link copied.')).catch(()=>setError('Could not copy the attendance link.'))}><Link2 size={15}/> Copy check-in link</button></div></div>}
+          {!selectedSession?<div className="table-empty">Select an attendance session to see participants.</div>:attendanceLoading?<div className="loading-card">Loading attendance…</div>:<>{isAdmin&&<div className="attendance-checkin-card">
+              <div className="attendance-checkin-summary">
+                <div className="attendance-checkin-state"><span className={'attendance-checkin-dot '+(selectedSession.check_in_open?'is-open':'')}></span><div><p className="eyebrow">Participant self check-in</p><h3>{selectedSession.check_in_open?'Check-in is open':'Check-in is closed'}</h3><p>{selectedSession.check_in_open?'Participants can use this link and their Participant ID to mark themselves present.':'Open check-in when you are ready for participants to record their attendance.'}</p></div></div>
+                <button type="button" className={selectedSession.check_in_open?'secondary-button':'primary-button'} onClick={()=>setCheckInOpen(!selectedSession.check_in_open)} disabled={saving}>{selectedSession.check_in_open?'Close check-in':'Open check-in'}</button>
+              </div>
+              <div className="attendance-link-panel">
+                <div className="attendance-link-copy"><span className="screening-summary-label">Attendance link</span><strong>Share a short, memorable check-in URL</strong><small>Each link is unique across ApplyFlow. You can edit the part after /attendance/.</small></div>
+                {editingCheckInSlug?<div className="attendance-link-editor">
+                  <div className="attendance-link-input"><span>{window.location.origin}/attendance/</span><input value={checkInSlugDraft} maxLength={48} onChange={e=>setCheckInSlugDraft(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();void saveCheckInSlug()}if(e.key==='Escape'){setCheckInSlugDraft(selectedSession.check_in_slug);setEditingCheckInSlug(false)}}} autoFocus /></div>
+                  <div className="attendance-link-editor-actions"><button type="button" className="secondary-button" onClick={()=>{setCheckInSlugDraft(selectedSession.check_in_slug);setEditingCheckInSlug(false)}} disabled={saving}>Cancel</button><button type="button" className="primary-button" onClick={saveCheckInSlug} disabled={saving}>{saving?'Saving…':'Save link'}</button></div>
+                </div>:<div className="attendance-link-display">
+                  <div className="attendance-link-url"><Link2 size={16}/><span>{window.location.origin}/attendance/</span><strong>{selectedSession.check_in_slug}</strong></div>
+                  <div className="attendance-link-actions"><button type="button" className="secondary-button" onClick={()=>setEditingCheckInSlug(true)}><Pencil size={14}/> Edit link</button><button type="button" className="primary-button" onClick={()=>navigator.clipboard.writeText(window.location.origin+'/attendance/'+selectedSession.check_in_slug).then(()=>setNotice('Attendance check-in link copied.')).catch(()=>setError('Could not copy the attendance link.'))}><Link2 size={14}/> Copy link</button></div>
+                </div>}
+              </div>
+            </div>}
             <div className="table-wrap"><table><thead><tr><th>Participant</th><th>ID</th><th>Status</th><th></th></tr></thead><tbody>
               {selectedAttendance.length?selectedAttendance.map(r=><tr key={r.participant_id}><td><strong>{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.full_name:r.participants?.applicants?.full_name||'Unnamed participant'}</strong><span className="table-sub">{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.email:r.participants?.applicants?.email||''}</span></td><td>{r.participants?.participant_id}</td><td><span className={'status '+(r.status==='present'?'green':'neutral')}>{r.status}</span></td><td>{isAdmin&&r.status==='present'?<button className="text-button" disabled={saving} onClick={()=>markAbsent(r.participant_id)}>Mark absent</button>:null}</td></tr>):<tr><td colSpan={4}><div className="table-empty">No attendance recorded for this session.</div></td></tr>}
             </tbody></table></div>
