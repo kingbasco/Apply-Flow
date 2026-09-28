@@ -3010,3 +3010,92 @@ html.dark-theme .afx-landing .afx-floating-card-two{
 @media(max-width:360px){
   .participant-stats-grid{grid-template-columns:1fr}
 }
+
+
+/* Assignments workspace — responsive builder, submissions and leaderboard */
+.assignments-layout{display:grid;grid-template-columns:minmax(300px,.78fr) minmax(0,1.35fr);gap:18px;align-items:start}
+.assignment-column{min-width:0}
+.assignment-column>.card{overflow:hidden}
+.assignment-column .card-header{padding:22px 24px;border-bottom:1px solid var(--border,#e8eaf0);align-items:flex-start}
+.assignment-column .card-header h2,.assignment-column .card-header h3{margin:3px 0 5px}
+.assignment-column .card-header p:last-child{margin:0;color:var(--muted,#8b93a1);line-height:1.5}
+.assignment-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:18px 24px;background:#fafbfc;border-bottom:1px solid var(--border,#e8eaf0)}
+.assignment-meta>div{min-width:0;padding:13px 14px;border:1px solid #e6e8ef;border-radius:12px;background:#fff;display:flex;flex-direction:column;gap:5px}
+.assignment-meta>div:last-child{grid-column:1/-1;display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:12px}
+.assignment-meta span{font-size:11px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#9299a6}
+.assignment-meta strong{font-size:14px;color:#202735;min-width:0;overflow-wrap:anywhere}
+.assignment-meta>div:last-child span{grid-column:1/-1}
+.assignment-meta .text-button{justify-self:end;grid-column:2;grid-row:2;padding:4px 0;white-space:nowrap}
+.assignment-question-form{margin:0;padding:22px 24px;border-bottom:1px solid var(--border,#e8eaf0);gap:16px}
+.assignment-question-form>label:first-child{margin:0}
+.assignment-form-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,.42fr);gap:14px;align-items:end}
+.assignment-checkbox{height:44px;display:flex!important;flex-direction:row!important;align-items:center;justify-content:flex-start;gap:9px;padding:0 13px;border:1px solid #e1e4eb;border-radius:10px;background:#fafbfc;font-size:14px;font-weight:650!important;color:#4f5868}
+.assignment-checkbox input[type="checkbox"]{appearance:none;-webkit-appearance:none;width:18px!important;height:18px!important;min-width:18px;margin:0!important;border:1.5px solid #aeb5c0!important;border-radius:5px!important;background:#fff!important;display:grid;place-content:center;box-shadow:none!important;transform:none!important}
+.assignment-checkbox input[type="checkbox"]:checked{background:#6259df!important;border-color:#6259df!important}
+.assignment-checkbox input[type="checkbox"]:checked:after{content:"";width:8px;height:4px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(1px,-1px)}
+.assignment-question-form>.secondary-button{width:max-content;min-width:150px}
+.assignment-question-list{padding:8px 24px 16px}
+.assignment-question-row{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid #eef0f4}
+.assignment-question-row:last-child{border-bottom:0}
+.assignment-question-row>span{width:30px;height:30px;border-radius:9px;background:#f1f0ff;color:#6259df;display:grid;place-items:center;font-size:12px;font-weight:800}
+.assignment-question-row>div{min-width:0;display:flex;flex-direction:column;gap:4px}
+.assignment-question-row strong{font-size:14px;line-height:1.4;overflow-wrap:anywhere}
+.assignment-question-row small{font-size:12px;color:#9097a3;text-transform:capitalize}
+.assignment-question-list>.table-empty{padding:30px 10px}
+.assignment-actions{display:flex;justify-content:flex-end;padding:16px 24px 22px;border-bottom:1px solid var(--border,#e8eaf0)}
+.assignment-actions button{min-width:170px}
+.assignment-submissions-section,.assignment-leaderboard,.assignment-review{padding:0 24px 24px;border-top:10px solid #f7f8fa}
+.assignment-submissions-section>.card-header,.assignment-leaderboard>.card-header,.assignment-review>.card-header{padding:20px 0 14px;border-bottom:0}
+.assignment-submissions-section .table-wrap,.assignment-leaderboard .table-wrap{border:1px solid #e7e9ef;border-radius:12px;overflow:auto}
+.assignment-submissions-section table,.assignment-leaderboard table{min-width:560px}
+.assignment-review{padding-bottom:26px}
+.assignment-answer-list{display:grid;gap:10px;margin-bottom:20px}
+.assignment-answer-row{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;padding:14px;border:1px solid #e8eaf0;border-radius:12px;background:#fafbfc}
+.assignment-answer-row>span{font-weight:800;color:#697184}
+.assignment-answer-row p{margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.assignment-grade-form{padding:18px;border:1px solid #e7e9ef;border-radius:14px;background:#fff}
+.assignments-layout>.assignment-column:first-child .modal-form{padding:20px 22px}
+.assignments-layout>.assignment-column:first-child .table-wrap{border-top:1px solid #eef0f4}
+.assignments-layout>.assignment-column:first-child table{min-width:460px}
+
+html.dark-theme .assignment-meta{background:#171c25;border-color:#2b313c}
+html.dark-theme .assignment-meta>div,.html.dark-theme .assignment-grade-form{background:#1b202a;border-color:#303642}
+html.dark-theme .assignment-meta strong{color:#eef1f5}
+html.dark-theme .assignment-checkbox,.dark-theme .assignment-answer-row{background:#1b202a;border-color:#303642;color:#c8ced8}
+html.dark-theme .assignment-question-row{border-color:#2b313c}
+html.dark-theme .assignment-submissions-section,.dark-theme .assignment-leaderboard,.dark-theme .assignment-review{border-top-color:#11151d}
+
+@media(max-width:1100px){
+  .assignments-layout{grid-template-columns:1fr}
+  .assignments-layout>.assignment-column:first-child{display:grid;grid-template-columns:minmax(280px,.72fr) minmax(0,1.28fr);gap:16px}
+  .assignments-layout>.assignment-column:first-child>.card{grid-column:1/-1}
+}
+@media(max-width:760px){
+  .assignments-layout{display:block}
+  .assignment-column+.assignment-column{margin-top:14px}
+  .assignments-layout>.assignment-column:first-child{display:block}
+  .assignment-column .card-header{padding:18px 16px}
+  .assignment-column .card-header h2{font-size:22px}
+  .assignment-meta{grid-template-columns:1fr 1fr;padding:14px 16px;gap:8px}
+  .assignment-meta>div{padding:11px 12px}
+  .assignment-meta>div:last-child{grid-template-columns:minmax(0,1fr) auto}
+  .assignment-meta strong{font-size:13px}
+  .assignment-question-form{padding:18px 16px}
+  .assignment-form-grid{grid-template-columns:1fr}
+  .assignment-checkbox{height:42px;width:max-content;min-width:128px}
+  .assignment-question-form>.secondary-button{width:100%}
+  .assignment-question-list{padding:6px 16px 12px}
+  .assignment-actions{padding:14px 16px 18px}
+  .assignment-actions button{width:100%}
+  .assignment-submissions-section,.assignment-leaderboard,.assignment-review{padding:0 16px 18px;border-top-width:8px}
+  .assignment-submissions-section>.card-header,.assignment-leaderboard>.card-header,.assignment-review>.card-header{padding:18px 0 12px}
+  .assignment-submissions-section .table-wrap,.assignment-leaderboard .table-wrap{margin:0}
+  .assignments-layout>.assignment-column:first-child .modal-form{padding:18px 16px}
+  .assignments-layout>.assignment-column:first-child .table-wrap{overflow-x:auto}
+}
+@media(max-width:430px){
+  .assignment-meta{grid-template-columns:1fr}
+  .assignment-meta>div:last-child{grid-column:auto}
+  .assignment-meta>div:last-child strong{font-size:12px}
+  .assignment-column .card-header p{font-size:13px}
+}
