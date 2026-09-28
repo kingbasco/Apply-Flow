@@ -3933,3 +3933,28 @@ html.dark-theme .participant-avatar,
   background:rgba(109,93,252,.16)!important;
   color:#b9b1ff!important;
 }
+
+
+/* Global viewport feedback authority — always above workspace chrome and overlays */
+.action-feedback-toast,
+.toast-notification{
+  z-index:2147483000!important;
+}
+.action-feedback-toast{
+  top:max(76px,calc(env(safe-area-inset-top) + 16px))!important;
+}
+.toast-notification{
+  top:max(76px,calc(env(safe-area-inset-top) + 16px))!important;
+}
+@media(max-width:600px){
+  .action-feedback-toast{
+    top:max(72px,calc(env(safe-area-inset-top) + 12px))!important;
+  }
+  .toast-notification{
+    top:max(72px,calc(env(safe-area-inset-top) + 12px))!important;
+    left:12px!important;
+    right:12px!important;
+    width:auto!important;
+    max-width:none!important;
+  }
+}
