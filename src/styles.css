@@ -3414,3 +3414,13 @@ html.dark-theme .public-choice:has(input:checked){background:#24223b!important}
  .results-table-wrap th:nth-child(3),.results-table-wrap td:nth-child(3){width:60px}
  .results-table-wrap th:nth-child(4),.results-table-wrap td:nth-child(4){width:58px}
 }
+
+/* Attendance self check-in */
+.attendance-checkin-card{margin:0 0 18px;padding:18px;border:1px solid #e3e6ec;border-radius:14px;background:#fafbfc;display:flex;align-items:center;justify-content:space-between;gap:18px}
+.attendance-checkin-card h3{margin:4px 0 5px;font-size:17px}.attendance-checkin-card p:last-child{margin:0;color:#858d9b;font-size:12px;line-height:1.5}
+.attendance-checkin-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}.attendance-checkin-actions button{white-space:nowrap}
+.attendance-present-button{min-height:54px;display:flex;align-items:center;justify-content:center;gap:8px}
+.attendance-wrong-id{margin:14px auto 0;display:block}
+.attendance-confirm-content{max-width:620px;padding:34px 0 10px;text-align:center}.attendance-confirm-content h1{margin:7px 0 12px;font-size:38px;letter-spacing:-.035em}.attendance-confirm-content>p{color:#747d8b;line-height:1.65}
+@media(max-width:760px){.attendance-checkin-card{align-items:flex-start;flex-direction:column}.attendance-checkin-actions{width:100%;justify-content:stretch}.attendance-checkin-actions button{flex:1}.attendance-confirm-content{padding-top:22px}.attendance-confirm-content h1{font-size:32px}}
+@media(max-width:430px){.attendance-checkin-actions{flex-direction:column}.attendance-checkin-actions button{width:100%}}
