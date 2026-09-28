@@ -3540,3 +3540,39 @@ html.dark-theme .attendance-import-box,html.dark-theme .attendance-checkin-card,
 @media(hover:hover) and (pointer:fine){
  html.dark-theme .table-wrap tbody tr:hover,html.dark-theme .applicants-table tbody tr:hover,html.dark-theme .screening-application-option:hover{background:#1d222c!important}
 }
+
+/* Applicant review dark-mode contrast fix */
+html.dark-theme .screening-review-section,
+html.dark-theme .screening-review-section-header,
+html.dark-theme .screening-review-section-heading,
+html.dark-theme .screening-review-answer-list,
+html.dark-theme .screening-review-answer,
+html.dark-theme .screening-review-footer,
+html.dark-theme .screening-review-decision,
+html.dark-theme .screening-decision-panel{background:#171b23!important;border-color:#303642!important;color:#e4e8ee!important}
+html.dark-theme .screening-review-section-header h2,
+html.dark-theme .screening-review-section-header h3,
+html.dark-theme .screening-review-section h2,
+html.dark-theme .screening-review-section h3,
+html.dark-theme .screening-review-answer strong,
+html.dark-theme .screening-review-footer strong,
+html.dark-theme .screening-review-decision strong,
+html.dark-theme .screening-decision-panel strong{color:#e7ebf1!important}
+html.dark-theme .screening-review-section-header p,
+html.dark-theme .screening-review-section p,
+html.dark-theme .screening-review-answer p,
+html.dark-theme .screening-review-answer span,
+html.dark-theme .screening-review-footer p,
+html.dark-theme .screening-review-footer span,
+html.dark-theme .screening-review-decision p,
+html.dark-theme .screening-review-decision span,
+html.dark-theme .screening-decision-panel p,
+html.dark-theme .screening-decision-panel span{color:#9ca5b4!important}
+html.dark-theme .screening-review-section .eyebrow,
+html.dark-theme .screening-review-footer .eyebrow,
+html.dark-theme .screening-review-decision .eyebrow{color:#8f98a8!important}
+html.dark-theme .screening-review-answer{background:#12161d!important}
+html.dark-theme .screening-review-answer a{color:#c4beff!important}
+html.dark-theme .screening-review-footer button:disabled,
+html.dark-theme .screening-review-decision button:disabled,
+html.dark-theme .screening-decision-panel button:disabled{opacity:.62;color:#c5cad3!important}
