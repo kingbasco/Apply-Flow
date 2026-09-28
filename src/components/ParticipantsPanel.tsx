@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { BadgeCheck, CalendarCheck2, Gift, Upload, Plus, Search, X, Users, CheckCircle2, ChevronDown, Mail, Hash } from 'lucide-react'
+import { BadgeCheck, CalendarCheck2, Gift, Upload, Plus, Search, X, Users, CheckCircle2, ChevronDown, Mail, Hash, ClipboardList, Link2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 type Application = { id:string; name:string }
@@ -17,16 +17,23 @@ type AttendanceRow = {
   participant_id:string; status:'present'|'absent'; marked_at:string
   participants?:{participant_id:string;application_id:string;applicants?:{full_name:string|null;email:string|null}|{full_name:string|null;email:string|null}[]}
 }
+type Assignment = { id:string; application_id:string; title:string; description:string|null; instructions:string|null; deadline:string|null; max_score:number; status:'draft'|'published'|'closed'; public_slug:string; created_at:string }
+type AssignmentQuestion = { id:string; assignment_id:string; type:'short_text'|'long_text'|'number'|'single_choice'|'multiple_choice'|'file'|'url'; label:string; description:string|null; required:boolean; position:number; config:any }
 type ParticipantAttendance = {
   id:string; status:'present'|'absent'; marked_at:string
   attendance_sessions?:{title:string;session_date:string;application_id:string}|{title:string;session_date:string;application_id:string}[]
 }
 
 export default function ParticipantsPanel({organizationId,applications}:{organizationId:string;applications:Application[]}) {
-  const [tab,setTab]=useState<'participants'|'attendance'|'benefits'>('participants')
+  const [tab,setTab]=useState<'participants'|'attendance'|'assignments'|'benefits'>('participants')
   const [participants,setParticipants]=useState<Participant[]>([])
   const [sessions,setSessions]=useState<Session[]>([])
   const [benefits,setBenefits]=useState<Benefit[]>([])
+  const [assignments,setAssignments]=useState<Assignment[]>([])
+  const [assignmentQuestions,setAssignmentQuestions]=useState<Record<string,AssignmentQuestion[]>>({})
+  const [assignmentForm,setAssignmentForm]=useState({title:'',description:'',instructions:'',deadline:'',max_score:'100'})
+  const [questionForm,setQuestionForm]=useState({label:'',type:'long_text' as AssignmentQuestion['type'],required:true})
+  const [selectedAssignment,setSelectedAssignment]=useState<Assignment|null>(null)
   const [selectedParticipant,setSelectedParticipant]=useState<Participant|null>(null)
   const [participantAttendance,setParticipantAttendance]=useState<ParticipantAttendance[]>([])
   const [participantAttendanceLoading,setParticipantAttendanceLoading]=useState(false)
@@ -60,13 +67,14 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   async function load(){
     setLoading(true);setError('')
     try{
-      const [p,s,b,recipients]=await Promise.all([
+      const [p,s,b,recipients,a]=await Promise.all([
         supabase.from('participants').select('id,participant_id,application_id,status,joined_at,applicants(full_name,email)').eq('organization_id',organizationId).order('participant_id'),
         supabase.from('attendance_sessions').select('id,application_id,title,session_date').eq('organization_id',organizationId).order('session_date',{ascending:false}),
         supabase.from('benefit_distributions').select('id,application_id,name,description,distribution_date,status').eq('organization_id',organizationId).order('created_at',{ascending:false}),
-        supabase.from('benefit_recipients').select('distribution_id,participant_id')
+        supabase.from('benefit_recipients').select('distribution_id,participant_id'),
+        supabase.from('assignments').select('id,application_id,title,description,instructions,deadline,max_score,status,public_slug,created_at').eq('organization_id',organizationId).order('created_at',{ascending:false})
       ])
-      if(p.error)throw p.error;if(s.error)throw s.error;if(b.error)throw b.error
+      if(p.error)throw p.error;if(s.error)throw s.error;if(b.error)throw b.error;if(a.error)throw a.error
       // Load attendance/recipient aggregates separately so an empty organisation does not
       // create an invalid IN () query in PostgREST.
       const participantRows=(p.data||[]).map((row:any)=>({
@@ -88,7 +96,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
         for(const row of recipients.data||[]) counts.set(row.distribution_id,(counts.get(row.distribution_id)||0)+1)
         for(const row of benefitRows) row.recipient_count=counts.get(row.id)||0
       }
-      setParticipants(participantRows);setSessions(sessionRows);setBenefits(benefitRows)
+      setParticipants(participantRows);setSessions(sessionRows);setBenefits(benefitRows);setAssignments((a.data||[]) as Assignment[])
     }catch(e){setError(e instanceof Error?e.message:'Could not load programme participants.')}finally{setLoading(false)}
   }
 
@@ -104,6 +112,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
   const scopedParticipants=useMemo(()=>participants.filter(p=>!applicationFilter||p.application_id===applicationFilter),[participants,applicationFilter])
   const scopedSessions=useMemo(()=>sessions.filter(s=>!applicationFilter||s.application_id===applicationFilter),[sessions,applicationFilter])
   const scopedBenefits=useMemo(()=>benefits.filter(b=>!applicationFilter||b.application_id===applicationFilter),[benefits,applicationFilter])
+  const scopedAssignments=useMemo(()=>assignments.filter(a=>!applicationFilter||a.application_id===applicationFilter),[assignments,applicationFilter])
   const stats=useMemo(()=>({
     total:scopedParticipants.length,
     active:scopedParticipants.filter(p=>p.status==='active').length,
@@ -215,6 +224,49 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
     }catch(e){setError(e instanceof Error?e.message:'Could not create distribution.')}finally{setSaving(false)}
   }
 
+  async function createAssignment(e:FormEvent){
+    e.preventDefault();if(!applicationFilter||!assignmentForm.title.trim())return
+    setSaving(true);setError('');setNotice('')
+    try{
+      const user=(await supabase.auth.getUser()).data.user
+      if(!user)throw new Error('Sign in again to create an assignment.')
+      const slug=(assignmentForm.title.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')||'assignment')+'-'+Math.random().toString(36).slice(2,8)
+      const {data,error}=await supabase.from('assignments').insert({
+        organization_id:organizationId,application_id:applicationFilter,created_by:user.id,title:assignmentForm.title.trim(),
+        description:assignmentForm.description.trim()||null,instructions:assignmentForm.instructions.trim()||null,
+        deadline:assignmentForm.deadline||null,max_score:Number(assignmentForm.max_score)||100,public_slug:slug
+      }).select('id,application_id,title,description,instructions,deadline,max_score,status,public_slug,created_at').single()
+      if(error)throw error
+      setAssignments(x=>[data as Assignment,...x]);setSelectedAssignment(data as Assignment);setAssignmentQuestions(x=>({...x,[data.id]:[]}))
+      setAssignmentForm({title:'',description:'',instructions:'',deadline:'',max_score:'100'});setNotice('Assignment draft created.')
+    }catch(e){setError(e instanceof Error?e.message:'Could not create assignment.')}finally{setSaving(false)}
+  }
+  async function openAssignment(assignment:Assignment){
+    setSelectedAssignment(assignment);setError('')
+    const {data,error}=await supabase.from('assignment_questions').select('id,assignment_id,type,label,description,required,position,config').eq('assignment_id',assignment.id).order('position')
+    if(error){setError(error.message);return}
+    setAssignmentQuestions(x=>({...x,[assignment.id]:(data||[]) as AssignmentQuestion[]}))
+  }
+  async function addAssignmentQuestion(e:FormEvent){
+    e.preventDefault();if(!selectedAssignment||!questionForm.label.trim()||selectedAssignment.status!=='draft')return
+    setSaving(true);setError('')
+    try{
+      const position=(assignmentQuestions[selectedAssignment.id]||[]).length
+      const {data,error}=await supabase.from('assignment_questions').insert({assignment_id:selectedAssignment.id,type:questionForm.type,label:questionForm.label.trim(),required:questionForm.required,position}).select('id,assignment_id,type,label,description,required,position,config').single()
+      if(error)throw error
+      setAssignmentQuestions(x=>({...x,[selectedAssignment.id]:[...(x[selectedAssignment.id]||[]),data as AssignmentQuestion]}));setQuestionForm({label:'',type:'long_text',required:true})
+    }catch(e){setError(e instanceof Error?e.message:'Could not add question.')}finally{setSaving(false)}
+  }
+  async function setAssignmentStatus(status:Assignment['status']){
+    if(!selectedAssignment)return
+    setSaving(true);setError('');setNotice('')
+    try{
+      const {data,error}=await supabase.from('assignments').update({status,published_at:status==='published'?new Date().toISOString():undefined,updated_at:new Date().toISOString()}).eq('id',selectedAssignment.id).select('id,application_id,title,description,instructions,deadline,max_score,status,public_slug,created_at').single()
+      if(error)throw error
+      setAssignments(x=>x.map(a=>a.id===data.id?data as Assignment:a));setSelectedAssignment(data as Assignment);setNotice(status==='published'?'Assignment published. The participant link will be activated in Phase 2.':status==='closed'?'Assignment closed.':'Assignment returned to draft.')
+    }catch(e){setError(e instanceof Error?e.message:'Could not update assignment.')}finally{setSaving(false)}
+  }
+
   const selectedAttendance=selectedSession?sessionAttendance:[]
 
   if(loading)return <div className="loading-card card">Loading participants…</div>
@@ -237,7 +289,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
 
     <div className="participant-application-picker card">
       <div className="participant-picker-icon"><Users size={19}/></div>
-      <div className="participant-picker-copy"><p className="eyebrow">Current application</p><strong>{appName(applicationFilter)}</strong><p>Choose an application to view its participants, attendance and benefits.</p></div>
+      <div className="participant-picker-copy"><p className="eyebrow">Current application</p><strong>{appName(applicationFilter)}</strong><p>Choose an application to view its participants, attendance, assignments and benefits.</p></div>
       <label className="participant-select-field"><span>Select application</span><div className="participant-select-wrap"><select aria-label="Select application" value={applicationFilter} onChange={e=>setApplicationFilter(e.target.value)}>{applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select><ChevronDown size={16}/></div></label>
     </div>
 
@@ -245,6 +297,7 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
       {[
         ['participants','Participants'],
         ['attendance','Attendance'],
+        ['assignments','Assignments'],
         ['benefits','Benefits']
       ].map(([key,label])=><button key={key} className={tab===key?'secondary-button':'text-button'} onClick={()=>setTab(key as any)}>{label}</button>)}
     </div>
@@ -307,6 +360,31 @@ export default function ParticipantsPanel({organizationId,applications}:{organiz
               <button className="primary-button" onClick={importAttendance} disabled={saving}>{saving?'Importing…':'Import attendance IDs'}</button>
               <p className="muted">Only IDs belonging to this session’s programme are accepted.</p>
             </div>
+          </>}
+        </div>
+      </div>
+    </div>}{tab==='assignments'&&<div className="assignment-layout">
+      <div className="assignment-column">
+        <div className="card table-card">
+          <div className="card-header"><div><p className="eyebrow">Assignment setup</p><h2>Create assignment</h2><p>Create programme coursework now; participant submission opens in Phase 2.</p></div><ClipboardList size={20}/></div>
+          <form className="modal-form assignment-form" onSubmit={createAssignment}>
+            <label>Title<input value={assignmentForm.title} onChange={e=>setAssignmentForm(x=>({...x,title:e.target.value}))} placeholder="Week 1 — Business model" required/></label>
+            <label>Description<textarea rows={3} value={assignmentForm.description} onChange={e=>setAssignmentForm(x=>({...x,description:e.target.value}))} placeholder="Short assignment summary."/></label>
+            <label>Instructions<textarea rows={5} value={assignmentForm.instructions} onChange={e=>setAssignmentForm(x=>({...x,instructions:e.target.value}))} placeholder="Explain what participants should complete."/></label>
+            <div className="assignment-form-grid"><label>Deadline<input type="datetime-local" value={assignmentForm.deadline} onChange={e=>setAssignmentForm(x=>({...x,deadline:e.target.value}))}/></label><label>Maximum score<input type="number" min="1" max="1000" value={assignmentForm.max_score} onChange={e=>setAssignmentForm(x=>({...x,max_score:e.target.value}))}/></label></div>
+            <button className="primary-button" disabled={saving||!applicationFilter}><Plus size={16}/> Create draft</button>
+          </form>
+          <div className="table-wrap"><table><thead><tr><th>Assignment</th><th>Deadline</th><th>Status</th></tr></thead><tbody>{scopedAssignments.length?scopedAssignments.map(a=><tr key={a.id} className={selectedAssignment?.id===a.id?'clickable-row selected-row':'clickable-row'} onClick={()=>openAssignment(a)}><td><strong>{a.title}</strong><span className="table-sub">{a.max_score} points</span></td><td>{a.deadline?new Date(a.deadline).toLocaleString():'No deadline'}</td><td><span className={'status '+(a.status==='published'?'green':a.status==='closed'?'neutral':'blue')}>{a.status}</span></td></tr>):<tr><td colSpan={3}><div className="table-empty">No assignments for this programme yet.</div></td></tr>}</tbody></table></div>
+        </div>
+      </div>
+      <div className="assignment-column">
+        <div className="card table-card">
+          <div className="card-header"><div><p className="eyebrow">Assignment builder</p><h2>{selectedAssignment?.title||'Select an assignment'}</h2><p>{selectedAssignment?'Add the questions participants will answer.':'Choose an assignment from the list to build it.'}</p></div><Link2 size={20}/></div>
+          {!selectedAssignment?<div className="table-empty">Select or create an assignment to continue.</div>:<>
+            <div className="assignment-meta"><div><span>Status</span><strong>{selectedAssignment.status}</strong></div><div><span>Maximum score</span><strong>{selectedAssignment.max_score}</strong></div><div><span>Share slug</span><strong>{selectedAssignment.public_slug}</strong></div></div>
+            {selectedAssignment.status==='draft'&&<form className="modal-form assignment-question-form" onSubmit={addAssignmentQuestion}><label>Question<input value={questionForm.label} onChange={e=>setQuestionForm(x=>({...x,label:e.target.value}))} placeholder="What did you learn this week?" required/></label><div className="assignment-form-grid"><label>Answer type<select value={questionForm.type} onChange={e=>setQuestionForm(x=>({...x,type:e.target.value as AssignmentQuestion['type']}))}><option value="short_text">Short answer</option><option value="long_text">Long answer</option><option value="number">Number</option><option value="single_choice">Single choice</option><option value="multiple_choice">Multiple choice</option><option value="file">File upload</option><option value="url">Link / URL</option></select></label><label className="assignment-checkbox"><input type="checkbox" checked={questionForm.required} onChange={e=>setQuestionForm(x=>({...x,required:e.target.checked}))}/> Required</label></div><button className="secondary-button" disabled={saving}><Plus size={16}/> Add question</button></form>}
+            <div className="assignment-question-list">{(assignmentQuestions[selectedAssignment.id]||[]).length?(assignmentQuestions[selectedAssignment.id]||[]).map((q,i)=><div key={q.id} className="assignment-question-row"><span>{i+1}</span><div><strong>{q.label}</strong><small>{q.type.replaceAll('_',' ')} · {q.required?'Required':'Optional'}</small></div></div>):<div className="table-empty">No questions yet.</div>}</div>
+            <div className="assignment-actions">{selectedAssignment.status==='draft'?<button className="primary-button" onClick={()=>setAssignmentStatus('published')} disabled={saving||!(assignmentQuestions[selectedAssignment.id]||[]).length}>Publish assignment</button>:selectedAssignment.status==='published'?<button className="secondary-button" onClick={()=>setAssignmentStatus('closed')} disabled={saving}>Close assignment</button>:null}</div>
           </>}
         </div>
       </div>
