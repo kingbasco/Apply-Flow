@@ -505,8 +505,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
             </tbody></table></div>
             <div className="attendance-import-box">
               <div className="attendance-import-heading"><div><p className="eyebrow">Import attendance</p><h3>Participant IDs</h3><p>Paste participant IDs from Google Meet, one per line or separated by commas.</p></div><Upload size={19}/></div>
-              <textarea rows={7} value={ids} onChange={e=>setIds(e.target.value)} placeholder={'HC2-2026-0001
-HC2-2026-0007'} />
+              <textarea rows={7} value={ids} onChange={e=>setIds(e.target.value)} placeholder={'HC2-2026-0001\\nHC2-2026-0007'} />
               <button className="primary-button" onClick={importAttendance} disabled={saving}>{saving?'Importing…':'Import attendance IDs'}</button>
               <p className="muted">Only IDs belonging to this session’s programme are accepted.</p>
             </div>
