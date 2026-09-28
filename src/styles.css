@@ -3660,3 +3660,14 @@ html.dark-theme .participant-bulk-summary span{color:#8f98a8!important}
   .participant-bulk-bar+.table-wrap th,.participant-bulk-bar+.table-wrap td{padding-top:14px;padding-bottom:14px}
   .participant-bulk-bar+.table-wrap th:nth-child(2),.participant-bulk-bar+.table-wrap td:nth-child(2){min-width:150px;width:150px}
 }
+
+/* Viewport action feedback */
+.action-feedback-toast{position:fixed;z-index:10000;top:max(18px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(430px,calc(100vw - 28px));display:grid;grid-template-columns:38px minmax(0,1fr) 32px;align-items:center;gap:10px;padding:13px 12px 15px;border:1px solid #dfe3ea;border-radius:15px;background:#fff;color:#1d2430;box-shadow:0 18px 55px rgba(15,23,42,.22);overflow:hidden;animation:actionToastIn .22s ease-out}
+.action-feedback-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center}.action-feedback-toast.is-success .action-feedback-icon{background:#e9f8ef;color:#16834b}.action-feedback-toast.is-error .action-feedback-icon{background:#fff0f0;color:#c53c3c}
+.action-feedback-copy{display:flex;min-width:0;flex-direction:column;gap:2px}.action-feedback-copy strong{font-size:13px}.action-feedback-copy span{font-size:11px;line-height:1.45;color:#687384;overflow-wrap:anywhere}
+.action-feedback-close{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:0;border-radius:8px;background:transparent;color:#7d8795;cursor:pointer}
+.action-feedback-timer{position:absolute;left:0;bottom:0;height:3px;width:100%;transform-origin:left;background:#6259df;animation:actionToastTimer 5s linear forwards}.action-feedback-toast.is-error .action-feedback-timer{background:#d94b4b}
+html.dark-theme .action-feedback-toast{background:#171c25;border-color:#343b47;color:#edf0f5;box-shadow:0 18px 60px rgba(0,0,0,.48)}
+html.dark-theme .action-feedback-copy span{color:#9aa4b3}html.dark-theme .action-feedback-toast.is-success .action-feedback-icon{background:rgba(37,170,96,.14);color:#65d996}html.dark-theme .action-feedback-toast.is-error .action-feedback-icon{background:rgba(217,75,75,.14);color:#ff8b8b}
+@keyframes actionToastIn{from{opacity:0;transform:translate(-50%,-12px) scale(.98)}to{opacity:1;transform:translate(-50%,0) scale(1)}}@keyframes actionToastTimer{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+@media(max-width:600px){.action-feedback-toast{top:max(12px,env(safe-area-inset-top));width:calc(100vw - 24px)}}
