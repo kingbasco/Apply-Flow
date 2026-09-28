@@ -3976,3 +3976,73 @@ html.dark-theme .date-picker-input::-webkit-calendar-picker-indicator{
   filter:invert(1) brightness(1.8);
   opacity:.92;
 }
+
+
+/* Attendance session controls — readable links and dark-mode calendar */
+.attendance-checkin-card{
+  margin:0 18px 18px!important;
+  padding:0!important;
+  display:block!important;
+  overflow:hidden;
+  background:#fff!important;
+  border:1px solid #e4e7ec!important;
+  border-radius:14px!important;
+}
+.attendance-checkin-summary{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:20px;
+  padding:18px;
+}
+.attendance-checkin-state{display:flex;align-items:flex-start;gap:11px;min-width:0}
+.attendance-checkin-state>div{min-width:0}
+.attendance-checkin-dot{width:9px;height:9px;flex:0 0 9px;margin-top:7px;border-radius:50%;background:#98a2b3;box-shadow:0 0 0 4px rgba(152,162,179,.12)}
+.attendance-checkin-dot.is-open{background:#39a76b;box-shadow:0 0 0 4px rgba(57,167,107,.13)}
+.attendance-checkin-summary h3{margin:3px 0 5px;font-size:17px}
+.attendance-checkin-summary p:last-child{margin:0;color:#7d8694;font-size:12px;line-height:1.5}
+.attendance-link-panel{padding:16px 18px 18px;border-top:1px solid #eceef2;background:#fafbfc}
+.attendance-link-copy{display:grid;gap:3px;margin-bottom:12px}
+.attendance-link-copy strong{font-size:13px;color:#27303d}
+.attendance-link-copy small{font-size:10px;color:#8a929f;line-height:1.45}
+.attendance-link-display{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.attendance-link-url{min-width:0;display:flex;align-items:center;gap:5px;padding:10px 12px;border:1px solid #e0e4ea;border-radius:10px;background:#fff;color:#77808d;font-size:11px;overflow:hidden}
+.attendance-link-url svg{flex:0 0 auto;color:#6570d0}
+.attendance-link-url span{white-space:nowrap}
+.attendance-link-url strong{min-width:0;color:#28313f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.attendance-link-actions,.attendance-link-editor-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.attendance-link-editor{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center}
+.attendance-link-input{display:flex;align-items:center;min-width:0;border:1px solid #9aa4e8;border-radius:10px;background:#fff;box-shadow:0 0 0 3px rgba(98,89,223,.08);overflow:hidden}
+.attendance-link-input span{flex:0 0 auto;padding:0 0 0 12px;color:#8a929f;font-size:11px;white-space:nowrap}
+.attendance-link-input input{width:100%;min-width:100px;height:40px;padding:0 12px 0 3px!important;border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;color:#252d3a;font-size:11px;font-weight:700}
+.date-picker-input{position:relative;padding-right:42px!important}
+.date-picker-input::-webkit-calendar-picker-indicator{width:18px;height:18px;margin:0;opacity:.88;cursor:pointer}
+html.dark-theme .date-picker-input{color-scheme:dark!important}
+html.dark-theme .date-picker-input::-webkit-calendar-picker-indicator{filter:invert(1) brightness(1.9)!important;opacity:.95!important}
+
+html.dark-theme .attendance-checkin-card{background:#171b23!important;border-color:#303642!important}
+html.dark-theme .attendance-link-panel{background:#12161d!important;border-color:#303642!important}
+html.dark-theme .attendance-link-copy strong{color:#e6eaf0!important}
+html.dark-theme .attendance-link-copy small{color:#8f98a8!important}
+html.dark-theme .attendance-link-url,
+html.dark-theme .attendance-link-input{background:#171b23!important;border-color:#3a414d!important;color:#aeb6c3!important}
+html.dark-theme .attendance-link-url strong,
+html.dark-theme .attendance-link-input input{color:#e7ebf1!important}
+html.dark-theme .attendance-link-input span{color:#858e9d!important}
+html.dark-theme .attendance-checkin-summary p:last-child{color:#929baa!important}
+
+@media(max-width:760px){
+ .attendance-checkin-card{margin:0 12px 16px!important}
+ .attendance-checkin-summary{align-items:stretch;flex-direction:column;padding:16px}
+ .attendance-checkin-summary>button{width:100%}
+ .attendance-link-panel{padding:14px}
+ .attendance-link-display,.attendance-link-editor{display:flex;align-items:stretch;flex-direction:column}
+ .attendance-link-url{width:100%}
+ .attendance-link-actions,.attendance-link-editor-actions{width:100%}
+ .attendance-link-actions button,.attendance-link-editor-actions button{flex:1}
+ .attendance-link-input{width:100%}
+}
+@media(max-width:480px){
+ .attendance-link-url span{display:none}
+ .attendance-link-input span{font-size:10px;max-width:46%;overflow:hidden;text-overflow:ellipsis}
+}
