@@ -189,7 +189,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     if(!applicationId||applicationId==='all'){setLeaderboard([]);return}
     setLeaderboardLoading(true)
     const {data,error}=await supabase.rpc('get_assignment_leaderboard',{p_application_id:applicationId})
-    if(error)setError(error.message);else setLeaderboard((data||[]) as LeaderboardRow[])
+    if(error)setError(friendlyErrorMessage(error));else setLeaderboard((data||[]) as LeaderboardRow[])
     setLeaderboardLoading(false)
   }
 
