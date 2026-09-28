@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight, BarChart3, Bell, Check, ChevronDown, ChevronRight, ClipboardList, FileCheck2, FileText, Clock3,
   FolderKanban, LayoutDashboard, LogOut, Menu, Plus, Search, Settings,
-  ShieldCheck, Sparkles, Users, X, Download, TrendingUp, MapPin, Tags, Target, CheckCircle2, Layers, Workflow, Brain, BadgeCheck, Sun, Moon, Trash2,
+  ShieldCheck, Sparkles, Users, X, Download, Upload, TrendingUp, MapPin, Tags, Target, CheckCircle2, Layers, Workflow, Brain, BadgeCheck, Sun, Moon, Trash2,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { NIGERIAN_STATES, getNigerianLgas } from './lib/nigeria'
