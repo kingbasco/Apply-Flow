@@ -113,13 +113,13 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
  async function openHistory(summary:FormSummary){
    setHistoryFor(summary);setHistoryLoading(true);setVersions([])
    const {data,error}=await supabase.from('form_versions').select('id,version_number,status,title,created_at,published_at').eq('application_id',summary.application.id).order('version_number',{ascending:false})
-   if(error){setError(error.message);setHistoryLoading(false);return}
+   if(error){setError(friendlyErrorMessage(error));setHistoryLoading(false);return}
    const rows=(data||[]) as Omit<VersionRecord,'submissionCount'>[]
    const ids=rows.map(v=>v.id)
    const counts=new Map<string,number>()
    if(ids.length){
      const {data:subs,error:subError}=await supabase.from('submissions').select('form_version_id').in('form_version_id',ids)
-     if(subError){setError(subError.message);setHistoryLoading(false);return}
+     if(subError){setError(friendlyErrorMessage(subError));setHistoryLoading(false);return}
      for(const sub of subs||[])counts.set(sub.form_version_id,(counts.get(sub.form_version_id)||0)+1)
    }
    setVersions(rows.map(v=>({...v,submissionCount:counts.get(v.id)||0})))
@@ -975,7 +975,7 @@ export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSa
    setSaving(true);setError('');setNotice('')
    const nextName=name.trim(), nextSlug=slug.trim()||organization.slug
    const {error}=await supabase.from('organizations').update({name:nextName,slug:nextSlug,updated_at:new Date().toISOString()}).eq('id',organization.id)
-   if(error)setError(error.message);else{flash('Workspace settings saved.');onSaved(nextName);onOrganizationSaved({name:nextName,slug:nextSlug,avatar_url:organization.avatar_url})}
+   if(error)setError(friendlyErrorMessage(error));else{flash('Workspace settings saved.');onSaved(nextName);onOrganizationSaved({name:nextName,slug:nextSlug,avatar_url:organization.avatar_url})}
    setSaving(false)
  }
  async function uploadOrganizationImage(file:File){
