@@ -197,10 +197,15 @@ function InviteSetupScreen({ email, onComplete }: { email: string; onComplete: (
   const [confirmPassword,setConfirmPassword]=useState('')
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
+  const [completed,setCompleted]=useState(false)
+  const [workspaceName,setWorkspaceName]=useState('your workspace')
 
   useEffect(()=>{(async()=>{
-    const {data}=await supabase.from('profiles').select('full_name,username,birth_month,birth_day').maybeSingle()
-    if(data){setName(data.full_name||'');setUsername(data.username||'');setBirthMonth(data.birth_month?String(data.birth_month):'');setBirthDay(data.birth_day?String(data.birth_day):'')}
+    const {data}=await supabase.from('profiles').select('full_name,username,birth_month,birth_day,organization_id').maybeSingle()
+    if(data){
+      setName(data.full_name||'');setUsername(data.username||'');setBirthMonth(data.birth_month?String(data.birth_month):'');setBirthDay(data.birth_day?String(data.birth_day):'')
+      if(data.organization_id){const {data:org}=await supabase.from('organizations').select('name').eq('id',data.organization_id).maybeSingle();if(org?.name)setWorkspaceName(org.name)}
+    }
   })()},[])
 
   async function submit(e: React.FormEvent) {
@@ -217,9 +222,18 @@ function InviteSetupScreen({ email, onComplete }: { email: string; onComplete: (
       if(updateError)throw updateError
       const {error:profileError}=await supabase.rpc('complete_invited_member_profile',{p_full_name:name.trim(),p_username:normalizedUsername,p_birth_month:Number(birthMonth),p_birth_day:Number(birthDay)})
       if(profileError)throw profileError
-      await onComplete()
+      setCompleted(true)
     }catch(err){setError(err instanceof Error?err.message:'Could not finish setting up your account.')}finally{setBusy(false)}
   }
+
+  if(completed)return <div className="auth-shell">
+    <div className="auth-panel">
+      <div className="brand auth-brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Application OS</span></div></div>
+      <div className="auth-copy"><p className="eyebrow">Account created</p><h1>Welcome to {workspaceName}.</h1><p>Your ApplyFlow account is ready. Continue to sign in with the email or username and password you just created.</p></div>
+      <button className="primary-button auth-submit" onClick={()=>void onComplete()}>Continue to sign in <ArrowRight size={17}/></button>
+    </div>
+    <div className="auth-aside"><div><span className="aside-kicker">WELCOME</span><h2>You’re now part of {workspaceName}.</h2><p>Your access is connected to the role assigned in your invitation. Sign in to start working with your team.</p></div><div className="aside-stat"><strong>Account setup complete</strong><span>Sign in · Enter workspace · Start working</span></div></div>
+  </div>
 
   return <div className="auth-shell">
     <div className="auth-panel">
