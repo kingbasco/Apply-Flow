@@ -768,7 +768,7 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
 
       <footer className="screening-review-footer">
        <div className="screening-decision-copy"><span className="screening-summary-label">Final decision</span><strong>{currentDecision==='pending'?'Ready to decide?':currentDecision==='approved'?'Applicant approved — participant enrolment is active':'Applicant rejected'}</strong><span>{currentDecision==='pending'?'Approve to enrol the applicant as a participant, or reject the application.':'This decision has been saved.'}</span></div>
-       {decisionToConfirm ? <div className="screening-decision-confirm"><strong>{decisionToConfirm==='approved'?'Approve this applicant?':'Reject this application?'}</strong><span>{decisionToConfirm==='approved'?'They will be approved and moved into Participants automatically.':'This application will be marked rejected.'}</span><div><button className="secondary-button" onClick={()=>setDecisionToConfirm(null)}>Cancel</button><button className={decisionToConfirm==='approved'?'primary-button screening-approve-button':'secondary-button screening-reject-button'} onClick={async()=>{const d=decisionToConfirm;setDecisionToConfirm(null);await onDecision(row,d)}}>{decisionToConfirm==='approved'?'Confirm approval':'Confirm rejection'}</button></div></div> : <div className="screening-decision-actions"><button className="secondary-button screening-reject-button" onClick={()=>setDecisionToConfirm('rejected')} disabled={currentDecision==='rejected'}>Reject application</button><button className="primary-button screening-approve-button" onClick={()=>setDecisionToConfirm('approved')} disabled={currentDecision==='approved'}>Approve & enrol participant</button></div>}
+       {role==='reviewer'?<div className="screening-decision-copy"><strong>Review only</strong><span>Save your score and notes above. Owner/Admin makes the final approval or rejection decision.</span></div>:decisionToConfirm ? <div className="screening-decision-confirm"><strong>{decisionToConfirm==='approved'?'Approve this applicant?':'Reject this application?'}</strong><span>{decisionToConfirm==='approved'?'They will be approved and moved into Participants automatically.':'This application will be marked rejected.'}</span><div><button className="secondary-button" onClick={()=>setDecisionToConfirm(null)}>Cancel</button><button className={decisionToConfirm==='approved'?'primary-button screening-approve-button':'secondary-button screening-reject-button'} onClick={async()=>{const d=decisionToConfirm;setDecisionToConfirm(null);await onDecision(row,d)}}>{decisionToConfirm==='approved'?'Confirm approval':'Confirm rejection'}</button></div></div> : <div className="screening-decision-actions"><button className="secondary-button screening-reject-button" onClick={()=>setDecisionToConfirm('rejected')} disabled={currentDecision==='rejected'}>Reject application</button><button className="primary-button screening-approve-button" onClick={()=>setDecisionToConfirm('approved')} disabled={currentDecision==='approved'}>Approve & enrol participant</button></div>}
       </footer>
      </>
     ) : null}
@@ -784,7 +784,7 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
   try{
    const ids=applications.map(a=>a.id);
    if(!ids.length){setRows([]);setReviewers([]);setLoading(false);return}
-   const {data:subs,error:se}=await supabase.from('submissions').select('id,application_id,applicant_id,created_at,submitted_at,decision').in('application_id',ids).order('created_at',{ascending:false});
+   const {data:subs,error:se}=await supabase.from('submissions').select('id,application_id,applicant_id,created_at,submitted_at,decision').in('application_id',ids).eq('status','submitted').order('created_at',{ascending:false});
    if(se)throw se;
    let visibleSubs=subs||[];
    const submissionIds=(subs||[]).map(s=>s.id);
@@ -806,7 +806,7 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
      ? supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,updated_at').in('submission_id',visibleIds)
      : assignmentQuery,
     supabase.from('profiles').select('id,full_name,role,organization_id').eq('organization_id',organizationId).in('role',['reviewer','admin','owner']).order('full_name'),
-    supabase.from('applicants').select('id,full_name,email').in('id',(subs||[]).map(s=>s.applicant_id).filter(Boolean))
+    supabase.from('applicants').select('id,full_name,email,participant_id').in('id',(subs||[]).map(s=>s.applicant_id).filter(Boolean))
    ]);
    if(ae)throw ae;if(pe)throw pe;if(apE)throw apE;
    setReviewers(people||[]);
@@ -817,7 +817,7 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
     const as=grouped.get(s.id)||[],p=applicantMap.get(s.applicant_id),app=appMap.get(s.application_id),reviewerList=as.map(x=>reviewerMap.get(x.reviewer_id)).filter(Boolean);
     const workflowStatus=as.length===0?'unassigned':as.some(x=>x.status==='in_progress')?'in_progress':as.every(x=>x.status==='completed')?'reviewed':'assigned';
     const displayStatus=s.decision==='approved'?'approved':s.decision==='rejected'?'rejected':workflowStatus;
-    return{submissionId:s.id,applicationId:s.application_id,applicantName:p?.full_name||'Unnamed applicant',email:p?.email||null,programmeName:app?.name||'Programme',reviewers:reviewerList,status:displayStatus,decision:s.decision||null,updatedAt:as.reduce((latest,x)=>!latest||x.updated_at>latest?x.updated_at:latest,s.created_at)}
+    return{submissionId:s.id,applicationId:s.application_id,assignmentId:role==='reviewer'?as.find(x=>x.reviewer_id===reviewerId)?.id:undefined,participantId:p?.participant_id||'—',applicantName:p?.full_name||'Unnamed applicant',email:p?.email||null,submittedAt:s.submitted_at||null,programmeName:app?.name||'Programme',reviewers:reviewerList,status:displayStatus,decision:s.decision==='approved'||s.decision==='rejected'?s.decision:'pending',updatedAt:as.reduce((latest,x)=>!latest||x.updated_at>latest?x.updated_at:latest,s.created_at)}
    }))
    setSelectedIds([]);
   }catch(e:any){setError(e.message||'Unable to load reviews.')}finally{setLoading(false)}
@@ -829,10 +829,9 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
  const statusClass=(value:string)=>value==='approved'||value==='reviewed'?'green':value==='rejected'?'red':value==='in_progress'?'amber':value==='assigned'?'blue':'neutral'
  const setReviewDecision=async(row:any,decision:'approved'|'rejected')=>{
   setError('');
-  const result=role==='reviewer'
-   ? await supabase.rpc('reviewer_set_submission_decision',{p_submission_id:row.submissionId,p_decision:decision})
-   : await supabase.from('submissions').update({decision}).eq('id',row.submissionId);
-  if(result.error){setError(result.error.message);return}
+  if(role==='reviewer'){setError('Programme Staff can review and score assigned applications, but final approval or rejection is reserved for Owner/Admin.');return}
+  const {error}=await supabase.from('submissions').update({decision}).eq('id',row.submissionId);
+  if(error){setError(error.message);return}
   setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision,status:decision}:r));
   setReviewing((current:any)=>current?.submissionId===row.submissionId?{...current,decision}:current);
   setAssignmentNotice(decision==='approved'?'Applicant approved.':'Applicant rejected.');
@@ -872,7 +871,7 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
     <label className="review-status-filter"><span>Status</span><div className="review-select-wrap"><span className="status-dot"/><select aria-label="Filter reviews by status" value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses</option><option value="unassigned">Unassigned</option><option value="assigned">Assigned</option><option value="in_progress">In review</option><option value="reviewed">Reviewed</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select><ArrowRight size={14} className="review-select-chevron"/></div></label>
    </div>
    <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label="Select all visible applicants" checked={allFilteredSelected} onChange={toggleAll}/></th><th>Applicant</th><th>Programme</th><th>Assigned to</th><th>Status</th><th></th></tr></thead><tbody>
-    {loading?<tr><td colSpan={6}><div className="loading-card">Loading reviews…</div></td></tr>:filtered.length===0?<tr><td colSpan={6}><div className="table-empty">No applications match your filters.</div></td></tr>:filtered.map(r=><tr key={r.submissionId}><td><input type="checkbox" aria-label={'Select '+r.applicantName} checked={selectedIds.includes(r.submissionId)} onChange={()=>toggleSelected(r.submissionId)}/></td><td><strong>{r.applicantName}</strong><span className="table-sub">{r.email||'No email'}</span></td><td>{r.programmeName}</td><td>{r.reviewers.length?r.reviewers.map((x:any)=>x.full_name||'Unnamed').join(', '):<span className="muted">Unassigned</span>}</td><td><span className={'status '+statusClass(r.status)}>{statusLabel(r.status)}</span></td><td><button className="text-button" onClick={()=>setReviewing({...r,participantId:r.participantId||'—',submittedAt:r.submittedAt||null,email:r.email||null,eligibility:'pending',aiStatus:'pending',aiRecommendation:'Not screened',decision:r.decision==='approved'||r.decision==='rejected'?r.decision:'pending'})}>Review</button></td></tr>)}
+    {loading?<tr><td colSpan={6}><div className="loading-card">Loading reviews…</div></td></tr>:filtered.length===0?<tr><td colSpan={6}><div className="table-empty">No applications match your filters.</div></td></tr>:filtered.map(r=><tr key={r.submissionId}><td><input type="checkbox" aria-label={'Select '+r.applicantName} checked={selectedIds.includes(r.submissionId)} onChange={()=>toggleSelected(r.submissionId)}/></td><td><strong>{r.applicantName}</strong><span className="table-sub">{r.email||'No email'}</span></td><td>{r.programmeName}</td><td>{r.reviewers.length?r.reviewers.map((x:any)=>x.full_name||'Unnamed').join(', '):<span className="muted">Unassigned</span>}</td><td><span className={'status '+statusClass(r.status)}>{statusLabel(r.status)}</span></td><td><button className="text-button" onClick={()=>setReviewing({...r,eligibility:'pending',aiStatus:'pending',aiRecommendation:'Not screened'})}>Review</button></td></tr>)}
    </tbody></table></div>
   </div>
   {reviewing&&<ScreeningReviewModal row={reviewing} role={role} onClose={()=>setReviewing(null)} onDecision={setReviewDecision}/>}
