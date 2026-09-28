@@ -4046,3 +4046,32 @@ html.dark-theme .attendance-checkin-summary p:last-child{color:#929baa!important
  .attendance-link-url span{display:none}
  .attendance-link-input span{font-size:10px;max-width:46%;overflow:hidden;text-overflow:ellipsis}
 }
+
+
+/* Shareable team invitation links */
+.team-links-card{margin-top:16px;overflow:hidden}
+.team-link-list{display:grid}
+.team-link-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:14px;padding:14px 18px;border-top:1px solid #eef0f3}
+.team-link-copy{min-width:0;display:flex;flex-direction:column;gap:3px}
+.team-link-copy strong{font-size:12px;color:#2a3240}
+.team-link-copy span{font-size:10px;color:#8b93a0}
+.team-link-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px}
+.team-generated-link{display:grid;gap:7px}
+.team-generated-link>span{font-size:10px;font-weight:700;color:#4c5564}
+.team-generated-link>div{display:flex;gap:8px}
+.team-generated-link input{flex:1;min-width:0}
+.team-generated-link .secondary-button{flex:0 0 auto}
+.team-link-auth-shell .auth-copy strong{color:inherit}
+@media(max-width:700px){
+ .team-link-row{grid-template-columns:1fr auto;gap:10px}
+ .team-link-actions{grid-column:1/-1;justify-content:flex-start}
+ .team-link-actions .secondary-button{flex:1}
+ .team-generated-link>div{flex-direction:column}
+ .team-generated-link .secondary-button{width:100%}
+}
+html.dark-theme .team-links-card{background:#171b23!important;border-color:#303642!important}
+html.dark-theme .team-link-row{border-color:#292f3a}
+html.dark-theme .team-link-copy strong{color:#e7ebf1}
+html.dark-theme .team-link-copy span{color:#929baa}
+html.dark-theme .team-generated-link>span{color:#c8ced8}
+html.dark-theme .team-generated-link input{background:#12161d!important;border-color:#3a414d!important;color:#e4e8ee!important}
