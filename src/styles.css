@@ -3796,3 +3796,140 @@ html.dark-theme .participant-contact-grid>div{
   .participant-profile-header{align-items:flex-start!important}
   .participant-profile-header>.icon-button{margin-left:auto}
 }
+
+
+/* Full-screen participant profile — shared desktop/mobile contract */
+.participant-profile-backdrop{
+  position:fixed!important;
+  inset:0!important;
+  z-index:100000!important;
+  width:100vw!important;
+  height:100dvh!important;
+  margin:0!important;
+  padding:0!important;
+  display:block!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  overscroll-behavior-y:contain;
+  -webkit-overflow-scrolling:touch;
+  background:#f7f8fa!important;
+  backdrop-filter:none!important;
+}
+.participant-profile-modal{
+  position:relative!important;
+  width:100%!important;
+  max-width:none!important;
+  min-width:100%!important;
+  min-height:100dvh!important;
+  max-height:none!important;
+  margin:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  overflow:visible!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  background:#f7f8fa!important;
+}
+.participant-profile-header{
+  position:sticky;
+  top:0;
+  z-index:5;
+  width:100%;
+  padding:18px max(28px,calc((100vw - 1180px)/2 + 28px))!important;
+  background:rgba(255,255,255,.98)!important;
+  border-bottom:1px solid #e4e7ec!important;
+  backdrop-filter:blur(12px);
+}
+.participant-profile-body{
+  width:min(1180px,100%);
+  margin:0 auto;
+  padding:24px 28px 120px!important;
+  overflow:visible!important;
+  flex:1 0 auto;
+}
+.participant-profile-footer{
+  position:sticky;
+  bottom:0;
+  z-index:4;
+  width:100%;
+  padding:14px max(28px,calc((100vw - 1180px)/2 + 28px))!important;
+  background:rgba(255,255,255,.98)!important;
+  border-top:1px solid #e4e7ec!important;
+  backdrop-filter:blur(12px);
+}
+.participant-profile-statusbar,
+.participant-profile-stats>div,
+.participant-profile-section{
+  box-shadow:0 1px 2px rgba(16,24,40,.03);
+}
+@media(max-width:760px){
+  .participant-profile-header{
+    padding:max(16px,env(safe-area-inset-top)) 16px 15px!important;
+  }
+  .participant-profile-body{
+    width:100%;
+    padding:16px 14px 110px!important;
+  }
+  .participant-profile-footer{
+    padding:12px 14px max(12px,env(safe-area-inset-bottom))!important;
+  }
+  .participant-profile-identity{align-items:flex-start}
+  .participant-profile-identity h2{font-size:19px}
+}
+html.dark-theme .participant-profile-backdrop,
+.dark-theme .participant-profile-backdrop{
+  background:#0f1117!important;
+}
+html.dark-theme .participant-profile-modal,
+.dark-theme .participant-profile-modal{
+  background:#0f1117!important;
+  color:#e4e8ee!important;
+  border:0!important;
+}
+html.dark-theme .participant-profile-header,
+.dark-theme .participant-profile-header,
+html.dark-theme .participant-profile-footer,
+.dark-theme .participant-profile-footer{
+  background:rgba(21,25,32,.98)!important;
+  border-color:#303642!important;
+}
+html.dark-theme .participant-profile-body,
+.dark-theme .participant-profile-body{
+  background:#0f1117!important;
+}
+html.dark-theme .participant-profile-statusbar,
+.dark-theme .participant-profile-statusbar,
+html.dark-theme .participant-profile-stats>div,
+.dark-theme .participant-profile-stats>div,
+html.dark-theme .participant-profile-section,
+.dark-theme .participant-profile-section{
+  background:#171b23!important;
+  border-color:#303642!important;
+  color:#e4e8ee!important;
+}
+html.dark-theme .participant-contact-grid>div,
+.dark-theme .participant-contact-grid>div{
+  background:#12161d!important;
+  border:1px solid #303642;
+}
+html.dark-theme .participant-profile-table,
+.dark-theme .participant-profile-table{
+  border-color:#303642!important;
+}
+html.dark-theme .participant-profile-table thead,
+.dark-theme .participant-profile-table thead,
+html.dark-theme .participant-profile-table th,
+.dark-theme .participant-profile-table th{
+  background:#151920!important;
+  border-color:#303642!important;
+}
+html.dark-theme .participant-profile-table td,
+.dark-theme .participant-profile-table td{
+  border-color:#292f3a!important;
+}
+html.dark-theme .participant-avatar,
+.dark-theme .participant-avatar{
+  background:rgba(109,93,252,.16)!important;
+  color:#b9b1ff!important;
+}
