@@ -457,7 +457,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
     <div className="card stat-card"><div className="stat-icon"><FileText size={18}/></div><div className="stat-content"><p className="eyebrow">Rejected</p><div className="stat-value">{counts.rejected}</div></div></div>
     <div className="card stat-card"><div className="stat-icon"><ArrowRight size={18}/></div><div className="stat-content"><p className="eyebrow">AI recommended</p><div className="stat-value">{counts.recommended}</div></div></div>
    </div>
-   <div className="card table-card">
+   <div className="card table-card screening-applicants-card">
     <div className="card-header"><div><h2>Applicants</h2><p>Review the application, then approve or reject.</p></div><div className="detail-actions"><span className="muted">{selectedSubmissionIds.length} selected</span><button className="secondary-button" onClick={exportApplicants} disabled={loading||selectedSubmissionIds.length===0}><Download size={16}/> Export selected</button></div></div>
     <div className="forms-toolbar">
      <div className="forms-search"><Search size={16}/><input aria-label="Search applicants" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search name, email or Participant ID…" /></div>
