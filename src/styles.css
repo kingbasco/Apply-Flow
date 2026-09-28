@@ -3442,3 +3442,49 @@ html.dark-theme .public-choice:has(input:checked){background:#24223b!important}
  .stats-grid .stat-icon{width:28px;height:28px;flex-basis:28px}
  .stats-grid .stat-value{font-size:19px}
 }
+
+/* Dark-mode interaction guard — prevent iOS touch from latching light hover surfaces */
+html{-webkit-tap-highlight-color:transparent}
+@media(hover:hover) and (pointer:fine){
+ .content table tbody tr:hover{background:#fafaff}
+ .dashboard-panels tbody tr:hover{background:#fafaff}
+ .clickable-row:hover td{background:#fafbff}
+ .applicants-table tbody tr:hover,.screening-body:hover{background:#fafbfc}
+ html.dark-theme .content table tbody tr:hover,
+ html.dark-theme .dashboard-panels tbody tr:hover,
+ html.dark-theme .applicants-table tbody tr:hover,
+ html.dark-theme .screening-body:hover{background:#1d222c!important}
+ html.dark-theme .clickable-row:hover td{background:#1d222c!important}
+ html.dark-theme .notification-item:hover,
+ html.dark-theme .screening-application-option:hover{background:#1d222c!important}
+}
+@media(hover:none),(pointer:coarse){
+ .content table tbody tr:hover,
+ .dashboard-panels tbody tr:hover,
+ .applicants-table tbody tr:hover,
+ .screening-body:hover,
+ .notification-item:hover,
+ .screening-application-option:hover{background:inherit}
+ .clickable-row:hover td{background:inherit}
+ html.dark-theme .content table tbody tr:hover,
+ html.dark-theme .dashboard-panels tbody tr:hover,
+ html.dark-theme .applicants-table tbody tr:hover,
+ html.dark-theme .screening-body:hover,
+ html.dark-theme .notification-item:hover,
+ html.dark-theme .screening-application-option:hover{background:transparent!important}
+ html.dark-theme .clickable-row:hover td{background:transparent!important}
+ .content table tbody tr:active,
+ .dashboard-panels tbody tr:active,
+ .applicants-table tbody tr:active,
+ .screening-body:active{background:rgba(109,93,252,.06)}
+ html.dark-theme .content table tbody tr:active,
+ html.dark-theme .dashboard-panels tbody tr:active,
+ html.dark-theme .applicants-table tbody tr:active,
+ html.dark-theme .screening-body:active{background:#1d222c!important}
+ html.dark-theme .clickable-row:active td{background:#1d222c!important}
+}
+html.dark-theme .dashboard-panels tbody tr,
+html.dark-theme .content table tbody tr{background-color:transparent}
+html.dark-theme .notification-item{background:#171b23;border-color:#292f3a}
+html.dark-theme .notification-item.unread{background:#1d2030}
+html.dark-theme .notification-footer{background:#12161d;border-color:#292f3a}
