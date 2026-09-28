@@ -3958,3 +3958,21 @@ html.dark-theme .participant-avatar,
     max-width:none!important;
   }
 }
+
+
+/* Native date picker — visible and clickable in every workspace theme */
+.date-picker-input{
+  cursor:pointer;
+  color-scheme:light;
+}
+.date-picker-input::-webkit-calendar-picker-indicator{
+  cursor:pointer;
+  opacity:.82;
+}
+html.dark-theme .date-picker-input{
+  color-scheme:dark;
+}
+html.dark-theme .date-picker-input::-webkit-calendar-picker-indicator{
+  filter:invert(1) brightness(1.8);
+  opacity:.92;
+}
