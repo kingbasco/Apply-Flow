@@ -3620,3 +3620,24 @@ html.dark-theme .screening-answer-value{background:transparent!important;color:#
 html.dark-theme .participant-staff-option{background:#12161d;border-color:#303642;color:#e4e8ee}
 html.dark-theme .participant-staff-option small{color:#8f98a8}
 @media(max-width:600px){.participant-staff-list{grid-template-columns:1fr}}
+
+/* Participant profile dark-mode contract */
+html.dark-theme .participant-profile-modal{background:#151922!important;border-color:#303642!important;color:#e7ebf1!important}
+html.dark-theme .participant-profile-header{border-color:#303642!important}
+html.dark-theme .participant-profile-meta{color:#98a1af!important}
+html.dark-theme .participant-profile-statusbar{background:#12161d!important;border-color:#303642!important}
+html.dark-theme .participant-profile-statusbar small,
+html.dark-theme .participant-profile-stats span,
+html.dark-theme .participant-profile-stats small,
+html.dark-theme .participant-contact-grid span{color:#8f98a8!important}
+html.dark-theme .participant-profile-stats>div,
+html.dark-theme .participant-profile-section{background:#171c25!important;border-color:#303642!important;color:#e7ebf1!important}
+html.dark-theme .participant-section-heading h3,
+html.dark-theme .participant-profile-stats strong,
+html.dark-theme .participant-contact-grid strong{color:#e7ebf1!important}
+html.dark-theme .participant-section-heading p:not(.eyebrow){color:#98a1af!important}
+html.dark-theme .participant-profile-table{border-color:#303642!important}
+html.dark-theme .participant-contact-grid>div{background:#12161d!important;border:1px solid #2b313c!important}
+html.dark-theme .participant-profile-footer{background:#12161d!important;border-color:#303642!important}
+html.dark-theme .participant-profile-modal .table-empty,
+html.dark-theme .participant-profile-modal .loading-card{color:#98a1af!important}
