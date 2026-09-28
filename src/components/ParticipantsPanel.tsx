@@ -441,7 +441,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
         ['participants','Participants'],
         ['attendance','Attendance'],
         ['assignments','Assignments'],
-        ...(isAdmin?[['benefits','Benefits']]:[])
+        ...(isAdmin?[['benefits','Benefits'] as const]:[])
       ].map(([key,label])=><button key={key} className={tab===key?'secondary-button':'text-button'} onClick={()=>setTab(key as any)}>{label}</button>)}
     </div>
 
