@@ -109,7 +109,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
           if (sessionError) throw new Error('Could not start your secure session. Please try again.')
         } else {
           const { error } = await supabase.auth.signInWithPassword({ email: identifier, password })
-          if (error) throw error
+          if (error) throw new Error('Invalid email or password.')
         }
         onSignedIn()
       } else {
@@ -823,8 +823,16 @@ function App() {
     const restoreSession = async () => {
       try {
         const { data } = await supabase.auth.getSession()
-        setSession(data.session)
-        if (data.session && !invitePending) await loadWorkspace(data.session)
+        let restoredSession = data.session
+        if (restoredSession) {
+          const { data: activeSession, error: activeSessionError } = await supabase.rpc('current_session_is_active')
+          if (activeSessionError || activeSession !== true) {
+            await supabase.auth.signOut({ scope: 'local' })
+            restoredSession = null
+          }
+        }
+        setSession(restoredSession)
+        if (restoredSession && !invitePending) await loadWorkspace(restoredSession)
       } catch (err) {
         // Keep public pages usable if Supabase is unavailable, but surface the error
         // when the app needs an authenticated workspace.
@@ -879,7 +887,7 @@ function App() {
     setSessionReady(true)
   }} />
   if (window.location.pathname === '/login' && passwordRecovery && session) return <ResetPasswordScreen onComplete={async () => {
-    await supabase.auth.signOut()
+    await supabase.auth.signOut({ scope: 'global' })
     setSession(null)
     setPasswordRecovery(false)
     window.history.replaceState({}, '', '/login')

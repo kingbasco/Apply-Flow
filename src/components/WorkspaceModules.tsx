@@ -977,7 +977,7 @@ export function TeamWorkspace({organizationId,role:workspaceRole}:{organizationI
 export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSaved,onProfileSaved}:{organization:{id:string;name:string;slug:string;avatar_url:string|null}|null;profile:{id:string;full_name:string|null;username:string|null;birth_month:number|null;birth_day:number|null;avatar_url:string|null;role:string;organization_id:string|null}|null;onSaved:(name:string)=>void;onOrganizationSaved:(organization:{name:string;slug:string;avatar_url:string|null})=>void;onProfileSaved:(profile:{full_name:string|null;username:string|null;birth_month:number|null;birth_day:number|null;avatar_url:string|null})=>void}){
  const [name,setName]=useState(organization?.name||''); const [slug,setSlug]=useState(organization?.slug||'')
  const [profileName,setProfileName]=useState(profile?.full_name||''); const [username,setUsername]=useState(profile?.username||''); const [birthMonth,setBirthMonth]=useState(profile?.birth_month?String(profile.birth_month):''); const [birthDay,setBirthDay]=useState(profile?.birth_day?String(profile.birth_day):''); const [email,setEmail]=useState(''); const [avatarUrl,setAvatarUrl]=useState(profile?.avatar_url||'')
- const [currentPassword,setCurrentPassword]=useState(''); const [newPassword,setNewPassword]=useState(''); const [confirmPassword,setConfirmPassword]=useState('')
+ const [currentPassword,setCurrentPassword]=useState(''); const [newPassword,setNewPassword]=useState(''); const [confirmPassword,setConfirmPassword]=useState(''); const [emailPassword,setEmailPassword]=useState('')
  const [saving,setSaving]=useState(false); const [organizationImageSaving,setOrganizationImageSaving]=useState(false); const [profileSaving,setProfileSaving]=useState(false); const [passwordSaving,setPasswordSaving]=useState(false); const [emailSaving,setEmailSaving]=useState(false); const [signingOut,setSigningOut]=useState(false)
  const [notice,setNotice]=useState(''); const [error,setError]=useState(''); const [emailNotice,setEmailNotice]=useState('')
  useEffect(()=>{setName(organization?.name||'');setSlug(organization?.slug||'')},[organization])
@@ -1051,13 +1051,17 @@ export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSa
      if(newPassword!==confirmPassword)throw new Error('New passwords do not match.')
      const {data:{user}}=await supabase.auth.getUser()
      if(!user?.email)throw new Error('Your account email could not be verified.')
-     if(currentPassword){
-       const {error:reauthError}=await supabase.auth.signInWithPassword({email:user.email,password:currentPassword})
-       if(reauthError)throw new Error('Current password is incorrect.')
-     }
+     const providers=Array.isArray(user.app_metadata?.providers)?user.app_metadata.providers.map(String):[]
+     if(!providers.includes('email'))throw new Error('This account uses OAuth sign-in. Use password recovery from the sign-in page to create or reset a password securely.')
+     if(!currentPassword)throw new Error('Enter your current password before changing it.')
+     const {error:reauthError}=await supabase.auth.signInWithPassword({email:user.email,password:currentPassword})
+     if(reauthError)throw new Error('Current password is incorrect.')
      const {error:updateError}=await supabase.auth.updateUser({password:newPassword})
      if(updateError)throw updateError
-     setCurrentPassword('');setNewPassword('');setConfirmPassword('');flash('Password changed successfully.')
+     const {error:otherSessionError}=await supabase.auth.signOut({scope:'others'})
+     setCurrentPassword('');setNewPassword('');setConfirmPassword('')
+     if(otherSessionError){setError('Password changed, but ApplyFlow could not sign out your other sessions. Use “Sign out everywhere” below.');return}
+     flash('Password changed. Your other sessions have been signed out.')
    }catch(e){setError(friendlyErrorMessage(e,'Could not change your password.'))}
    finally{setPasswordSaving(false)}
  }
@@ -1065,10 +1069,18 @@ export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSa
    setEmailSaving(true);setEmailNotice('');setError('')
    try{
      const {data:{user}}=await supabase.auth.getUser()
-     if(!email.trim()||email.trim()===user?.email){setEmailNotice('Enter a different email address.');return}
+     if(!user?.email)throw new Error('Your account email could not be verified.')
+     if(!email.trim()||email.trim()===user.email){setEmailNotice('Enter a different email address.');return}
+     const providers=Array.isArray(user.app_metadata?.providers)?user.app_metadata.providers.map(String):[]
+     if(!providers.includes('email'))throw new Error('Email changes for OAuth-only accounts must be managed through the connected identity provider.')
+     if(!emailPassword)throw new Error('Enter your current password before changing your email.')
+     const {error:reauthError}=await supabase.auth.signInWithPassword({email:user.email,password:emailPassword})
+     if(reauthError)throw new Error('Current password is incorrect.')
      const {error:updateError}=await supabase.auth.updateUser({email:email.trim()})
      if(updateError)throw updateError
-     setEmailNotice('A confirmation link has been sent to your new email address. Your current email remains active until you confirm it.')
+     await supabase.auth.signOut({scope:'others'})
+     setEmailPassword('')
+     setEmailNotice('A confirmation link has been sent to your new email address. Other sessions have been signed out; your current email remains active until you confirm the change.')
    }catch(e){setEmailNotice(friendlyErrorMessage(e,'Could not update your email address.'))}
    finally{setEmailSaving(false)}
  }
@@ -1096,6 +1108,7 @@ export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSa
       <label>Username<input value={username} onChange={e=>setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g,''))} placeholder="yourusername" minLength={3} maxLength={30} autoComplete="username"/><small className="field-help">Used to sign in · 3–30 characters · letters, numbers and underscores</small></label>
       <label className="settings-dob-field"><span>Date of birth <span className="optional">Month and day only</span></span><div className="settings-dob-fields"><select aria-label="Birth month" value={birthMonth} onChange={e=>setBirthMonth(e.target.value)}><option value="">Month</option>{['January','February','March','April','May','June','July','August','September','October','November','December'].map((month,index)=><option key={month} value={index+1}>{month}</option>)}</select><select aria-label="Birth day" value={birthDay} onChange={e=>setBirthDay(e.target.value)}><option value="">Day</option>{Array.from({length:31},(_,i)=>i+1).map(day=><option key={day} value={day}>{day}</option>)}</select></div><small className="field-help">Only the month and day are stored. Your birth year is not required.</small></label>
       <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} /><small className="field-help">Changing your email requires confirmation.</small></label>
+      <label>Current password<input type="password" autoComplete="current-password" value={emailPassword} onChange={e=>setEmailPassword(e.target.value)} placeholder="Required to change email"/><small className="field-help">Required for password-based accounts before changing the login email.</small></label>
       {emailNotice&&<div className="form-message">{emailNotice}</div>}
       <div className="detail-form-footer"><button className="secondary-button" onClick={changeEmail} disabled={emailSaving}>{emailSaving?'Updating…':'Change email'}</button><button className="primary-button" onClick={saveProfile} disabled={profileSaving}>Save profile</button></div>
     </div>
@@ -1103,8 +1116,8 @@ export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSa
    <div className="card detail-card">
     <div className="card-header"><div><p className="eyebrow">Security</p><h2>Password</h2><p>Keep your account protected with a strong password.</p></div><Settings size={20}/></div>
     <div className="detail-form">
-      <label>Current password <span className="optional">Optional for OAuth accounts</span><input type="password" autoComplete="current-password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} placeholder="Current password"/></label>
-      <label>New password<input type="password" autoComplete="new-password" minLength={10} value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="At least 8 characters"/></label>
+      <label>Current password<input type="password" autoComplete="current-password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} placeholder="Required to change password"/></label>
+      <label>New password<input type="password" autoComplete="new-password" minLength={10} value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="At least 10 characters"/></label>
       <label>Confirm new password<input type="password" autoComplete="new-password" minLength={10} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Repeat your new password"/></label>
       <div className="detail-form-footer"><button className="primary-button" onClick={changePassword} disabled={passwordSaving}>{passwordSaving?'Changing…':'Change password'}</button></div>
       <div className="security-danger-zone"><div><strong>Sign out all sessions</strong><p>Use this if you think someone else may have access to your account.</p></div><button className="secondary-button" onClick={signOutEverywhere} disabled={signingOut}>{signingOut?'Signing out…':'Sign out everywhere'}</button></div>
