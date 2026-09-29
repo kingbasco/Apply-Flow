@@ -508,6 +508,13 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
       <td><button className="secondary-button" onClick={()=>setReviewing(row)}>Review <ArrowRight size={15}/></button></td>
      </tr>)}
     </tbody></table></div>
+    <TablePagination
+     total={filtered.length}
+     page={currentScreeningPage}
+     pageSize={screeningPageSize}
+     onPageChange={setScreeningPage}
+     onPageSizeChange={size=>{setScreeningPageSize(size);setScreeningPage(1)}}
+    />
    </div>
   </section>
   {reviewing&&<ScreeningReviewModal row={reviewing} role={role} onClose={()=>setReviewing(null)} onDecision={setDecision}/>}
@@ -900,6 +907,13 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
    <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label="Select all applicants on this page" checked={allFilteredSelected} onChange={toggleAll} disabled={!pagedReviewRows.length}/></th><th>Applicant</th><th>Programme</th><th>Assigned to</th><th>Status</th><th></th></tr></thead><tbody>
     {loading?<tr><td colSpan={6}><div className="loading-card">Loading reviews…</div></td></tr>:filtered.length===0?<tr><td colSpan={6}><div className="table-empty">No applications match your filters.</div></td></tr>:pagedReviewRows.map(r=><tr key={r.submissionId}><td><input type="checkbox" aria-label={'Select '+r.applicantName} checked={selectedIds.includes(r.submissionId)} onChange={()=>toggleSelected(r.submissionId)}/></td><td><strong>{r.applicantName}</strong><span className="table-sub">{r.email||'No email'}</span></td><td>{r.programmeName}</td><td>{r.reviewers.length?r.reviewers.map((x:any)=>x.full_name||'Unnamed').join(', '):<span className="muted">Unassigned</span>}</td><td><span className={'status '+statusClass(r.status)}>{statusLabel(r.status)}</span></td><td><button className="text-button" onClick={()=>setReviewing({...r,eligibility:'pending',aiStatus:'pending',aiRecommendation:'Not screened'})}>Review</button></td></tr>)}
    </tbody></table></div>
+   <TablePagination
+    total={filtered.length}
+    page={currentReviewsPage}
+    pageSize={reviewsPageSize}
+    onPageChange={setReviewsPage}
+    onPageSizeChange={size=>{setReviewsPageSize(size);setReviewsPage(1)}}
+   />
   </div>
   {reviewing&&<ScreeningReviewModal row={reviewing} role={role} onClose={()=>setReviewing(null)} onDecision={setReviewDecision}/>}
  </section>
