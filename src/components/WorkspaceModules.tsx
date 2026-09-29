@@ -801,6 +801,9 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
 }
 export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{applications:Application[];organizationId:string;onOpen:(a:Application)=>void;role?:Profile['role']}){
  const [rows,setRows]=useState<any[]>([]),[reviewers,setReviewers]=useState<Profile[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[status,setStatus]=useState('all'),[selectedIds,setSelectedIds]=useState<string[]>([]),[assignmentReviewer,setAssignmentReviewer]=useState(''),[assigning,setAssigning]=useState(false),[assignmentNotice,setAssignmentNotice]=useState(''),[reviewing,setReviewing]=useState<any|null>(null),[decisionNotice,setDecisionNotice]=useState<ApplicationDecisionNotice|null>(null);
+ const [currentUserId,setCurrentUserId]=useState('')
+ const [myReviewsPage,setMyReviewsPage]=useState(1)
+ const [myReviewsPageSize,setMyReviewsPageSize]=useState(50)
  const [reviewsPage,setReviewsPage]=useState(1)
  const [reviewsPageSize,setReviewsPageSize]=useState(50)
 
@@ -848,6 +851,13 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
   }catch(e:any){setError(e.message||'Unable to load reviews.')}finally{setLoading(false)}
  }
  useEffect(()=>{load()},[applications.map(a=>a.id).join(','),role])
+ useEffect(()=>{let active=true;supabase.auth.getUser().then(({data})=>{if(active)setCurrentUserId(data.user?.id||'')});return()=>{active=false}},[])
+
+ const myAssignedRows=useMemo(()=>currentUserId?rows.filter(r=>r.reviewers.some((reviewer:any)=>reviewer?.id===currentUserId)):[],[rows,currentUserId])
+ const myReviewsPageCount=Math.max(1,Math.ceil(myAssignedRows.length/myReviewsPageSize))
+ const currentMyReviewsPage=Math.min(myReviewsPage,myReviewsPageCount)
+ const pagedMyAssignedRows=useMemo(()=>myAssignedRows.slice((currentMyReviewsPage-1)*myReviewsPageSize,currentMyReviewsPage*myReviewsPageSize),[myAssignedRows,currentMyReviewsPage,myReviewsPageSize])
+ useEffect(()=>{if(myReviewsPage>myReviewsPageCount)setMyReviewsPage(myReviewsPageCount)},[myReviewsPage,myReviewsPageCount])
 
  const filtered=useMemo(()=>rows.filter(r=>(status==='all'||r.status===status)&&(!query||r.applicantName.toLowerCase().includes(query.toLowerCase())||r.email?.toLowerCase().includes(query.toLowerCase())||r.programmeName.toLowerCase().includes(query.toLowerCase()))),[rows,status,query])
  const reviewsPageCount=Math.max(1,Math.ceil(filtered.length/reviewsPageSize))
@@ -893,6 +903,13 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
    <div className="detail-actions"><button className="secondary-button" onClick={load}>Refresh</button></div>
   </div>
   {error&&<ActionFeedback message={error} type="error" onDismiss={()=>setError('')}/>}{assignmentNotice&&<ActionFeedback message={assignmentNotice} onDismiss={()=>setAssignmentNotice('')}/>}
+  {(role==='owner'||role==='admin')&&<div className="card table-card my-review-queue">
+   <div className="card-header"><div><p className="eyebrow">Personal queue</p><h2>Assigned to me</h2><p>Only applications specifically assigned to you appear here. The full review management list remains below.</p></div><div className="my-review-count"><UserCheck size={16}/><strong>{myAssignedRows.length}</strong><span>assigned</span></div></div>
+   <div className="table-wrap"><table><thead><tr><th>Applicant</th><th>Programme</th><th>Submitted</th><th>Status</th><th></th></tr></thead><tbody>
+    {loading?<tr><td colSpan={5}><div className="loading-card">Loading your assigned reviews…</div></td></tr>:pagedMyAssignedRows.length===0?<tr><td colSpan={5}><div className="table-empty">No applications are assigned to you right now.</div></td></tr>:pagedMyAssignedRows.map(r=><tr key={'mine-'+r.submissionId}><td><strong>{r.applicantName}</strong><span className="table-sub">{r.email||'No email'}</span></td><td>{r.programmeName}</td><td>{r.submittedAt?new Date(r.submittedAt).toLocaleDateString():'—'}</td><td><span className={'status '+statusClass(r.status)}>{statusLabel(r.status)}</span></td><td><button className="primary-button" onClick={()=>setReviewing({...r,eligibility:'pending',aiStatus:'pending',aiRecommendation:'Not screened'})}>Review <ArrowRight size={15}/></button></td></tr>)}
+   </tbody></table></div>
+   <TablePagination total={myAssignedRows.length} page={currentMyReviewsPage} pageSize={myReviewsPageSize} onPageChange={setMyReviewsPage} onPageSizeChange={size=>{setMyReviewsPageSize(size);setMyReviewsPage(1)}}/>
+  </div>}
   <div className="card table-card">
    <div className="card-header"><div><h2>{role==='reviewer'?'Assigned applications':'Assign applications'}</h2><p>{role==='reviewer'?'Only applications assigned to you are shown here.':'Select applications and assign them to a team member.'}</p></div><Users size={20}/></div>
    {role!=='reviewer'&&<div className="review-assignment-toolbar">
