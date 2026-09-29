@@ -4565,3 +4565,15 @@ html.dark-theme .table-pagination-summary select{background:#171b23;border-color
   .table-pagination-nav{justify-content:space-between}
   .table-pagination-nav>span{text-align:center;flex:1}
 }
+
+
+/* Personal review queue */
+.my-review-queue{margin-bottom:18px;overflow:hidden}
+.my-review-queue .card-header{background:linear-gradient(180deg,#fbfbff 0%,#fff 100%)}
+.my-review-count{display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid #e4e6f1;border-radius:10px;background:#fff;color:#655eea}
+.my-review-count strong{font-size:12px}
+.my-review-count span{font-size:9px;color:#7d8694}
+.my-review-queue .primary-button{min-height:31px;padding:0 10px;font-size:9px}
+html.dark-theme .my-review-queue .card-header{background:linear-gradient(180deg,#171a24 0%,#151922 100%)}
+html.dark-theme .my-review-count{background:#12161d;border-color:#343a47;color:#a9a4ff}
+html.dark-theme .my-review-count span{color:#919aa8}
