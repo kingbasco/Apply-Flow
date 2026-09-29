@@ -404,10 +404,10 @@ function PublicApplication({slug}:{slug:string}) {
     const today=new Date().toISOString().slice(0,10); if(s.start_date&&today<s.start_date)throw new Error(`Applications open on ${new Date(s.start_date+'T00:00:00').toLocaleDateString()}.`); if(a.deadline&&today>a.deadline)throw new Error('Applications for this programme are now closed.')
     const {data:v,error:ve}=await supabase.from('form_versions').select('id').eq('application_id',a.id).eq('status','published').order('version_number',{ascending:false}).limit(1).single(); if(ve)throw ve
     const {data:qs,error:qe}=await supabase.from('questions').select('id,type,label,description,required,placeholder,position,config,conditional_rules').eq('form_version_id',v.id).order('position'); if(qe)throw qe
-    const full=await Promise.all((qs||[]).map(async q=>{const {data:o,error:oe}=await supabase.from('question_options').select('id,label,value,position').eq('question_id',q.id).order('position');if(oe)throw oe;return {...q,options:o||[]}}))
+    const full=await Promise.all((qs||[]).map(async q=>{const {data:o,error:oe}=await supabase.from('question_options').select('id,label,value,position').eq('question_id',q.id).order('position');if(oe)throw oe;return {...q,conditional_rules:normalizeConditionalRules(q.conditional_rules),options:o||[]}}))
     setApp(a);setSettings(s);setQuestions(full as BuilderQuestion[])
   }catch(e){setError(friendlyErrorMessage(e,'This application is unavailable.'))}finally{setLoading(false)}})()},[slug])
-  const visible=(q:BuilderQuestion)=>{const r=q.conditional_rules?.[0];if(!r)return true;return answers[r.question_id]===r.value}
+  const visible=(q:BuilderQuestion)=>{const r=normalizeConditionalRules(q.conditional_rules)[0];if(!r)return true;return answers[r.question_id]===r.value}
   const stateQuestion=questions.find(q=>q.type==='nigeria_state')
   const selectedState=stateQuestion?String(answers[stateQuestion.id]||''):''
   useEffect(()=>{(async()=>{if(!selectedState){setLgaOptions([]);return}setLgaLoading(true);try{setLgaOptions(await getNigerianLgas(selectedState))}catch{setLgaOptions([])}finally{setLgaLoading(false)}})()},[selectedState])
@@ -1124,6 +1124,14 @@ type QuestionType='short_text'|'long_text'|'email'|'phone'|'number'|'date'|'drop
 type BuilderOption={id:string;label:string;value:string;position:number}
 type BuilderQuestion={id:string;type:QuestionType;label:string;description:string|null;required:boolean;placeholder:string|null;position:number;config:Record<string,unknown>;conditional_rules:ConditionRule[]|null;options:BuilderOption[]}
 type ConditionRule={question_id:string;operator:'equals'|'not_equals';value:string}
+function normalizeConditionalRules(value:unknown):ConditionRule[]{
+  if(!Array.isArray(value))return []
+  return value.filter((rule:any)=>rule&&typeof rule==='object'&&typeof rule.question_id==='string'&&typeof rule.value==='string').map((rule:any)=>({
+    question_id:rule.question_id,
+    operator:rule.operator==='not_equals'?'not_equals':'equals',
+    value:rule.value,
+  }))
+}
 const questionTypes:{type:QuestionType;label:string;icon:string}[]=[
  {type:'short_text',label:'Short text',icon:'Aa'},{type:'long_text',label:'Long text',icon:'¶'},{type:'email',label:'Email',icon:'@'},{type:'phone',label:'Phone',icon:'☎'},
  {type:'number',label:'Number',icon:'#'},{type:'date',label:'Date',icon:'◫'},{type:'dropdown',label:'Dropdown',icon:'⌄'},{type:'single_choice',label:'Single choice',icon:'○'},
@@ -1149,7 +1157,7 @@ function EligibilityBuilder({applicationId}:{applicationId:string}) {
       if(version){
         const {data:qs,error:qe}=await supabase.from('questions').select('id,type,label,description,required,placeholder,position,config,conditional_rules').eq('form_version_id',version.id).order('position')
         if(qe)throw qe
-        const full=await Promise.all((qs||[]).map(async q=>{const {data:o,error:oe}=await supabase.from('question_options').select('id,label,value,position').eq('question_id',q.id).order('position');if(oe)throw oe;return {...q,options:o||[]}}))
+        const full=await Promise.all((qs||[]).map(async q=>{const {data:o,error:oe}=await supabase.from('question_options').select('id,label,value,position').eq('question_id',q.id).order('position');if(oe)throw oe;return {...q,conditional_rules:normalizeConditionalRules(q.conditional_rules),options:o||[]}}))
         setQuestions(full as BuilderQuestion[])
       } else setQuestions([])
       const {data:rs,error:re}=await supabase.from('eligibility_rules').select('id,application_id,question_id,operator,value,logic,position,enabled').eq('application_id',applicationId).order('position')
@@ -1441,14 +1449,14 @@ function FormBuilder({applicationId}:{applicationId:string}) {
   const previewStateQuestion=questions.find(q=>q.type==='nigeria_state')
   const previewLgaQuestion=questions.find(q=>q.type==='nigeria_lga')
   const previewSelectedState=previewStateQuestion?previewAnswers[previewStateQuestion.id]||'':''
-  const previewVisible=(q:BuilderQuestion)=>{const r=q.conditional_rules?.[0];if(!r)return true;return previewAnswers[r.question_id]===r.value}
+  const previewVisible=(q:BuilderQuestion)=>{const r=normalizeConditionalRules(q.conditional_rules)[0];if(!r)return true;return previewAnswers[r.question_id]===r.value}
   useEffect(()=>{(async()=>{if(!preview||!previewSelectedState){setPreviewLgas([]);return}setPreviewLgaLoading(true);try{setPreviewLgas(await getNigerianLgas(previewSelectedState))}catch{setPreviewLgas([])}finally{setPreviewLgaLoading(false)}})()},[preview,previewSelectedState])
 
   async function loadQuestions(versionId:string){
     const {data:qs,error}=await supabase.from('questions').select('id,type,label,description,required,placeholder,position,config,conditional_rules').eq('form_version_id',versionId).order('position')
     if(error) throw error
     const rows=(qs||[]) as Omit<BuilderQuestion,'options'>[]
-    const full=await Promise.all(rows.map(async q=>{const {data:opts,error:o}=await supabase.from('question_options').select('id,label,value,position').eq('question_id',q.id).order('position'); if(o) throw o; return {...q,options:(opts||[]) as BuilderOption[]}}))
+    const full=await Promise.all(rows.map(async q=>{const {data:opts,error:o}=await supabase.from('question_options').select('id,label,value,position').eq('question_id',q.id).order('position'); if(o) throw o; return {...q,conditional_rules:normalizeConditionalRules(q.conditional_rules),options:(opts||[]) as BuilderOption[]}}))
     setQuestions(full); if(full[0]) setSelectedId(full[0].id)
   }
   useEffect(()=>{(async()=>{try{
@@ -1475,7 +1483,7 @@ function FormBuilder({applicationId}:{applicationId:string}) {
       for(const source of sourceQuestions||[]){
       const {data:cloned,error:cloneError}=await supabase.from('questions').insert({
         form_version_id:newVersion.id,type:source.type,label:source.label,description:source.description,required:source.required,
-        placeholder:source.placeholder,position:source.position,config:source.config,conditional_rules:source.conditional_rules
+        placeholder:source.placeholder,position:source.position,config:source.config,conditional_rules:normalizeConditionalRules(source.conditional_rules)
       }).select('id,type,label,description,required,placeholder,position,config,conditional_rules').single()
       if(cloneError)throw cloneError
       const {data:opts,error:optionsError}=await supabase.from('question_options').select('label,value,position').eq('question_id',source.id).order('position')
@@ -1484,7 +1492,7 @@ function FormBuilder({applicationId}:{applicationId:string}) {
       if(opts?.length){const {error}=await supabase.from('question_options').insert(opts.map(o=>({question_id:cloned.id,label:o.label,value:o.value,position:o.position})));if(error)throw error}
     }
     for(const source of sourceQuestions||[]){
-      const mappedRules=(source.conditional_rules||[]).map((r:any)=>({...r,question_id:questionMap.get(r.question_id)||r.question_id}))
+      const mappedRules=normalizeConditionalRules(source.conditional_rules).map((r:any)=>({...r,question_id:questionMap.get(r.question_id)||r.question_id}))
       const {error}=await supabase.from('questions').update({conditional_rules:mappedRules.length?mappedRules:null}).eq('id',questionMap.get(source.id)!)
       if(error)throw error
     }
@@ -1511,13 +1519,13 @@ function FormBuilder({applicationId}:{applicationId:string}) {
       const v=await ensureVersion()
       const {data,error}=await supabase.from('questions').insert({form_version_id:v,type,label:type==='nigeria_state'?'State of origin':questionTypes.find(x=>x.type===type)?.label||'Question',required:false,position:questions.length,config:{}}).select('id,type,label,description,required,placeholder,position,config,conditional_rules').single()
       if(error)throw error
-      let item={...(data as Omit<BuilderQuestion,'options'>),options:[]} as BuilderQuestion
+      let item={...(data as Omit<BuilderQuestion,'options'>),conditional_rules:normalizeConditionalRules((data as any).conditional_rules),options:[]} as BuilderQuestion
       if(type==='yes_no'){const {data:opts,error:o}=await supabase.from('question_options').insert([{question_id:item.id,label:'Yes',value:'yes',position:0},{question_id:item.id,label:'No',value:'no',position:1}]).select('id,label,value,position');if(o)throw o;item.options=(opts||[]) as BuilderOption[]}
       setQuestions(x=>[...x,item]);setSelectedId(item.id)
     }catch(e){showNotice(friendlyErrorMessage(e,'Could not add question.'))}finally{setBusy(false)}
   }
-  function conditionValue(q:BuilderQuestion){return q.conditional_rules?.[0]?.value||''}
-  function conditionQuestionId(q:BuilderQuestion){return q.conditional_rules?.[0]?.question_id||''}
+  function conditionValue(q:BuilderQuestion){return normalizeConditionalRules(q.conditional_rules)[0]?.value||''}
+  function conditionQuestionId(q:BuilderQuestion){return normalizeConditionalRules(q.conditional_rules)[0]?.question_id||''}
   function conditionOptions(questionId:string){return questions.find(q=>q.id===questionId)?.options||[]}
   async function updateCondition(questionId:string,value:string){
     if(!selected)return
@@ -1528,7 +1536,7 @@ function FormBuilder({applicationId}:{applicationId:string}) {
     if(!selected)return;setBusy(true)
     const clean:any={...patch,updated_at:new Date().toISOString()};delete clean.options
     const {data,error}=await supabase.from('questions').update(clean).eq('id',selected.id).select('id,type,label,description,required,placeholder,position,config,conditional_rules').single()
-    if(!error&&data)setQuestions(x=>x.map(q=>q.id===selected.id?{...q,...data,options:q.options}:q))
+    if(!error&&data)setQuestions(x=>x.map(q=>q.id===selected.id?{...q,...data,conditional_rules:normalizeConditionalRules((data as any).conditional_rules),options:q.options}:q))
     if(error)showNotice(error.message);setBusy(false)
   }
   async function addOption(){
@@ -1584,7 +1592,7 @@ function FormBuilder({applicationId}:{applicationId:string}) {
       for(const source of sourceQuestions||[]){
         const {data:cloned,error:cloneError}=await supabase.from('questions').insert({
           form_version_id:newVersion.id,type:source.type,label:source.label,description:source.description,required:source.required,
-          placeholder:source.placeholder,position:source.position,config:source.config,conditional_rules:source.conditional_rules
+          placeholder:source.placeholder,position:source.position,config:source.config,conditional_rules:normalizeConditionalRules(source.conditional_rules)
         }).select('id').single()
         if(cloneError)throw cloneError
         const {data:opts,error:optionsError}=await supabase.from('question_options').select('label,value,position').eq('question_id',source.id).order('position')
@@ -1593,7 +1601,7 @@ function FormBuilder({applicationId}:{applicationId:string}) {
         if(opts?.length){const {error}=await supabase.from('question_options').insert(opts.map(o=>({question_id:cloned.id,label:o.label,value:o.value,position:o.position})));if(error)throw error}
       }
       for(const source of sourceQuestions||[]){
-        const mappedRules=(source.conditional_rules||[]).map((r:any)=>({...r,question_id:questionMap.get(r.question_id)||r.question_id}))
+        const mappedRules=normalizeConditionalRules(source.conditional_rules).map((r:any)=>({...r,question_id:questionMap.get(r.question_id)||r.question_id}))
         const {error}=await supabase.from('questions').update({conditional_rules:mappedRules.length?mappedRules:null}).eq('id',questionMap.get(source.id)!)
         if(error)throw error
       }
