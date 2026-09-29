@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { ArrowRight, Users, Settings, FileText, ShieldCheck, ClipboardList, Save, Eye, Search, Plus, History, Lock, LockOpen, SlidersHorizontal, MoreHorizontal, Download, X, CheckCircle2, UserRoundPlus, UserCheck, Clock3, Link2, Copy, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
+import TablePagination from './TablePagination'
 
 function ActionFeedback({message,type='success',onDismiss}:{message:string;type?:'success'|'error';onDismiss?:()=>void}){useEffect(()=>{const timer=window.setTimeout(()=>onDismiss?.(),5000);return()=>window.clearTimeout(timer)},[message,onDismiss]);return createPortal(<div className={'action-feedback-toast '+(type==='error'?'is-error':'is-success')} role={type==='error'?'alert':'status'} aria-live="polite"><div className="action-feedback-icon">{type==='error'?<X size={18}/>:<CheckCircle2 size={18}/>}</div><div className="action-feedback-copy"><strong>{type==='error'?'Action failed':'Success'}</strong><span>{message}</span></div>{onDismiss&&<button type="button" className="action-feedback-close" aria-label="Dismiss notification" onClick={onDismiss}><X size={16}/></button>}<span className="action-feedback-timer" aria-hidden="true"/></div>,document.body)}
 
@@ -325,6 +326,8 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
  const [aiBulkRunning,setAiBulkRunning]=useState(false)
  const [decisionNotice,setDecisionNotice]=useState<ApplicationDecisionNotice|null>(null)
  const [selectedSubmissionIds,setSelectedSubmissionIds]=useState<string[]>([])
+ const [screeningPage,setScreeningPage]=useState(1)
+ const [screeningPageSize,setScreeningPageSize]=useState(50)
 
  async function load(){
   setLoading(true);setError('')
@@ -404,6 +407,11 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
    return matchesQuery&&matchesFilter
   })
  },[rows,query,filter])
+ const screeningPageCount=Math.max(1,Math.ceil(filtered.length/screeningPageSize))
+ const currentScreeningPage=Math.min(screeningPage,screeningPageCount)
+ const pagedScreeningRows=useMemo(()=>filtered.slice((currentScreeningPage-1)*screeningPageSize,currentScreeningPage*screeningPageSize),[filtered,currentScreeningPage,screeningPageSize])
+ useEffect(()=>{setScreeningPage(1)},[query,filter,selectedApplicationId])
+ useEffect(()=>{if(screeningPage>screeningPageCount)setScreeningPage(screeningPageCount)},[screeningPage,screeningPageCount])
 
  const exportApplicants=()=>{
   const application=applications.find(a=>a.id===selectedApplicationId)
@@ -427,8 +435,8 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
  }
 
  const toggleApplicant=(submissionId:string)=>setSelectedSubmissionIds(current=>current.includes(submissionId)?current.filter(id=>id!==submissionId):[...current,submissionId])
- const allFilteredSelected=filtered.length>0&&filtered.every(row=>selectedSubmissionIds.includes(row.submissionId))
- const toggleAllFiltered=()=>setSelectedSubmissionIds(current=>allFilteredSelected?current.filter(id=>!filtered.some(row=>row.submissionId===id)):Array.from(new Set([...current,...filtered.map(row=>row.submissionId)])))
+ const allFilteredSelected=pagedScreeningRows.length>0&&pagedScreeningRows.every(row=>selectedSubmissionIds.includes(row.submissionId))
+ const toggleAllFiltered=()=>setSelectedSubmissionIds(current=>allFilteredSelected?current.filter(id=>!pagedScreeningRows.some(row=>row.submissionId===id)):Array.from(new Set([...current,...pagedScreeningRows.map(row=>row.submissionId)])))
 
  const setDecision=async(row:ScreeningRow,decision:'approved'|'rejected')=>{
   setError('')
@@ -488,9 +496,9 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
      <div className="forms-search"><Search size={16}/><input aria-label="Search applicants" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search name, email or Participant ID…" /></div>
      <div className="forms-filters" role="group" aria-label="Filter applicants">{(['all','pending','approved','rejected','screened'] as const).map(f=><button key={f} className={filter===f?'filter-button active':'filter-button'} onClick={()=>setFilter(f)}>{f==='all'?'All':f==='pending'?'Pending':f==='approved'?'Approved':f==='rejected'?'Rejected':'AI screened'}<span>{f==='all'?counts.total:f==='pending'?counts.pending:f==='approved'?counts.approved:f==='rejected'?counts.rejected:counts.screened}</span></button>)}</div>
     </div>
-    <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label={allFilteredSelected?"Deselect all visible applicants":"Select all visible applicants"} checked={allFilteredSelected} onChange={toggleAllFiltered} disabled={!filtered.length}/></th><th>Applicant</th><th>Participant ID</th><th>Eligibility</th><th>AI</th><th>Status</th><th></th></tr></thead><tbody>
+    <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label={allFilteredSelected?"Deselect all applicants on this page":"Select all applicants on this page"} checked={allFilteredSelected} onChange={toggleAllFiltered} disabled={!pagedScreeningRows.length}/></th><th>Applicant</th><th>Participant ID</th><th>Eligibility</th><th>AI</th><th>Status</th><th></th></tr></thead><tbody>
      {loading?<tr><td colSpan={7}><div className="loading-card">Loading applicants…</div></td></tr>:!filtered.length?<tr><td colSpan={8}><div className="table-empty"><h3>{rows.length?'No applicants match your filters':'No submitted applications yet'}</h3><p>{rows.length?'Try another filter or search.':'Applications will appear here after applicants submit a form.'}</p></div></td></tr>:
-     filtered.map(row=><tr key={row.submissionId}>
+     pagedScreeningRows.map(row=><tr key={row.submissionId}>
       <td><input type="checkbox" aria-label={`Select ${row.applicantName}`} checked={selectedSubmissionIds.includes(row.submissionId)} onChange={()=>toggleApplicant(row.submissionId)}/></td>
       <td><strong>{row.applicantName}</strong><span className="table-sub">{row.email||'No email'}</span></td>
       <td><strong>{row.participantId}</strong></td>
@@ -786,6 +794,8 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
 }
 export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{applications:Application[];organizationId:string;onOpen:(a:Application)=>void;role?:Profile['role']}){
  const [rows,setRows]=useState<any[]>([]),[reviewers,setReviewers]=useState<Profile[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[status,setStatus]=useState('all'),[selectedIds,setSelectedIds]=useState<string[]>([]),[assignmentReviewer,setAssignmentReviewer]=useState(''),[assigning,setAssigning]=useState(false),[assignmentNotice,setAssignmentNotice]=useState(''),[reviewing,setReviewing]=useState<any|null>(null),[decisionNotice,setDecisionNotice]=useState<ApplicationDecisionNotice|null>(null);
+ const [reviewsPage,setReviewsPage]=useState(1)
+ const [reviewsPageSize,setReviewsPageSize]=useState(50)
 
  async function load(){
   setLoading(true);setError('');
@@ -833,6 +843,11 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
  useEffect(()=>{load()},[applications.map(a=>a.id).join(','),role])
 
  const filtered=useMemo(()=>rows.filter(r=>(status==='all'||r.status===status)&&(!query||r.applicantName.toLowerCase().includes(query.toLowerCase())||r.email?.toLowerCase().includes(query.toLowerCase())||r.programmeName.toLowerCase().includes(query.toLowerCase()))),[rows,status,query])
+ const reviewsPageCount=Math.max(1,Math.ceil(filtered.length/reviewsPageSize))
+ const currentReviewsPage=Math.min(reviewsPage,reviewsPageCount)
+ const pagedReviewRows=useMemo(()=>filtered.slice((currentReviewsPage-1)*reviewsPageSize,currentReviewsPage*reviewsPageSize),[filtered,currentReviewsPage,reviewsPageSize])
+ useEffect(()=>{setReviewsPage(1)},[query,status])
+ useEffect(()=>{if(reviewsPage>reviewsPageCount)setReviewsPage(reviewsPageCount)},[reviewsPage,reviewsPageCount])
  const statusLabel=(value:string)=>({unassigned:'Unassigned',assigned:'Assigned',in_progress:'In review',reviewed:'Reviewed',approved:'Approved',rejected:'Rejected'}[value]||value)
  const statusClass=(value:string)=>value==='approved'||value==='reviewed'?'green':value==='rejected'?'red':value==='in_progress'?'amber':value==='assigned'?'blue':'neutral'
  const setReviewDecision=async(row:any,decision:'approved'|'rejected')=>{
@@ -844,9 +859,12 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
    setDecisionNotice({decision,applicantName:row.applicantName,participantId:row.participantId});
   }catch(e:any){setError(e.message||'Could not save the application decision.')}
  }
- const allFilteredSelected=filtered.length>0&&filtered.every(r=>selectedIds.includes(r.submissionId))
+ const allFilteredSelected=pagedReviewRows.length>0&&pagedReviewRows.every(r=>selectedIds.includes(r.submissionId))
  const toggleSelected=(id:string)=>setSelectedIds(current=>current.includes(id)?current.filter(x=>x!==id):[...current,id])
- const toggleAll=()=>setSelectedIds(allFilteredSelected?[]:filtered.map(r=>r.submissionId))
+ const toggleAll=()=>{
+  const pageIds=pagedReviewRows.map(r=>r.submissionId)
+  setSelectedIds(current=>allFilteredSelected?current.filter(id=>!pageIds.includes(id)):Array.from(new Set([...current,...pageIds])))
+ }
  const assignSelected=async()=>{
   if(!assignmentReviewer||!selectedIds.length)return;
   setAssigning(true);setAssignmentNotice('');setError('');
@@ -879,8 +897,8 @@ export function ReviewsWorkspace({applications,organizationId,onOpen,role}:{appl
     <div className="forms-search"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applicant, programme or email…"/></div>
     <label className="review-status-filter"><span>Status</span><div className="review-select-wrap"><span className="status-dot"/><select aria-label="Filter reviews by status" value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses</option><option value="unassigned">Unassigned</option><option value="assigned">Assigned</option><option value="in_progress">In review</option><option value="reviewed">Reviewed</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select><ArrowRight size={14} className="review-select-chevron"/></div></label>
    </div>
-   <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label="Select all visible applicants" checked={allFilteredSelected} onChange={toggleAll}/></th><th>Applicant</th><th>Programme</th><th>Assigned to</th><th>Status</th><th></th></tr></thead><tbody>
-    {loading?<tr><td colSpan={6}><div className="loading-card">Loading reviews…</div></td></tr>:filtered.length===0?<tr><td colSpan={6}><div className="table-empty">No applications match your filters.</div></td></tr>:filtered.map(r=><tr key={r.submissionId}><td><input type="checkbox" aria-label={'Select '+r.applicantName} checked={selectedIds.includes(r.submissionId)} onChange={()=>toggleSelected(r.submissionId)}/></td><td><strong>{r.applicantName}</strong><span className="table-sub">{r.email||'No email'}</span></td><td>{r.programmeName}</td><td>{r.reviewers.length?r.reviewers.map((x:any)=>x.full_name||'Unnamed').join(', '):<span className="muted">Unassigned</span>}</td><td><span className={'status '+statusClass(r.status)}>{statusLabel(r.status)}</span></td><td><button className="text-button" onClick={()=>setReviewing({...r,eligibility:'pending',aiStatus:'pending',aiRecommendation:'Not screened'})}>Review</button></td></tr>)}
+   <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label="Select all applicants on this page" checked={allFilteredSelected} onChange={toggleAll} disabled={!pagedReviewRows.length}/></th><th>Applicant</th><th>Programme</th><th>Assigned to</th><th>Status</th><th></th></tr></thead><tbody>
+    {loading?<tr><td colSpan={6}><div className="loading-card">Loading reviews…</div></td></tr>:filtered.length===0?<tr><td colSpan={6}><div className="table-empty">No applications match your filters.</div></td></tr>:pagedReviewRows.map(r=><tr key={r.submissionId}><td><input type="checkbox" aria-label={'Select '+r.applicantName} checked={selectedIds.includes(r.submissionId)} onChange={()=>toggleSelected(r.submissionId)}/></td><td><strong>{r.applicantName}</strong><span className="table-sub">{r.email||'No email'}</span></td><td>{r.programmeName}</td><td>{r.reviewers.length?r.reviewers.map((x:any)=>x.full_name||'Unnamed').join(', '):<span className="muted">Unassigned</span>}</td><td><span className={'status '+statusClass(r.status)}>{statusLabel(r.status)}</span></td><td><button className="text-button" onClick={()=>setReviewing({...r,eligibility:'pending',aiStatus:'pending',aiRecommendation:'Not screened'})}>Review</button></td></tr>)}
    </tbody></table></div>
   </div>
   {reviewing&&<ScreeningReviewModal row={reviewing} role={role} onClose={()=>setReviewing(null)} onDecision={setReviewDecision}/>}
