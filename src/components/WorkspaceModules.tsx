@@ -156,7 +156,7 @@ export function FormsWorkspace({applications,onOpen,onCreate}:{applications:Appl
     <div className="forms-filters" role="group" aria-label="Filter forms by status">{(['all','draft','published','closed','none'] as const).map(f=><button key={f} className={filter===f?'filter-button active':'filter-button'} onClick={()=>setFilter(f)}>{f==='all'?'All':f==='none'?'Not started':f[0].toUpperCase()+f.slice(1)}<span>{f==='all'?summaries.length:f==='draft'?counts.draft:f==='published'?counts.published:f==='closed'?counts.closed:summaries.filter(s=>formWorkspaceStatus(s)==='none').length}</span></button>)}</div>
    </div>
    <div className="table-wrap"><table><thead><tr><th>Form</th><th>Form status</th><th>Version</th><th>Questions</th><th>Submissions</th><th>Deadline</th><th></th></tr></thead><tbody>
-    {loading?<tr><td colSpan={7}><div className="loading-card">Loading forms…</div></td></tr>:!filtered.length?<tr><td colSpan={8}><div className="table-empty"><div className="empty-icon"><FileText size={20}/></div><h3>{summaries.length?'No forms match your filters':'No forms yet'}</h3><p>{summaries.length?'Try another search or filter.':'Create your first form to start collecting applications.'}</p>{!summaries.length&&onCreate&&<button className="primary-button" onClick={onCreate}><Plus size={15}/> Create form</button>}</div></td></tr>:
+    {loading?<tr><td colSpan={7}><div className="loading-card">Loading forms…</div></td></tr>:!filtered.length?<tr><td colSpan={7}><div className="table-empty"><div className="empty-icon"><FileText size={20}/></div><h3>{summaries.length?'No forms match your filters':'No forms yet'}</h3><p>{summaries.length?'Try another search or filter.':'Create your first form to start collecting applications.'}</p>{!summaries.length&&onCreate&&<button className="primary-button" onClick={onCreate}><Plus size={15}/> Create form</button>}</div></td></tr>:
     filtered.map(s=>{const status=formWorkspaceStatus(s);const busy=busyId===s.application.id;return <tr key={s.application.id}>
       <td><strong>{s.application.name}</strong><span className="table-sub">{s.application.description||'No description yet.'}</span></td>
       <td><span className={'status '+(status==='published'?'blue':status==='closed'?'neutral':status==='draft'?'amber':'neutral')}>{status==='none'?'Not started':status}</span></td>
@@ -282,7 +282,6 @@ export interface ScreeningRow {
  email:string|null
  submittedAt:string|null
  eligibility:'eligible'|'ineligible'|'pending'
- score:number|null
  aiStatus:string
  aiRecommendation:string
  decision:ScreeningDecision
@@ -344,7 +343,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
    let visibleSubs=subs||[]
    let assignmentRows:any[]=[]
    if(reviewerId){
-    const {data:assignments,error:assignmentError}=await supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,notes,decision').in('submission_id',(subs||[]).map(s=>s.id)).eq('reviewer_id',reviewerId)
+    const {data:assignments,error:assignmentError}=await supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,notes,decision').in('submission_id',(subs||[]).map(s=>s.id)).eq('reviewer_id',reviewerId)
     if(assignmentError)throw assignmentError
     assignmentRows=assignments||[]
     const assignedIds=new Set(assignmentRows.map(x=>x.submission_id))
@@ -352,25 +351,21 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
    }
    const submissionIds=visibleSubs.map(s=>s.id)
    if(!submissionIds.length){setRows([]);return}
-   const [eligResult,scoreResult,aiResult,applicantResult]=await Promise.all([
+   const [eligResult,aiResult,applicantResult]=await Promise.all([
     supabase.from('submission_eligibility').select('submission_id,status').in('submission_id',submissionIds),
-    supabase.from('submission_scores').select('submission_id,overall_score').in('submission_id',submissionIds),
     supabase.from('ai_screenings').select('submission_id,status,overall_assessment').in('submission_id',submissionIds),
     supabase.from('applicants').select('id,full_name,email,participant_id').in('id',visibleSubs.map(s=>s.applicant_id))
    ])
    if(eligResult.error)throw eligResult.error
-   if(scoreResult.error)throw scoreResult.error
    if(aiResult.error)throw aiResult.error
    if(applicantResult.error)throw applicantResult.error
    const eligMap=new Map((eligResult.data||[]).map(e=>[e.submission_id,e]))
-   const scoreMap=new Map((scoreResult.data||[]).map(s=>[s.submission_id,s]))
    const aiMap=new Map((aiResult.data||[]).map(a=>[a.submission_id,a]))
    const applicantMap=new Map((applicantResult.data||[]).map(a=>[a.id,a]))
    const assignmentMap=new Map(assignmentRows.map(a=>[a.submission_id,a]))
    setRows(visibleSubs.map(s=>{
     const applicant=applicantMap.get(s.applicant_id)
     const ai=aiMap.get(s.id)
-    const score=scoreMap.get(s.id)
     const eligibility=eligMap.get(s.id)
     return {
      submissionId:s.id,
@@ -381,7 +376,6 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
      email:applicant?.email||null,
      submittedAt:s.submitted_at||null,
      eligibility:eligibility?.status==='eligible'?'eligible':eligibility?.status==='ineligible'?'ineligible':'pending',
-     score:role==='reviewer' ? (assignmentMap.get(s.id)?.score==null?null:Number(assignmentMap.get(s.id).score)) : (score?.overall_score==null?null:Number(score.overall_score)),
      aiStatus:ai?.status||'pending',
      aiRecommendation:screeningRecommendation(ai),
      decision:s.decision==='approved'||s.decision==='rejected'?s.decision:'pending'
@@ -497,12 +491,12 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
      <div className="forms-search"><Search size={16}/><input aria-label="Search applicants" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search name, email or Participant ID…" /></div>
      <div className="forms-filters" role="group" aria-label="Filter applicants">{(['all','pending','approved','rejected','recommended'] as const).map(f=><button key={f} className={filter===f?'filter-button active':'filter-button'} onClick={()=>setFilter(f)}>{f==='all'?'All':f==='pending'?'Pending':f==='approved'?'Approved':f==='rejected'?'Rejected':'AI recommended'}<span>{f==='all'?counts.total:f==='pending'?counts.pending:f==='approved'?counts.approved:f==='rejected'?counts.rejected:counts.recommended}</span></button>)}</div>
     </div>
-    <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label={allFilteredSelected?"Deselect all visible applicants":"Select all visible applicants"} checked={allFilteredSelected} onChange={toggleAllFiltered} disabled={!filtered.length}/></th><th>Applicant</th><th>Participant ID</th><th>Score</th><th>Eligibility</th><th>AI</th><th>Status</th><th></th></tr></thead><tbody>
-     {loading?<tr><td colSpan={8}><div className="loading-card">Loading applicants…</div></td></tr>:!filtered.length?<tr><td colSpan={8}><div className="table-empty"><h3>{rows.length?'No applicants match your filters':'No submitted applications yet'}</h3><p>{rows.length?'Try another filter or search.':'Applications will appear here after applicants submit a form.'}</p></div></td></tr>:
+    <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label={allFilteredSelected?"Deselect all visible applicants":"Select all visible applicants"} checked={allFilteredSelected} onChange={toggleAllFiltered} disabled={!filtered.length}/></th><th>Applicant</th><th>Participant ID</th><th>Eligibility</th><th>AI</th><th>Status</th><th></th></tr></thead><tbody>
+     {loading?<tr><td colSpan={7}><div className="loading-card">Loading applicants…</div></td></tr>:!filtered.length?<tr><td colSpan={8}><div className="table-empty"><h3>{rows.length?'No applicants match your filters':'No submitted applications yet'}</h3><p>{rows.length?'Try another filter or search.':'Applications will appear here after applicants submit a form.'}</p></div></td></tr>:
      filtered.map(row=><tr key={row.submissionId}>
       <td><input type="checkbox" aria-label={`Select ${row.applicantName}`} checked={selectedSubmissionIds.includes(row.submissionId)} onChange={()=>toggleApplicant(row.submissionId)}/></td>
       <td><strong>{row.applicantName}</strong><span className="table-sub">{row.email||'No email'}</span></td>
-      <td><strong>{row.participantId}</strong></td><td>{row.score==null?'—':row.score.toFixed(1)}</td>
+      <td><strong>{row.participantId}</strong></td>
       <td><span className={'status '+(row.eligibility==='eligible'?'blue':row.eligibility==='ineligible'?'neutral':'amber')}>{row.eligibility}</span></td>
       <td><span className={'status '+(row.aiRecommendation==='Recommended'?'blue':row.aiRecommendation==='Not recommended'?'neutral':'amber')}>{row.aiRecommendation}</span></td>
       <td><span className={'status '+(row.decision==='approved'?'blue':row.decision==='rejected'?'neutral':'amber')}>{row.decision}</span></td>
