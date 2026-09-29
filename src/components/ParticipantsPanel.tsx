@@ -584,11 +584,21 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     if(!selectedAssignment||!window.confirm('Delete "'+selectedAssignment.title+'"? This permanently removes its questions, submissions, grades and uploaded files.'))return
     setSaving(true);setError('');setNotice('')
     try{
-      const submissionIds=assignmentSubmissions.map(s=>s.id);const docsResult=submissionIds.length?await supabase.from('assignment_documents').select('storage_bucket,storage_path').in('submission_id',submissionIds):{data:[],error:null};const {data:docs,error:docsError}=docsResult
-      if(docsError)throw docsError
+      const {data:storageRows,error:storageListError}=await supabase.rpc('list_assignment_storage_paths',{p_assignment_id:selectedAssignment.id})
+      if(storageListError)throw storageListError
       const byBucket=new Map<string,string[]>()
-      for(const doc of docs||[])byBucket.set(doc.storage_bucket,[...(byBucket.get(doc.storage_bucket)||[]),doc.storage_path])
-      for(const [bucket,paths] of byBucket){if(paths.length){const {error}=await supabase.storage.from(bucket).remove(paths);if(error)throw error}}
+      for(const row of storageRows||[]){
+        const bucket=String(row.storage_bucket||'')
+        const path=String(row.storage_path||'')
+        if(!bucket||!path)continue
+        byBucket.set(bucket,[...(byBucket.get(bucket)||[]),path])
+      }
+      for(const [bucket,paths] of byBucket){
+        for(let i=0;i<paths.length;i+=100){
+          const {error:removeError}=await supabase.storage.from(bucket).remove(paths.slice(i,i+100))
+          if(removeError)throw new Error('Private file cleanup failed. Assignment data was not deleted. '+removeError.message)
+        }
+      }
       const {error}=await supabase.from('assignments').delete().eq('id',selectedAssignment.id)
       if(error)throw error
       setAssignments(x=>x.filter(a=>a.id!==selectedAssignment.id));setSelectedAssignment(null);setAssignmentSubmissions([]);setLeaderboard([]);setNotice('Assignment deleted.')

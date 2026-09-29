@@ -917,6 +917,21 @@ function App() {
     if(!canManageProgrammes||deletingApplicationId)return
     setDeletingApplicationId(application.id)
     try{
+      const {data:storageRows,error:storageListError}=await supabase.rpc('list_programme_storage_paths',{p_application_id:application.id})
+      if(storageListError)throw storageListError
+      const byBucket=new Map<string,string[]>()
+      for(const row of storageRows||[]){
+        const bucket=String(row.storage_bucket||'')
+        const path=String(row.storage_path||'')
+        if(!bucket||!path)continue
+        byBucket.set(bucket,[...(byBucket.get(bucket)||[]),path])
+      }
+      for(const [bucket,paths] of byBucket){
+        for(let i=0;i<paths.length;i+=100){
+          const {error:removeError}=await supabase.storage.from(bucket).remove(paths.slice(i,i+100))
+          if(removeError)throw new Error('Private file cleanup failed. Programme data was not deleted. '+removeError.message)
+        }
+      }
       const {error}=await supabase.rpc('delete_application',{p_application_id:application.id})
       if(error)throw error
       setApplications(current=>current.filter(item=>item.id!==application.id))
