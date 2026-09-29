@@ -206,7 +206,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     return '"'+text.replace(/"/g,'""')+'"'
   }
 
-  function answerText(value:unknown){
+  function answerText(value:unknown):string{
     if(value===null||value===undefined)return ''
     if(Array.isArray(value))return value.map(answerText).filter(Boolean).join(', ')
     if(typeof value==='object'){
