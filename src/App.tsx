@@ -1307,7 +1307,7 @@ function ScreeningPanel({applicationId}:{applicationId:string}){
    setRows((subs||[]).map(s=>{
     const p=pm.get(s.applicant_id),a=am.get(s.id),e=em.get(s.id)
     const assessment=String(a?.overall_assessment||'').toLowerCase()
-    const recommendation=assessment.includes('not recommended')||assessment.includes('poor match')?'Not recommended':assessment.includes('strong match')||assessment.includes('recommended')?'Recommended':a?.status==='completed'?'Reviewed':a?.status==='failed'?'Failed':'Not screened'
+    const recommendation=a?.status==='completed'?'Screened':a?.status==='failed'?'Failed':'Not screened'
     return {submissionId:s.id,applicationId:s.application_id,participantId:p?.participant_id||'—',applicantName:p?.full_name||'Unnamed applicant',email:p?.email||null,submittedAt:s.submitted_at||null,eligibility:e?.status==='eligible'?'eligible':e?.status==='ineligible'?'ineligible':'pending',aiStatus:a?.status||'pending',aiRecommendation:recommendation,decision:s.decision==='approved'||s.decision==='rejected'?s.decision:'pending'}
    }))
   }catch(e){setNotice(friendlyErrorMessage(e,'Could not load screening data.'))}finally{setLoading(false)}
