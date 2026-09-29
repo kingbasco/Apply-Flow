@@ -484,7 +484,7 @@ function LandingPage() {
   const stages=[
     {icon:FileText,number:'01',title:'Intake',text:'Build forms that collect exactly what your programme needs.',detail:'Conditional questions · uploads · versioned forms'},
     {icon:ShieldCheck,number:'02',title:'Eligibility',text:'Turn programme requirements into clear, repeatable rules.',detail:'Rules · evidence · automatic eligibility status'},
-    {icon:Brain,number:'03',title:'Screening',text:'Use AI to surface evidence while your team stays in control.',detail:'AI assessment · reviewer score · audit trail'},
+    {icon:Brain,number:'03',title:'Screening',text:'Use AI to surface evidence while your team stays in control.',detail:'AI assessment · final decision · audit trail'},
     {icon:BadgeCheck,number:'04',title:'Participants',text:'Approve applicants and move them into one participant lifecycle.',detail:'Participant ID · active · completed · withdrawn'},
   ]
   const capabilities=[
@@ -520,7 +520,7 @@ function LandingPage() {
                 <div className="afx-dash-head"><div><small>PROGRAMME OVERVIEW</small><h3>Women Artisans · Cohort 3</h3></div><span><i></i> Screening</span></div>
                 <div className="afx-dash-kpis"><div><small>Applications</small><strong>450</strong><span>+18 this week</span></div><div><small>Eligible</small><strong>382</strong><span>84.9% of total</span></div><div><small>Participants</small><strong>146</strong><span>32.4% of total</span></div></div>
                 <div className="afx-dash-main"><div className="afx-mini-chart"><div><span>Application flow</span><small>Last 30 days</small></div><div className="afx-chart">{[34,46,40,58,51,73,86,68,94,78,88,96].map((height,index)=><i key={index} style={{height:height+'%'}}></i>)}</div></div><div className="afx-pipeline"><small>LIVE PIPELINE</small><div><span>Submitted</span><b>450</b></div><div><span>Eligible</span><b>382</b></div><div><span>Approved</span><b>146</b></div></div></div>
-                <div className="afx-dash-table"><div><span>Applicant</span><span>Score</span><span>Decision</span></div><div><strong>Amina Yusuf</strong><b>87.5</b><em>Approved</em></div><div><strong>Grace Okafor</strong><b>82.0</b><em>Review</em></div></div>
+                <div className="afx-dash-table"><div><span>Applicant</span><span>Eligibility</span><span>Decision</span></div><div><strong>Amina Yusuf</strong><b>Eligible</b><em>Approved</em></div><div><strong>Grace Okafor</strong><b>Pending</b><em>Review</em></div></div>
               </div>
             </div>
             <div className="afx-floating-card"><span><Check size={15}/></span><div><strong>Eligibility evaluated</strong><small>382 applications passed</small></div></div>
@@ -1227,7 +1227,7 @@ function EligibilityBuilder({applicationId}:{applicationId:string}) {
   </div>
 }
 
-type ReviewRow={id:string;submission_id:string;reviewer_id:string;status:'assigned'|'in_progress'|'completed';score:number|null;notes:string|null;created_at:string;updated_at:string}
+type ReviewRow={id:string;submission_id:string;reviewer_id:string;status:'assigned'|'in_progress'|'completed';notes:string|null;created_at:string;updated_at:string}
 
 function ReviewsPanel({applicationId}:{applicationId:string}){
  const [reviews,setReviews]=useState<ReviewRow[]>([]),[submissions,setSubmissions]=useState<any[]>([]),[reviewers,setReviewers]=useState<Profile[]>([])
@@ -1240,7 +1240,7 @@ function ReviewsPanel({applicationId}:{applicationId:string}){
    const {data:me}=await supabase.from('profiles').select('role').eq('id',user.user.id).single()
    if(me?.role)setRole(me.role as Profile['role'])
   }
-  const {data,error}=await supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,score,notes,created_at,updated_at').order('created_at',{ascending:false})
+  const {data,error}=await supabase.from('review_assignments').select('id,submission_id,reviewer_id,status,notes,created_at,updated_at').order('created_at',{ascending:false})
   if(error)setNotice(error.message);else setReviews((data||[]) as ReviewRow[])
   const {data:s,error:se}=await supabase.from('submissions').select('id,submitted_at,applicants!inner(full_name,email)').eq('application_id',applicationId).order('submitted_at',{ascending:false})
   if(se)setNotice(se.message);else setSubmissions(s||[])
@@ -1261,15 +1261,14 @@ function ReviewsPanel({applicationId}:{applicationId:string}){
   const current=reviews.find(r=>r.id===id)
   if(!current)return
   const status=(patch.status||current.status) as ReviewRow['status']
-  const score=patch.score===undefined?current.score:patch.score
   const notes=patch.notes===undefined?current.notes:patch.notes
-  const {data,error}=await supabase.rpc('update_review_assignment',{p_assignment_id:id,p_status:status,p_score:score,p_notes:notes})
+  const {data,error}=await supabase.rpc('update_review_assignment',{p_assignment_id:id,p_status:status,p_score:null,p_notes:notes})
   if(error)setNotice(error.message);else setReviews(x=>x.map(r=>r.id===id?data as ReviewRow:r))
  }
 
  async function openHistory(review:ReviewRow){
   setHistoryReview(review)
-  const {data,error}=await supabase.from('review_audit_logs').select('id,action,from_status,to_status,previous_score,new_score,actor_id,metadata,created_at').eq('review_assignment_id',review.id).order('created_at',{ascending:false})
+  const {data,error}=await supabase.from('review_audit_logs').select('id,action,from_status,to_status,actor_id,metadata,created_at').eq('review_assignment_id',review.id).order('created_at',{ascending:false})
   if(error)setNotice(error.message);else setHistory(data||[])
  }
 
@@ -1277,8 +1276,8 @@ function ReviewsPanel({applicationId}:{applicationId:string}){
  return <div className="reviews-panel">
   <div className="builder-top"><div><p className="eyebrow">Reviews</p><h2>{isAdmin?'Reviewer assignments':'My review queue'}</h2><p>{isAdmin?'Assign applications to reviewers and track their review progress.':'Review the applications assigned to you. Your updates are recorded in the review history.'}</p></div>{notice&&<span className="builder-notice">{notice}</span>}</div>
   {isAdmin&&<div className="card review-assign-card"><div><p className="eyebrow">Assign a review</p><h3>Send an application to a reviewer</h3></div><div className="review-assign-grid"><select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Select application…</option>{submissions.map(s=><option key={s.id} value={s.id}>{s.applicants?.full_name||s.applicants?.email||'Unnamed applicant'}</option>)}</select><select value={reviewer} onChange={e=>setReviewer(e.target.value)}><option value="">Select reviewer…</option>{reviewers.map(p=><option key={p.id} value={p.id}>{p.full_name||'Reviewer'}</option>)}</select><button className="primary-button" disabled={busy||!selected||!reviewer} onClick={assign}><Plus size={14}/> Assign</button></div></div>}
-  {!reviews.length?<div className="card builder-empty"><ClipboardList size={24}/><h3>{isAdmin?'No review assignments yet':'No reviews assigned to you'}</h3><p>{isAdmin?'Once applications are submitted, assign them to members of your review team.':'When an admin assigns an application to you, it will appear here.'}</p></div>:<div className="card reviews-table"><div className="review-table-head"><span>Applicant</span><span>Reviewer</span><span>Status</span><span>Score</span><span>Notes</span></div>{reviews.map(r=>{const s=submissions.find(x=>x.id===r.submission_id),p=reviewers.find(x=>x.id===r.reviewer_id);return <div className="review-table-row" key={r.id}><span><strong>{s?.applicants?.full_name||'Unnamed'}</strong><small>{s?.applicants?.email||''}</small></span><span>{p?.full_name||'Reviewer'}</span><select value={r.status} onChange={e=>updateReview(r.id,{status:e.target.value as ReviewRow['status']})}><option value="assigned">Assigned</option><option value="in_progress">In progress</option><option value="completed">Completed</option></select><input className="review-score-input" type="number" min="0" step="0.1" value={r.score??''} placeholder="—" onChange={e=>updateReview(r.id,{score:e.target.value===''?null:Number(e.target.value)})}/><div className="review-notes-cell"><input value={r.notes||''} placeholder="Reviewer notes" onChange={e=>updateReview(r.id,{notes:e.target.value||null})}/><button className="text-button" onClick={()=>openHistory(r)}>History</button></div></div>})}</div>}
-  {historyReview&&<div className="screening-drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setHistoryReview(null)}}><aside className="screening-drawer card"><div className="preview-header"><div><p className="eyebrow">Review history</p><h2>{submissions.find(x=>x.id===historyReview.submission_id)?.applicants?.full_name||'Applicant'}</h2><p>{reviewers.find(x=>x.id===historyReview.reviewer_id)?.full_name||'Reviewer'}</p></div><button className="icon-button" onClick={()=>setHistoryReview(null)}><X size={18}/></button></div>{!history.length?<div className="builder-empty"><ClipboardList size={22}/><h3>No history yet</h3><p>Changes to this review will appear here.</p></div>:<div className="screening-detail">{history.map((item:any)=><div className="connection-list" key={item.id}><div><span>Action</span><strong>{item.action}</strong></div><div><span>Status</span><strong>{item.from_status||'—'} → {item.to_status||'—'}</strong></div><div><span>Score</span><strong>{item.previous_score??'—'} → {item.new_score??'—'}</strong></div><div><span>Time</span><strong>{formatDate(item.created_at)}</strong></div></div>)}</div>}</aside></div>}
+  {!reviews.length?<div className="card builder-empty"><ClipboardList size={24}/><h3>{isAdmin?'No review assignments yet':'No reviews assigned to you'}</h3><p>{isAdmin?'Once applications are submitted, assign them to members of your review team.':'When an admin assigns an application to you, it will appear here.'}</p></div>:<div className="card reviews-table"><div className="review-table-head"><span>Applicant</span><span>Reviewer</span><span>Status</span><span>Notes</span></div>{reviews.map(r=>{const s=submissions.find(x=>x.id===r.submission_id),p=reviewers.find(x=>x.id===r.reviewer_id);return <div className="review-table-row" key={r.id}><span><strong>{s?.applicants?.full_name||'Unnamed'}</strong><small>{s?.applicants?.email||''}</small></span><span>{p?.full_name||'Reviewer'}</span><select value={r.status} onChange={e=>updateReview(r.id,{status:e.target.value as ReviewRow['status']})}><option value="assigned">Assigned</option><option value="in_progress">In progress</option><option value="completed">Completed</option></select><div className="review-notes-cell"><input value={r.notes||''} placeholder="Reviewer notes" onChange={e=>updateReview(r.id,{notes:e.target.value||null})}/><button className="text-button" onClick={()=>openHistory(r)}>History</button></div></div>})}</div>}
+  {historyReview&&<div className="screening-drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setHistoryReview(null)}}><aside className="screening-drawer card"><div className="preview-header"><div><p className="eyebrow">Review history</p><h2>{submissions.find(x=>x.id===historyReview.submission_id)?.applicants?.full_name||'Applicant'}</h2><p>{reviewers.find(x=>x.id===historyReview.reviewer_id)?.full_name||'Reviewer'}</p></div><button className="icon-button" onClick={()=>setHistoryReview(null)}><X size={18}/></button></div>{!history.length?<div className="builder-empty"><ClipboardList size={22}/><h3>No history yet</h3><p>Changes to this review will appear here.</p></div>:<div className="screening-detail">{history.map((item:any)=><div className="connection-list" key={item.id}><div><span>Action</span><strong>{item.action}</strong></div><div><span>Status</span><strong>{item.from_status||'—'} → {item.to_status||'—'}</strong></div><div><span>Time</span><strong>{formatDate(item.created_at)}</strong></div></div>)}</div>}</aside></div>}
  </div>
 }
 function ScreeningPanel({applicationId}:{applicationId:string}){
@@ -1295,22 +1294,20 @@ function ScreeningPanel({applicationId}:{applicationId:string}){
    if(se)throw se
    const submissionIds=(subs||[]).map(s=>s.id)
    if(!submissionIds.length){setRows([]);return}
-   const [{data:elig,error:ee},{data:scores,error:sce},{data:ai,error:ae},{data:applicants,error:ape}]=await Promise.all([
+   const [{data:elig,error:ee},{data:ai,error:ae},{data:applicants,error:ape}]=await Promise.all([
     supabase.from('submission_eligibility').select('submission_id,status').in('submission_id',submissionIds),
-    supabase.from('submission_scores').select('submission_id,overall_score').in('submission_id',submissionIds),
     supabase.from('ai_screenings').select('submission_id,status,overall_assessment').in('submission_id',submissionIds),
     supabase.from('applicants').select('id,full_name,email,participant_id').in('id',(subs||[]).map(s=>s.applicant_id).filter(Boolean))
    ])
-   if(ee)throw ee;if(sce)throw sce;if(ae)throw ae;if(ape)throw ape
+   if(ee)throw ee;if(ae)throw ae;if(ape)throw ape
    const em=new Map((elig||[]).map(x=>[x.submission_id,x]))
-   const sm=new Map((scores||[]).map(x=>[x.submission_id,x]))
    const am=new Map((ai||[]).map(x=>[x.submission_id,x]))
    const pm=new Map((applicants||[]).map(x=>[x.id,x]))
    setRows((subs||[]).map(s=>{
-    const p=pm.get(s.applicant_id),a=am.get(s.id),score=sm.get(s.id),e=em.get(s.id)
+    const p=pm.get(s.applicant_id),a=am.get(s.id),e=em.get(s.id)
     const assessment=String(a?.overall_assessment||'').toLowerCase()
     const recommendation=assessment.includes('not recommended')||assessment.includes('poor match')?'Not recommended':assessment.includes('strong match')||assessment.includes('recommended')?'Recommended':a?.status==='completed'?'Reviewed':a?.status==='failed'?'Failed':'Not screened'
-    return {submissionId:s.id,applicationId:s.application_id,participantId:p?.participant_id||'—',applicantName:p?.full_name||'Unnamed applicant',email:p?.email||null,submittedAt:s.submitted_at||null,eligibility:e?.status==='eligible'?'eligible':e?.status==='ineligible'?'ineligible':'pending',score:score?.overall_score==null?null:Number(score.overall_score),aiStatus:a?.status||'pending',aiRecommendation:recommendation,decision:s.decision==='approved'||s.decision==='rejected'?s.decision:'pending'}
+    return {submissionId:s.id,applicationId:s.application_id,participantId:p?.participant_id||'—',applicantName:p?.full_name||'Unnamed applicant',email:p?.email||null,submittedAt:s.submitted_at||null,eligibility:e?.status==='eligible'?'eligible':e?.status==='ineligible'?'ineligible':'pending',aiStatus:a?.status||'pending',aiRecommendation:recommendation,decision:s.decision==='approved'||s.decision==='rejected'?s.decision:'pending'}
    }))
   }catch(e){setNotice(friendlyErrorMessage(e,'Could not load screening data.'))}finally{setLoading(false)}
  }
@@ -1338,14 +1335,13 @@ function ScreeningPanel({applicationId}:{applicationId:string}){
 
  if(loading)return <div className="loading-card card">Loading screening workspace…</div>
  return <div className="screening-panel">
-  <div className="builder-top"><div><p className="eyebrow">Screening</p><h2>Application screening</h2><p>Review the complete application, eligibility, score and AI assessment in one place. Final decisions remain with your team.</p></div>{notice&&<span className="builder-notice">{notice}</span>}</div>
+  <div className="builder-top"><div><p className="eyebrow">Screening</p><h2>Application screening</h2><p>Review the complete application, eligibility and AI assessment in one place. Final decisions remain with your team.</p></div>{notice&&<span className="builder-notice">{notice}</span>}</div>
   {!rows.length?<div className="card builder-empty"><Sparkles size={24}/><h3>No submissions to screen yet</h3><p>Applications will appear here after applicants submit the published form.</p></div>:
    <div className="screening-table card">
-    <div className="screening-row screening-head"><span>Applicant</span><span>Eligibility</span><span>Score</span><span>AI screening</span><span>Status</span><span></span></div>
+    <div className="screening-row screening-head"><span>Applicant</span><span>Eligibility</span><span>AI screening</span><span>Status</span><span></span></div>
     {rows.map(r=><button className="screening-row screening-body" key={r.submissionId} onClick={()=>setSelected(r)}>
      <span><strong>{r.applicantName}</strong><small>{r.email||'No email'}</small></span>
      <span className="status-pill">{r.eligibility}</span>
-     <span>{r.score==null?'—':r.score.toFixed(1)+' / 100'}</span>
      <span className="status-pill">{r.aiRecommendation}</span>
      <span className="status-pill">{r.decision}</span>
      <span>Review →</span>
@@ -1362,7 +1358,7 @@ function AnalyticsPanel({applications}:{applications:Application[]}){
    const ids=applications.map(a=>a.id)
    if(!ids.length){setRows([]);setParticipants([]);setLastUpdated(new Date());return}
    const [submissionsResult,participantsResult]=await Promise.all([
-    supabase.from('submissions').select('id,status,decision,submitted_at,application_id,submission_eligibility(status),submission_scores(overall_score)').in('application_id',ids).order('submitted_at',{ascending:false}),
+    supabase.from('submissions').select('id,status,decision,submitted_at,application_id,submission_eligibility(status)').in('application_id',ids).order('submitted_at',{ascending:false}),
     supabase.from('participants').select('id,participant_id,application_id,status,joined_at').in('application_id',ids)
    ])
    if(submissionsResult.error)throw submissionsResult.error
@@ -1374,19 +1370,17 @@ function AnalyticsPanel({applications}:{applications:Application[]}){
  const selectedRows=useMemo(()=>selectedApplicationId==='all'?rows:rows.filter(r=>r.application_id===selectedApplicationId),[rows,selectedApplicationId])
  const selectedParticipants=useMemo(()=>selectedApplicationId==='all'?participants:participants.filter(p=>p.application_id===selectedApplicationId),[participants,selectedApplicationId])
  const metrics=useMemo(()=>{
-  const scored=selectedRows.filter(r=>r.submission_scores?.[0]?.overall_score!=null)
   const approved=selectedRows.filter(r=>r.decision==='approved')
   const rejected=selectedRows.filter(r=>r.decision==='rejected')
   const enrolled=selectedParticipants.length
   const completed=selectedParticipants.filter(p=>p.status==='completed').length
   const withdrawn=selectedParticipants.filter(p=>p.status==='withdrawn').length
   const active=selectedParticipants.filter(p=>p.status==='active').length
-  const avg=scored.length?scored.reduce((s,r)=>s+Number(r.submission_scores[0].overall_score),0)/scored.length:0
-  return{submitted:selectedRows.length,approved:approved.length,rejected:rejected.length,enrolled,active,completed,withdrawn,scored:scored.length,avg,approvalRate:selectedRows.length?approved.length/selectedRows.length*100:0,completionRate:enrolled?completed/enrolled*100:0,withdrawalRate:enrolled?withdrawn/enrolled*100:0}
+  const pending=Math.max(0,selectedRows.length-approved.length-rejected.length)
+  return{submitted:selectedRows.length,approved:approved.length,rejected:rejected.length,pending,enrolled,active,completed,withdrawn,approvalRate:selectedRows.length?approved.length/selectedRows.length*100:0,completionRate:enrolled?completed/enrolled*100:0,withdrawalRate:enrolled?withdrawn/enrolled*100:0}
  },[selectedRows,selectedParticipants])
  const trend=useMemo(()=>{const days:Array<{key:string;label:string;count:number}>=[];for(let i=13;i>=0;i--){const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-i);const key=d.toISOString().slice(0,10);days.push({key,label:d.toLocaleDateString('en-US',{weekday:'short',day:'numeric'}),count:selectedRows.filter(r=>r.submitted_at?.slice(0,10)===key).length})}return days},[selectedRows])
  const maxTrend=Math.max(1,...trend.map(x=>x.count))
- const scoreBands=useMemo(()=>{const bands=[{label:'0–39',min:0,max:39,count:0},{label:'40–59',min:40,max:59,count:0},{label:'60–79',min:60,max:79,count:0},{label:'80–100',min:80,max:100,count:0}];selectedRows.forEach(r=>{const n=r.submission_scores?.[0]?.overall_score;if(n!=null){const band=bands.find(b=>Number(n)>=b.min&&Number(n)<=b.max);if(band)band.count++}});return bands},[selectedRows])
  const programmeRows=useMemo(()=>applications.map(application=>{const ps=rows.filter(r=>r.application_id===application.id),pp=participants.filter(p=>p.application_id===application.id);return{application,submitted:ps.length,approved:ps.filter(r=>r.decision==='approved').length,rejected:ps.filter(r=>r.decision==='rejected').length,enrolled:pp.length,completed:pp.filter(p=>p.status==='completed').length,withdrawn:pp.filter(p=>p.status==='withdrawn').length}}).filter(r=>r.submitted>0||r.enrolled>0),[applications,rows,participants])
  if(loading)return <div className="loading-card card">Loading analytics…</div>
  return <section className="analytics-page">
@@ -1407,7 +1401,7 @@ function AnalyticsPanel({applications}:{applications:Application[]}){
    </div>
    <div className="analytics-grid analytics-grid-bottom">
     <div className="card analytics-card"><div className="analytics-card-header"><div><p className="eyebrow">Participant outcomes</p><h2>What happens after approval</h2><p>Current participant status across the selected programme.</p></div><Users size={19}/></div><div className="analytics-rate-list"><div><span>Enrolled / active</span><strong>{metrics.active}</strong><small>Approved participants currently active</small></div><div><span>Completed</span><strong>{metrics.completed}</strong><small>{metrics.completionRate.toFixed(1)}% of all participants</small></div><div><span>Withdrawn</span><strong>{metrics.withdrawn}</strong><small>{metrics.withdrawalRate.toFixed(1)}% of all participants</small></div></div></div>
-    <div className="card analytics-card"><div className="analytics-card-header"><div><p className="eyebrow">Scoring</p><h2>Score distribution</h2><p>{metrics.scored} scored submission{metrics.scored===1?'':'s'} included. Average: {metrics.scored?metrics.avg.toFixed(1):'—'}.</p></div><BarChart3 size={19}/></div><div className="analytics-score-list">{scoreBands.map(b=>{const pct=metrics.scored?b.count/metrics.scored*100:0;return <div className="analytics-score-row" key={b.label}><div><span>{b.label}</span><strong>{b.count}</strong></div><div className="analytics-progress"><span style={{width:pct+'%'}}/></div></div>})}</div></div>
+    <div className="card analytics-card"><div className="analytics-card-header"><div><p className="eyebrow">Application outcomes</p><h2>Decision breakdown</h2><p>Current approval, rejection and pending decisions for the selected programme.</p></div><BarChart3 size={19}/></div><div className="analytics-rate-list"><div><span>Approved</span><strong>{metrics.approved}</strong><small>{metrics.submitted?((metrics.approved/metrics.submitted)*100).toFixed(1):'0.0'}% of submissions</small></div><div><span>Rejected</span><strong>{metrics.rejected}</strong><small>{metrics.submitted?((metrics.rejected/metrics.submitted)*100).toFixed(1):'0.0'}% of submissions</small></div><div><span>Pending decision</span><strong>{metrics.pending}</strong><small>Awaiting a final decision</small></div></div></div>
    </div>
    <div className="card analytics-card analytics-programmes"><div className="analytics-card-header"><div><p className="eyebrow">Programme breakdown</p><h2>Applications and participants</h2><p>See how each programme is progressing across applications and participants.</p></div></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Submissions</th><th>Approved / Enrolled</th><th>Rejected</th><th>Completed</th><th>Withdrawn</th></tr></thead><tbody>{programmeRows.length?programmeRows.map(({application,submitted,approved,rejected,enrolled,completed,withdrawn})=><tr key={application.id}><td><strong>{application.name}</strong><span className="table-sub">{application.status}</span></td><td>{submitted}</td><td>{enrolled}</td><td>{rejected}</td><td>{completed}</td><td>{withdrawn}</td></tr>):<tr><td colSpan={6}><div className="table-empty">No programme activity yet.</div></td></tr>}</tbody></table></div></div>
    <div className="analytics-footer"><span>{lastUpdated?'Updated '+lastUpdated.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'Live programme data'}</span><span>Analytics follows the current ApplyFlow participant lifecycle.</span></div>
