@@ -8,12 +8,14 @@ export default function TablePagination({
   pageSize,
   onPageChange,
   onPageSizeChange,
+  pageSizes=PAGE_SIZES,
 }:{
   total:number
   page:number
   pageSize:number
   onPageChange:(page:number)=>void
   onPageSizeChange:(pageSize:number)=>void
+  pageSizes?:readonly number[]
 }){
   const pageCount=Math.max(1,Math.ceil(total/pageSize))
   const currentPage=Math.min(Math.max(1,page),pageCount)
@@ -26,7 +28,7 @@ export default function TablePagination({
       <label>
         <span>Rows per page</span>
         <select value={pageSize} onChange={e=>onPageSizeChange(Number(e.target.value))}>
-          {PAGE_SIZES.map(size=><option key={size} value={size}>{size}</option>)}
+          {pageSizes.map(size=><option key={size} value={size}>{size}</option>)}
         </select>
       </label>
     </div>

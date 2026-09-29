@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronDown, Mail, Search, Send, Settings2, Users, X, FileText, Link2, ShieldCheck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
+import TablePagination from './TablePagination'
 
 type Application = { id:string; name:string }
 type Role = 'owner'|'admin'|'reviewer'
@@ -57,6 +58,8 @@ export default function EmailWorkspace({
   const [applicationId,setApplicationId]=useState(applications[0]?.id||'')
   const [audience,setAudience]=useState<'all'|'active'|'completed'|'withdrawn'>('active')
   const [recipientQuery,setRecipientQuery]=useState('')
+  const [recipientPage,setRecipientPage]=useState(1)
+  const [recipientPageSize,setRecipientPageSize]=useState(50)
   const [selectedRecipientIds,setSelectedRecipientIds]=useState<string[]>([])
   const [subject,setSubject]=useState('')
   const [body,setBody]=useState('')
@@ -150,14 +153,27 @@ export default function EmailWorkspace({
       return matchesAudience&&(!term||haystack.includes(term))
     })
   },[programmeParticipants,audience,recipientQuery])
+  const recipientPageCount=Math.max(1,Math.ceil(visibleRecipients.length/recipientPageSize))
+  const pagedRecipients=useMemo(()=>{
+    const start=(recipientPage-1)*recipientPageSize
+    return visibleRecipients.slice(start,start+recipientPageSize)
+  },[visibleRecipients,recipientPage,recipientPageSize])
+  const recipientPageSizes=useMemo(()=>{
+    const roundedTotal=Math.ceil(visibleRecipients.length/50)*50
+    const maxSize=Math.max(50,recipientPageSize,roundedTotal)
+    return Array.from({length:maxSize/50},(_,index)=>(index+1)*50)
+  },[visibleRecipients.length,recipientPageSize])
   const validSelected=useMemo(()=>selectedRecipientIds.filter(id=>programmeParticipants.some(p=>p.id===id)),[selectedRecipientIds,programmeParticipants])
   const programmeTemplates=templates.filter(t=>t.application_id===applicationId&&t.status!=='archived')
+
+  useEffect(()=>{setRecipientPage(1)},[applicationId,audience,recipientQuery])
+  useEffect(()=>{setRecipientPage(current=>Math.min(current,recipientPageCount))},[recipientPageCount])
 
   function toggleRecipient(id:string,checked:boolean){
     setSelectedRecipientIds(current=>checked?[...new Set([...current,id])]:current.filter(x=>x!==id))
   }
   function toggleVisible(checked:boolean){
-    const ids=visibleRecipients.map(p=>p.id)
+    const ids=pagedRecipients.map(p=>p.id)
     setSelectedRecipientIds(current=>checked?[...new Set([...current,...ids])]:current.filter(id=>!ids.includes(id)))
   }
   function insertMergeField(tag:string){
@@ -204,16 +220,24 @@ export default function EmailWorkspace({
     if(!canManage||!zohoStatus.configured||!applicationId||!validSelected.length||!subject.trim()||!body.trim())return
     setSending(true);setError('');setNotice('')
     try{
-      const {data,error}=await supabase.functions.invoke('send-zoho-email',{body:{
-        organization_id:organizationId,
-        application_id:applicationId,
-        participant_ids:validSelected,
-        subject:subject.trim(),
-        body:body.trim(),
-        whatsapp_group_link:whatsappGroupLink.trim(),
-      }})
-      if(error)throw error
-      const sent=Number(data?.sent_count||0),failed=Number(data?.failed_count||0),skipped=Number(data?.skipped_count||0)
+      let sent=0,failed=0,skipped=0
+      const batches=Array.from({length:Math.ceil(validSelected.length/50)},(_,index)=>validSelected.slice(index*50,(index+1)*50))
+
+      for(const participantIds of batches){
+        const {data,error}=await supabase.functions.invoke('send-zoho-email',{body:{
+          organization_id:organizationId,
+          application_id:applicationId,
+          participant_ids:participantIds,
+          subject:subject.trim(),
+          body:body.trim(),
+          whatsapp_group_link:whatsappGroupLink.trim(),
+        }})
+        if(error)throw error
+        sent+=Number(data?.sent_count||0)
+        failed+=Number(data?.failed_count||0)
+        skipped+=Number(data?.skipped_count||0)
+      }
+
       if(failed>0)setError(sent+' sent, '+failed+' failed'+(skipped?', '+skipped+' skipped':'')+'.')
       else setNotice(sent+' email'+(sent===1?'':'s')+' sent through Zoho Mail'+(skipped?' · '+skipped+' skipped':'')+'.')
     }catch(e){
@@ -262,11 +286,19 @@ export default function EmailWorkspace({
         <div className="card-header"><div><p className="eyebrow">Recipients</p><h2>Select participants</h2><p>{programmeName} · {visibleRecipients.length} matching</p></div><Users size={20}/></div>
         <div className="email-recipient-tools">
           <div className="search"><Search size={15}/><input value={recipientQuery} onChange={e=>setRecipientQuery(e.target.value)} placeholder="Search participant…"/></div>
-          <label className="email-select-all"><input type="checkbox" checked={visibleRecipients.length>0&&visibleRecipients.every(p=>selectedRecipientIds.includes(p.id))} onChange={e=>toggleVisible(e.target.checked)}/><span>Select all visible</span></label>
+          <label className="email-select-all"><input type="checkbox" checked={pagedRecipients.length>0&&pagedRecipients.every(p=>selectedRecipientIds.includes(p.id))} onChange={e=>toggleVisible(e.target.checked)}/><span>Select all {pagedRecipients.length} on this page</span></label>
         </div>
         <div className="email-recipient-list">
-          {visibleRecipients.length?visibleRecipients.map(p=><label key={p.id} className="email-recipient-row"><input type="checkbox" checked={selectedRecipientIds.includes(p.id)} onChange={e=>toggleRecipient(p.id,e.target.checked)}/><span><strong>{p.full_name||'Unnamed participant'}</strong><small>{p.email||'No email'} · {p.participant_id}</small></span><i>{statusLabel(p.status)}</i></label>):<div className="table-empty">No participants match this audience.</div>}
+          {pagedRecipients.length?pagedRecipients.map(p=><label key={p.id} className="email-recipient-row"><input type="checkbox" checked={selectedRecipientIds.includes(p.id)} onChange={e=>toggleRecipient(p.id,e.target.checked)}/><span><strong>{p.full_name||'Unnamed participant'}</strong><small>{p.email||'No email'} · {p.participant_id}</small></span><i>{statusLabel(p.status)}</i></label>):<div className="table-empty">No participants match this audience.</div>}
         </div>
+        <TablePagination
+          total={visibleRecipients.length}
+          page={recipientPage}
+          pageSize={recipientPageSize}
+          pageSizes={recipientPageSizes}
+          onPageChange={setRecipientPage}
+          onPageSizeChange={size=>{setRecipientPageSize(size);setRecipientPage(1)}}
+        />
       </aside>
     </div>}
 

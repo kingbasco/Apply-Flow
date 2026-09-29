@@ -4577,3 +4577,7 @@ html.dark-theme .table-pagination-summary select{background:#171b23;border-color
 html.dark-theme .my-review-queue .card-header{background:linear-gradient(180deg,#171a24 0%,#151922 100%)}
 html.dark-theme .my-review-count{background:#12161d;border-color:#343a47;color:#a9a4ff}
 html.dark-theme .my-review-count span{color:#919aa8}
+
+.email-recipient-card .table-pagination{align-items:stretch;flex-direction:column;padding:10px 12px;gap:10px}
+.email-recipient-card .table-pagination-summary,.email-recipient-card .table-pagination-nav{justify-content:space-between}
+.email-recipient-card .table-pagination-nav>span{text-align:center;flex:1}
