@@ -17,7 +17,7 @@ function json(body: unknown, status = 200) {
 async function authorize(req: Request, organizationId: string) {
   const authorization = req.headers.get("Authorization");
   if (!authorization?.startsWith("Bearer ")) throw new Error("AUTH_REQUIRED");
-  const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+  const { createClient } = await import("npm:@supabase/supabase-js@2.57.4");
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -32,7 +32,20 @@ async function authorize(req: Request, organizationId: string) {
   }
 }
 
+const applyflowAllowedOrigins = new Set([
+  "https://apply-flow-one.vercel.app",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  ...(Deno.env.get("APPLYFLOW_ALLOWED_ORIGINS") || "").split(",").map((value) => value.trim()).filter(Boolean),
+]);
+
+function applyflowOriginAllowed(req: Request) {
+  const origin = req.headers.get("origin");
+  return !origin || applyflowAllowedOrigins.has(origin);
+}
+
 Deno.serve(async (req) => {
+  if (!applyflowOriginAllowed(req)) return new Response(JSON.stringify({ error: "Request origin is not allowed." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
 

@@ -1,0 +1,23 @@
+[functions.run-ai-screening]
+verify_jwt = true
+
+[functions.extract-application-document]
+verify_jwt = true
+
+[functions.invite-team-member]
+verify_jwt = true
+
+[functions.manage-team-member]
+verify_jwt = true
+
+[functions.accept-team-invite-link]
+verify_jwt = false
+
+[functions.zoho-mail-status]
+verify_jwt = true
+
+[functions.send-zoho-email]
+verify_jwt = true
+
+[functions.username-login]
+verify_jwt = false

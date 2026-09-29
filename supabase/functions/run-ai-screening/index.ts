@@ -34,7 +34,20 @@ function answerText(value: unknown, questionId: string, optionLabels: Map<string
   return formatItem(value);
 }
 
+const applyflowAllowedOrigins = new Set([
+  "https://apply-flow-one.vercel.app",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  ...(Deno.env.get("APPLYFLOW_ALLOWED_ORIGINS") || "").split(",").map((value) => value.trim()).filter(Boolean),
+]);
+
+function applyflowOriginAllowed(req: Request) {
+  const origin = req.headers.get("origin");
+  return !origin || applyflowAllowedOrigins.has(origin);
+}
+
 Deno.serve(async (req) => {
+  if (!applyflowOriginAllowed(req)) return new Response(JSON.stringify({ error: "Request origin is not allowed." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
 
@@ -44,7 +57,7 @@ Deno.serve(async (req) => {
     const authorization = req.headers.get("Authorization");
     if (!authorization?.startsWith("Bearer ")) return json({ error: "Authentication required." }, 401);
 
-    const { createClient } = await import("npm:@supabase/supabase-js@2");
+    const { createClient } = await import("npm:@supabase/supabase-js@2.57.4");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -197,7 +210,7 @@ Deno.serve(async (req) => {
     const message = error instanceof Error ? error.message : "Quick screening failed.";
     if (screeningId) {
       try {
-        const { createClient } = await import("npm:@supabase/supabase-js@2");
+        const { createClient } = await import("npm:@supabase/supabase-js@2.57.4");
         const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
         await admin.from("ai_screenings").update({ status: "failed", error_message: message }).eq("id", screeningId);
       } catch {}
