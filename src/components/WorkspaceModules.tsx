@@ -289,10 +289,7 @@ export interface ScreeningRow {
 
 function screeningRecommendation(ai:any):string{
  if(!ai)return 'Not screened'
- const value=String(ai.overall_assessment||'').toLowerCase()
- if(value.includes('not recommended')||value.includes('poor match'))return 'Not recommended'
- if(value.includes('strong match')||value.includes('recommended'))return 'Recommended'
- if(ai.status==='completed')return 'Reviewed'
+ if(ai.status==='completed')return 'Screened'
  return ai.status==='failed'?'Failed':'In progress'
 }
 
@@ -323,7 +320,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
  const [loading,setLoading]=useState(true)
  const [error,setError]=useState('')
  const [query,setQuery]=useState('')
- const [filter,setFilter]=useState<'all'|'pending'|'approved'|'rejected'|'recommended'>('all')
+ const [filter,setFilter]=useState<'all'|'pending'|'approved'|'rejected'|'screened'>('all')
  const [reviewing,setReviewing]=useState<ScreeningRow|null>(null)
  const [aiBulkRunning,setAiBulkRunning]=useState(false)
  const [decisionNotice,setDecisionNotice]=useState<ApplicationDecisionNotice|null>(null)
@@ -396,14 +393,14 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
   pending:rows.filter(r=>r.decision==='pending').length,
   approved:rows.filter(r=>r.decision==='approved').length,
   rejected:rows.filter(r=>r.decision==='rejected').length,
-  recommended:rows.filter(r=>r.aiRecommendation==='Recommended').length
+  screened:rows.filter(r=>r.aiRecommendation==='Screened').length
  }),[rows])
 
  const filtered=useMemo(()=>{
   const q=query.trim().toLowerCase()
   return rows.filter(r=>{
    const matchesQuery=!q||r.applicantName.toLowerCase().includes(q)||(r.email||'').toLowerCase().includes(q)||r.participantId.toLowerCase().includes(q)
-   const matchesFilter=filter==='all'||(filter==='pending'&&r.decision==='pending')||(filter==='approved'&&r.decision==='approved')||(filter==='rejected'&&r.decision==='rejected')||(filter==='recommended'&&r.aiRecommendation==='Recommended')
+   const matchesFilter=filter==='all'||(filter==='pending'&&r.decision==='pending')||(filter==='approved'&&r.decision==='approved')||(filter==='rejected'&&r.decision==='rejected')||(filter==='screened'&&r.aiRecommendation==='Screened')
    return matchesQuery&&matchesFilter
   })
  },[rows,query,filter])
@@ -459,8 +456,8 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
  return <>
   <section>
    <div className="page-heading compact">
-    <div><p className="eyebrow">Application screening</p><h1>Screening</h1><p className="subtitle">Open one application at a time. Applicants and screening results stay separated by programme.</p></div>
-    <div className="detail-actions">{role!=='reviewer'&&<button className="primary-button" onClick={screenWithAI} disabled={aiBulkRunning||loading||!rows.length}>{aiBulkRunning?'Screening with AI…':'Screen with AI'}</button>}<button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
+    <div><p className="eyebrow">Application screening</p><h1>Screening</h1><p className="subtitle">Quickly surface Age, Residential Address and Trade, then make the final decision yourself.</p></div>
+    <div className="detail-actions">{role!=='reviewer'&&<button className="primary-button" onClick={screenWithAI} disabled={aiBulkRunning||loading||!rows.length}>{aiBulkRunning?'Screening…':'Screen all with AI'}</button>}<button className="secondary-button" onClick={load} disabled={loading}>{loading?'Refreshing…':'Refresh'}</button></div>
    </div>
    {error&&<ActionFeedback message={error} type="error" onDismiss={()=>setError('')}/>}
    <div className="card screening-application-picker">
@@ -483,13 +480,13 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
     <div className="card stat-card"><div className="stat-icon"><ClipboardList size={18}/></div><div><p className="eyebrow">Pending</p><div className="stat-value">{counts.pending}</div><p className="muted">Awaiting a decision</p></div></div>
     <div className="card stat-card"><div className="stat-icon"><ShieldCheck size={18}/></div><div className="stat-content"><p className="eyebrow">Approved</p><div className="stat-value">{counts.approved}</div></div></div>
     <div className="card stat-card"><div className="stat-icon"><FileText size={18}/></div><div className="stat-content"><p className="eyebrow">Rejected</p><div className="stat-value">{counts.rejected}</div></div></div>
-    <div className="card stat-card"><div className="stat-icon"><ArrowRight size={18}/></div><div className="stat-content"><p className="eyebrow">AI recommended</p><div className="stat-value">{counts.recommended}</div></div></div>
+    <div className="card stat-card"><div className="stat-icon"><ArrowRight size={18}/></div><div className="stat-content"><p className="eyebrow">AI screened</p><div className="stat-value">{counts.screened}</div></div></div>
    </div>
    <div className="card table-card screening-applicants-card">
     <div className="card-header"><div><h2>Applicants</h2><p>Review the application, then approve or reject.</p></div><div className="detail-actions"><span className="muted">{selectedSubmissionIds.length} selected</span><button className="secondary-button" onClick={exportApplicants} disabled={loading||selectedSubmissionIds.length===0}><Download size={16}/> Export selected</button></div></div>
     <div className="forms-toolbar">
      <div className="forms-search"><Search size={16}/><input aria-label="Search applicants" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search name, email or Participant ID…" /></div>
-     <div className="forms-filters" role="group" aria-label="Filter applicants">{(['all','pending','approved','rejected','recommended'] as const).map(f=><button key={f} className={filter===f?'filter-button active':'filter-button'} onClick={()=>setFilter(f)}>{f==='all'?'All':f==='pending'?'Pending':f==='approved'?'Approved':f==='rejected'?'Rejected':'AI recommended'}<span>{f==='all'?counts.total:f==='pending'?counts.pending:f==='approved'?counts.approved:f==='rejected'?counts.rejected:counts.recommended}</span></button>)}</div>
+     <div className="forms-filters" role="group" aria-label="Filter applicants">{(['all','pending','approved','rejected','screened'] as const).map(f=><button key={f} className={filter===f?'filter-button active':'filter-button'} onClick={()=>setFilter(f)}>{f==='all'?'All':f==='pending'?'Pending':f==='approved'?'Approved':f==='rejected'?'Rejected':'AI screened'}<span>{f==='all'?counts.total:f==='pending'?counts.pending:f==='approved'?counts.approved:f==='rejected'?counts.rejected:counts.screened}</span></button>)}</div>
     </div>
     <div className="table-wrap"><table><thead><tr><th><input type="checkbox" aria-label={allFilteredSelected?"Deselect all visible applicants":"Select all visible applicants"} checked={allFilteredSelected} onChange={toggleAllFiltered} disabled={!filtered.length}/></th><th>Applicant</th><th>Participant ID</th><th>Eligibility</th><th>AI</th><th>Status</th><th></th></tr></thead><tbody>
      {loading?<tr><td colSpan={7}><div className="loading-card">Loading applicants…</div></td></tr>:!filtered.length?<tr><td colSpan={8}><div className="table-empty"><h3>{rows.length?'No applicants match your filters':'No submitted applications yet'}</h3><p>{rows.length?'Try another filter or search.':'Applications will appear here after applicants submit a form.'}</p></div></td></tr>:
@@ -498,7 +495,7 @@ export function ScreeningWorkspace({applications,onOpen,role}:{applications:Appl
       <td><strong>{row.applicantName}</strong><span className="table-sub">{row.email||'No email'}</span></td>
       <td><strong>{row.participantId}</strong></td>
       <td><span className={'status '+(row.eligibility==='eligible'?'blue':row.eligibility==='ineligible'?'neutral':'amber')}>{row.eligibility}</span></td>
-      <td><span className={'status '+(row.aiRecommendation==='Recommended'?'blue':row.aiRecommendation==='Not recommended'?'neutral':'amber')}>{row.aiRecommendation}</span></td>
+      <td><span className={'status '+(row.aiRecommendation==='Screened'?'blue':row.aiRecommendation==='Failed'?'neutral':'amber')}>{row.aiRecommendation}</span></td>
       <td><span className={'status '+(row.decision==='approved'?'blue':row.decision==='rejected'?'neutral':'amber')}>{row.decision}</span></td>
       <td><button className="secondary-button" onClick={()=>setReviewing(row)}>Review <ArrowRight size={15}/></button></td>
      </tr>)}
@@ -518,6 +515,7 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
  const [error,setError]=useState('')
  const [aiRunning,setAiRunning]=useState(false)
  const [aiError,setAiError]=useState('')
+ const [quickScreenVisible,setQuickScreenVisible]=useState(false)
  const [manualNotes,setManualNotes]=useState('')
  const [reviewSaving,setReviewSaving]=useState(false)
  const [reviewNotice,setReviewNotice]=useState('')
@@ -616,6 +614,7 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
  }
 
  const runAiScreening=async()=>{
+  setQuickScreenVisible(true)
   setAiRunning(true);setAiError('')
   try{
    const {data:result,error:invokeError}=await supabase.functions.invoke('run-ai-screening',{body:{submission_id:row.submissionId}})
@@ -662,9 +661,19 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
  }
 
  const answerMap=new Map((data?.answers||[]).map(answer=>[answer.question_id,answer.value]))
+ const normalizedQuestionLabel=(value:any)=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()
+ const quickValue=(matcher:(label:string)=>boolean)=>{
+  const question=(data?.questions||[]).find((item:any)=>matcher(normalizedQuestionLabel(item.label)))
+  return question?formatValue(answerMap.get(question.id),question.id):'Not provided'
+ }
+ const quickScreenProfile={
+  age:quickValue(label=>label==='age'||label==='your age'||label.startsWith('age ')),
+  residentialAddress:quickValue(label=>label.includes('residential address')||label==='home address'||label==='address'),
+  trade:quickValue(label=>label==='what is your trade'||label==='your trade'||label==='trade'||label.startsWith('what is your trade '))
+ }
  const currentDecision=row.decision
  const eligibilityStatus=data?.eligibility?.status||'pending'
- const aiRecommendation=data?.ai?.recommendation||data?.ai?.decision||null
+ const aiScreened=data?.ai?.status==='completed'
 
  return createPortal((
   <div ref={reviewScrollRef} className="screening-review-backdrop" role="dialog" aria-modal="true" aria-label="Review application">
@@ -734,7 +743,7 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
         </div>
         <div className="screening-review-status-grid">
          <div className="screening-review-status-card"><span>Eligibility</span><strong className={eligibilityStatus==='eligible'?'is-positive':eligibilityStatus==='ineligible'?'is-negative':''}>{eligibilityStatus==='eligible'?'Eligible':eligibilityStatus==='ineligible'?'Not eligible':'Pending'}</strong><small>{eligibilityStatus==='eligible'?'Meets the configured eligibility rules.':eligibilityStatus==='ineligible'?'Does not meet the configured eligibility rules.':'Eligibility has not been resolved yet.'}</small></div>
-         <div className="screening-review-status-card"><span>AI recommendation</span><strong className={String(aiRecommendation||'').toLowerCase().includes('not')?'is-negative':String(aiRecommendation||'').toLowerCase().includes('recommend')?'is-positive':''}>{aiRecommendation||'Not screened'}</strong><small>Advisory only — the reviewer makes the final decision.</small></div>
+         <div className="screening-review-status-card"><span>AI screening</span><strong className={aiScreened?'is-positive':''}>{aiScreened?'Screened':'Not screened'}</strong><small>Quick profile only — Age, Residential Address and Trade.</small></div>
         </div>
        </section>
 
@@ -751,18 +760,17 @@ export function ScreeningReviewModal({row,role,onClose,onDecision}:{row:Screenin
 
        <section className="screening-review-section screening-ai-section">
         <div className="screening-section-heading">
-         <div><span className="screening-section-kicker">Optional</span><h3>AI recommendation</h3><p>AI reviews the complete application and gives you a recommendation.</p></div>
-         <button className="secondary-button screening-ai-button" onClick={runAiScreening} disabled={aiRunning}>{aiRunning?'Screening…':data.ai?'Run again':'Screen with AI'}</button>
+         <div><span className="screening-section-kicker">Quick screen</span><h3>Applicant essentials</h3><p>Screen only the three details you need — no long AI analysis.</p></div>
+         <button className="secondary-button screening-ai-button" onClick={runAiScreening} disabled={aiRunning}>{aiRunning?'Screening…':(quickScreenVisible||aiScreened)?'Refresh screen':'Screen with AI'}</button>
         </div>
         {aiError&&<div className="form-error screening-inline-error">{aiError}</div>}
-        {data.ai ? (
-         <div className="screening-ai-result">
-          <div className="screening-ai-topline"><span className="screening-summary-label">Recommendation</span><strong>{aiRecommendation||'Review recommended'}</strong></div>
-          <p>{data.ai.overall_assessment||'No overall assessment recorded.'}</p>
-          {data.ai.strengths?.length>0&&<div><span className="screening-summary-label">Strengths</span><ul className="screening-simple-list">{data.ai.strengths.map((item:any,index:number)=><li key={index}>{typeof item==='string'?item:JSON.stringify(item)}</li>)}</ul></div>}
-          {data.ai.concerns?.length>0&&<div><span className="screening-summary-label">Concerns</span><ul className="screening-simple-list">{data.ai.concerns.map((item:any,index:number)=><li key={index}>{typeof item==='string'?item:JSON.stringify(item)}</li>)}</ul></div>}
+        {(quickScreenVisible||aiScreened)?(
+         <div className="screening-quick-profile">
+          <article><span>Age</span><strong>{quickScreenProfile.age}</strong></article>
+          <article><span>Residential Address</span><strong>{quickScreenProfile.residentialAddress}</strong></article>
+          <article><span>Trade</span><strong>{quickScreenProfile.trade}</strong></article>
          </div>
-        ) : <div className="screening-ai-empty"><p className="muted">AI has not screened this application yet.</p></div>}
+        ):<div className="screening-ai-empty"><p className="muted">Click <strong>Screen with AI</strong> to pull out Age, Residential Address and Trade immediately.</p></div>}
        </section>
       </main>
 
