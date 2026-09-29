@@ -4410,3 +4410,12 @@ html.dark-theme .clickable-row[role="button"]:focus-visible{
     scroll-behavior:auto!important;
   }
 }
+
+/* Applications status filter */
+.toolbar-select{position:relative;display:inline-flex;align-items:center;min-width:130px}
+.toolbar-select select{appearance:none;width:100%;min-height:34px;padding:8px 34px 8px 12px;border:1px solid #e2e5ea;border-radius:8px;background:#fff;color:#525b69;font-size:11px;font-weight:600;outline:none;cursor:pointer}
+.toolbar-select select:focus{border-color:#8d82ff;box-shadow:0 0 0 3px rgba(109,93,252,.10)}
+.toolbar-select>svg{position:absolute;right:11px;pointer-events:none;color:#7b8491}
+html.dark-theme .toolbar-select select{background:#1b2029;border-color:#3a414d;color:#d7dce4}
+html.dark-theme .toolbar-select>svg{color:#929baa}
+@media(max-width:560px){.toolbar-select{width:100%}}
