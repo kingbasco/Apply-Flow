@@ -95,20 +95,28 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
       if (mode === 'signin') {
         const identifier = email.trim()
         const isEmail = identifier.includes('@')
-        let loginEmail = identifier
         if (!isEmail) {
-          const { data: resolvedEmail, error: resolveError } = await supabase.rpc('resolve_username_login', { p_username: identifier.toLowerCase() })
-          if (resolveError) throw new Error('Could not verify that username. Please try again.')
-          if (!resolvedEmail) throw new Error('No account was found with that username.')
-          loginEmail = resolvedEmail
+          const { data: result, error: usernameLoginError } = await supabase.functions.invoke('username-login', {
+            body: { username: identifier.toLowerCase(), password },
+          })
+          if (usernameLoginError || !result?.access_token || !result?.refresh_token) {
+            throw new Error('Invalid username or password.')
+          }
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: result.access_token,
+            refresh_token: result.refresh_token,
+          })
+          if (sessionError) throw new Error('Could not start your secure session. Please try again.')
+        } else {
+          const { error } = await supabase.auth.signInWithPassword({ email: identifier, password })
+          if (error) throw error
         }
-        const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password })
-        if (error) throw error
         onSignedIn()
       } else {
         const normalizedUsername = username.trim().toLowerCase()
         if (!/^[a-z0-9_]{3,30}$/.test(normalizedUsername)) throw new Error('Username must be 3–30 characters and use only letters, numbers, or underscores.')
         if (!birthMonth || !birthDay) throw new Error('Please select your date of birth.')
+        if (password.length < 10) throw new Error('Password must be at least 10 characters.')
         const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { data: { full_name: name.trim(), username: normalizedUsername, birth_month: Number(birthMonth), birth_day: Number(birthDay), organization_name: orgName.trim() } } })
         if (error) throw error
         if (!data.user) throw new Error('Account could not be created.')
@@ -134,7 +142,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
       <form onSubmit={submit} className="auth-form">
         {mode === 'signup' && <><label>Full name<input value={name} onChange={e=>setName(e.target.value)} placeholder="Cyril Adesegha" required /></label><label>Username<input value={username} onChange={e=>setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g,''))} placeholder="cyriladesegha" minLength={3} maxLength={30} autoComplete="username" required /><small className="field-help">3–30 characters · letters, numbers and underscores</small></label><div className="form-grid signup-details-grid"><label>Date of birth <span className="optional">Month and day only</span><div className="dob-fields"><select className="dob-month" aria-label="Birth month" value={birthMonth} onChange={e=>setBirthMonth(e.target.value)} required><option value="">Month</option>{['January','February','March','April','May','June','July','August','September','October','November','December'].map((month,index)=><option key={month} value={index+1}>{month}</option>)}</select><select className="dob-day" aria-label="Birth day" value={birthDay} onChange={e=>setBirthDay(e.target.value)} required><option value="">Day</option>{Array.from({length:31},(_,i)=>i+1).map(day=><option key={day} value={day}>{day}</option>)}</select></div></label><label>Organisation name<input value={orgName} onChange={e=>setOrgName(e.target.value)} placeholder="Emerging Communities" required /></label></div></>}
         <label>{mode === 'signin' ? 'Email or username' : 'Email'}<input type={mode === 'signin' ? 'text' : 'email'} value={email} onChange={e=>setEmail(e.target.value)} placeholder={mode === 'signin' ? 'you@organisation.com or username' : 'you@organisation.com'} autoComplete={mode === 'signin' ? 'username' : 'email'} required /></label>
-        {mode !== 'forgot' && <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" minLength={6} required /></label>}
+        {mode !== 'forgot' && <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" minLength={mode==='signin'?6:10} required /></label>}
         {mode === 'signin' && <button type="button" className="auth-forgot-link" onClick={()=>{setMode('forgot');setError('');setMessage('')}}>Forgot password?</button>}
         {error && <div className="form-error">{error}</div>}{message && <div className="form-message">{message}</div>}
         <button className="primary-button auth-submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'forgot' ? 'Send reset link' : mode === 'signin' ? 'Sign in' : 'Create workspace'}</button>
@@ -163,7 +171,7 @@ function ResetPasswordScreen({ onComplete }: { onComplete: () => Promise<void> |
     e.preventDefault()
     setError('')
     setMessage('')
-    if (password.length < 8) { setError('Password must be at least 8 characters.'); return }
+    if (password.length < 10) { setError('Password must be at least 10 characters.'); return }
     if (password !== confirmPassword) { setError('Passwords do not match.'); return }
     setBusy(true)
     try {
@@ -179,10 +187,10 @@ function ResetPasswordScreen({ onComplete }: { onComplete: () => Promise<void> |
   return <div className="auth-shell">
     <div className="auth-panel">
       <div className="brand auth-brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Application OS</span></div></div>
-      <div className="auth-copy"><p className="eyebrow">Password recovery</p><h1>Choose a new password.</h1><p>Set a new password for your ApplyFlow account. Use at least 8 characters.</p></div>
+      <div className="auth-copy"><p className="eyebrow">Password recovery</p><h1>Choose a new password.</h1><p>Set a new password for your ApplyFlow account. Use at least 10 characters.</p></div>
       <form onSubmit={submit} className="auth-form">
-        <label>New password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter a new password" minLength={8} required autoFocus /></label>
-        <label>Confirm password<input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter your new password" minLength={8} required /></label>
+        <label>New password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter a new password" minLength={10} required autoFocus /></label>
+        <label>Confirm password<input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter your new password" minLength={10} required /></label>
         {error && <div className="form-error">{error}</div>}{message && <div className="form-message">{message}</div>}
         <button className="primary-button auth-submit" disabled={busy}>{busy ? 'Updating password…' : 'Update password'}</button>
       </form>
@@ -220,7 +228,7 @@ function TeamInviteLinkSignup({token}:{token:string}){
     if(name.trim().length<2){setError('Enter your full name.');return}
     if(!/^[a-z0-9_]{3,30}$/.test(normalizedUsername)){setError('Username must be 3–30 characters and use only letters, numbers, or underscores.');return}
     if(!birthMonth||!birthDay){setError('Select your date of birth.');return}
-    if(password.length<8){setError('Password must be at least 8 characters.');return}
+    if(password.length<10){setError('Password must be at least 10 characters.');return}
     if(password!==confirmPassword){setError('Passwords do not match.');return}
     setBusy(true)
     try{
@@ -301,7 +309,7 @@ function InviteSetupScreen({ email, onComplete }: { email: string; onComplete: (
     if(name.trim().length<2){setError('Enter your full name.');return}
     if(!/^[a-z0-9_]{3,30}$/.test(normalizedUsername)){setError('Username must be 3–30 characters and use only letters, numbers, or underscores.');return}
     if(!birthMonth||!birthDay){setError('Select your date of birth.');return}
-    if(password.length<6){setError('Password must be at least 6 characters.');return}
+    if(password.length<10){setError('Password must be at least 10 characters.');return}
     if(password!==confirmPassword){setError('Passwords do not match.');return}
     setBusy(true)
     try{
@@ -331,8 +339,8 @@ function InviteSetupScreen({ email, onComplete }: { email: string; onComplete: (
         <label>Username<input value={username} onChange={e=>setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g,''))} placeholder="yourusername" minLength={3} maxLength={30} autoComplete="username" required/><small className="field-help">3–30 characters · letters, numbers and underscores</small></label>
         <label>Date of birth <span className="optional">Month and day</span><div className="dob-fields"><select className="dob-month" aria-label="Birth month" value={birthMonth} onChange={e=>setBirthMonth(e.target.value)} required><option value="">Month</option>{['January','February','March','April','May','June','July','August','September','October','November','December'].map((month,index)=><option key={month} value={index+1}>{month}</option>)}</select><select className="dob-day" aria-label="Birth day" value={birthDay} onChange={e=>setBirthDay(e.target.value)} required><option value="">Day</option>{Array.from({length:31},(_,i)=>i+1).map(day=><option key={day} value={day}>{day}</option>)}</select></div></label>
         <label>Email address<input type="email" value={email} readOnly autoComplete="email"/><small className="field-help">This is the email address your workspace invitation was sent to.</small></label>
-        <label>Create password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Create a password" minLength={6} autoComplete="new-password" required/></label>
-        <label>Confirm password<input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter your password" minLength={6} autoComplete="new-password" required/></label>
+        <label>Create password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Create a password" minLength={10} autoComplete="new-password" required/></label>
+        <label>Confirm password<input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter your password" minLength={10} autoComplete="new-password" required/></label>
         {error&&<div className="form-error">{error}</div>}
         <button className="primary-button auth-submit" disabled={busy}>{busy?'Creating account…':'Create account & continue'}</button>
       </form>
@@ -394,7 +402,6 @@ function PublicApplication({slug}:{slug:string}) {
     const {data:s,error:se}=await supabase.from('application_settings').select('application_id,confirmation_message,start_date,submission_limit,applicant_instructions').eq('public_slug',slug).single(); if(se)throw se
     const {data:a,error:ae}=await supabase.from('applications').select('id,name,description,deadline').eq('id',s.application_id).eq('status','published').single(); if(ae)throw ae
     const today=new Date().toISOString().slice(0,10); if(s.start_date&&today<s.start_date)throw new Error(`Applications open on ${new Date(s.start_date+'T00:00:00').toLocaleDateString()}.`); if(a.deadline&&today>a.deadline)throw new Error('Applications for this programme are now closed.')
-    if(s.submission_limit!==null){const {count,error:ce}=await supabase.from('submissions').select('id',{count:'exact',head:true}).eq('application_id',a.id).eq('status','submitted');if(ce)throw ce;if((count||0)>=s.submission_limit)throw new Error('This application has reached its submission limit.')}
     const {data:v,error:ve}=await supabase.from('form_versions').select('id').eq('application_id',a.id).eq('status','published').order('version_number',{ascending:false}).limit(1).single(); if(ve)throw ve
     const {data:qs,error:qe}=await supabase.from('questions').select('id,type,label,description,required,placeholder,position,config,conditional_rules').eq('form_version_id',v.id).order('position'); if(qe)throw qe
     const full=await Promise.all((qs||[]).map(async q=>{const {data:o,error:oe}=await supabase.from('question_options').select('id,label,value,position').eq('question_id',q.id).order('position');if(oe)throw oe;return {...q,options:o||[]}}))
@@ -408,6 +415,12 @@ function PublicApplication({slug}:{slug:string}) {
   function setStateAnswer(id:string,value:string){setAnswers(x=>{const next={...x,[id]:value};const lga=questions.find(q=>q.type==='nigeria_lga');if(lga)delete next[lga.id];return next})}
   function setFile(id:string,file:File|null){setFiles(x=>{const next={...x};if(file)next[id]=file;else delete next[id];return next})}
   async function submit(e:React.FormEvent){e.preventDefault();setError('');for(const q of questions){if(visible(q)&&q.required&&!answers[q.id]){setError(`Please answer: ${q.label}`);return}}setLoading(true);try{
+    const allowedUploadTypes=new Set(['image/png','image/jpeg','image/webp','application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
+    for(const q of questions.filter(q=>(q.type==='file'||q.type==='image')&&files[q.id])){
+      const file=files[q.id]!
+      if(file.size>15*1024*1024)throw new Error(`"${file.name}" is larger than the 15 MB upload limit.`)
+      if(!allowedUploadTypes.has(file.type))throw new Error(`"${file.name}" is not an allowed file type. Use JPG, PNG, WebP, PDF, DOC, or DOCX.`)
+    }
     const answerPayload=questions.filter(q=>visible(q)&&answers[q.id]!==undefined).map(q=>{
       const file=files[q.id]
       if((q.type==='file'||q.type==='image')&&file){

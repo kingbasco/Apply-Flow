@@ -1047,7 +1047,7 @@ export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSa
  async function changePassword(){
    setPasswordSaving(true);setError('');setNotice('')
    try{
-     if(newPassword.length<8)throw new Error('New password must be at least 8 characters.')
+     if(newPassword.length<10)throw new Error('New password must be at least 10 characters.')
      if(newPassword!==confirmPassword)throw new Error('New passwords do not match.')
      const {data:{user}}=await supabase.auth.getUser()
      if(!user?.email)throw new Error('Your account email could not be verified.')
@@ -1104,8 +1104,8 @@ export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSa
     <div className="card-header"><div><p className="eyebrow">Security</p><h2>Password</h2><p>Keep your account protected with a strong password.</p></div><Settings size={20}/></div>
     <div className="detail-form">
       <label>Current password <span className="optional">Optional for OAuth accounts</span><input type="password" autoComplete="current-password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} placeholder="Current password"/></label>
-      <label>New password<input type="password" autoComplete="new-password" minLength={8} value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="At least 8 characters"/></label>
-      <label>Confirm new password<input type="password" autoComplete="new-password" minLength={8} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Repeat your new password"/></label>
+      <label>New password<input type="password" autoComplete="new-password" minLength={10} value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="At least 8 characters"/></label>
+      <label>Confirm new password<input type="password" autoComplete="new-password" minLength={10} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Repeat your new password"/></label>
       <div className="detail-form-footer"><button className="primary-button" onClick={changePassword} disabled={passwordSaving}>{passwordSaving?'Changing…':'Change password'}</button></div>
       <div className="security-danger-zone"><div><strong>Sign out all sessions</strong><p>Use this if you think someone else may have access to your account.</p></div><button className="secondary-button" onClick={signOutEverywhere} disabled={signingOut}>{signingOut?'Signing out…':'Sign out everywhere'}</button></div>
     </div>

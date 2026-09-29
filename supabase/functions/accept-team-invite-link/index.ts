@@ -34,7 +34,7 @@ Deno.serve(async(req:Request)=>{
 
   if(!token)return respond({error:"Invitation link is missing."},400);
   if(!/^\S+@\S+\.\S+$/.test(email))return respond({error:"Enter a valid email address."},400);
-  if(password.length<8)return respond({error:"Password must be at least 8 characters."},400);
+  if(password.length<10)return respond({error:"Password must be at least 10 characters."},400);
   if(fullName.length<2)return respond({error:"Enter your full name."},400);
   if(!/^[a-z0-9_]{3,30}$/.test(username))return respond({error:"Username must be 3–30 characters and use only letters, numbers, or underscores."},400);
   if(!Number.isInteger(birthMonth)||birthMonth<1||birthMonth>12||!Number.isInteger(birthDay)||birthDay<1||birthDay>31)return respond({error:"Select a valid date of birth."},400);
