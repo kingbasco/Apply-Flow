@@ -4543,3 +4543,25 @@ html.dark-theme .screening-quick-profile article{background:#12161d;border-color
 html.dark-theme .screening-quick-profile article span{color:#8f98a8}
 html.dark-theme .screening-quick-profile article strong{color:#e7ebf1}
 @media(max-width:720px){.screening-quick-profile{grid-template-columns:1fr;margin-left:16px;margin-right:16px}}
+
+
+/* Shared table pagination */
+.table-pagination{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border-top:1px solid #eceff3;background:#fafbfc}
+.table-pagination-summary,.table-pagination-nav{display:flex;align-items:center;gap:12px}
+.table-pagination-summary>span,.table-pagination-nav>span{font-size:9px;color:#7d8794;white-space:nowrap}
+.table-pagination-summary strong,.table-pagination-nav strong{color:#3d4654;font-weight:700}
+.table-pagination-summary label{display:flex;align-items:center;gap:7px;font-size:9px;color:#7d8794}
+.table-pagination-summary select{height:32px;min-width:72px;padding:0 28px 0 10px;border:1px solid #dfe3e9;border-radius:8px;background:#fff;color:#414a58;font:inherit;font-size:9px;font-weight:600;outline:none;cursor:pointer}
+.table-pagination-summary select:focus{border-color:#9f98ef;box-shadow:0 0 0 3px rgba(109,93,252,.08)}
+.table-pagination-nav .secondary-button{min-height:32px;padding:0 10px;font-size:9px}
+.table-pagination-nav .secondary-button:disabled{opacity:.45;cursor:not-allowed}
+html.dark-theme .table-pagination{background:#12161d;border-color:#303642}
+html.dark-theme .table-pagination-summary>span,html.dark-theme .table-pagination-nav>span,html.dark-theme .table-pagination-summary label{color:#9099a8}
+html.dark-theme .table-pagination-summary strong,html.dark-theme .table-pagination-nav strong{color:#e1e6ed}
+html.dark-theme .table-pagination-summary select{background:#171b23;border-color:#343a47;color:#e1e6ed}
+@media(max-width:720px){
+  .table-pagination{align-items:stretch;flex-direction:column;padding:12px 14px}
+  .table-pagination-summary{justify-content:space-between}
+  .table-pagination-nav{justify-content:space-between}
+  .table-pagination-nav>span{text-align:center;flex:1}
+}
