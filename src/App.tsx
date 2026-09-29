@@ -395,11 +395,11 @@ function PublicAssignment({slug}:{slug:string}) {
 function PublicApplication({slug}:{slug:string}) {
   const [loading,setLoading]=useState(true), [error,setError]=useState(''), [submitted,setSubmitted]=useState(false), [participantId,setParticipantId]=useState('')
   const [app,setApp]=useState<{id:string;name:string;description:string|null;deadline:string|null} | null>(null)
-  const [settings,setSettings]=useState<{confirmation_message:string;start_date:string|null;submission_limit:number|null;applicant_instructions:string|null}|null>(null)
+  const [settings,setSettings]=useState<{confirmation_message:string;start_date:string|null;applicant_instructions:string|null}|null>(null)
   const [questions,setQuestions]=useState<BuilderQuestion[]>([]), [answers,setAnswers]=useState<Record<string,string|string[]>>({}), [files,setFiles]=useState<Record<string,File>>({})
   const [lgaOptions,setLgaOptions]=useState<string[]>([]), [lgaLoading,setLgaLoading]=useState(false)
   useEffect(()=>{(async()=>{try{
-    const {data:s,error:se}=await supabase.from('application_settings').select('application_id,confirmation_message,start_date,submission_limit,applicant_instructions').eq('public_slug',slug).single(); if(se)throw se
+    const {data:s,error:se}=await supabase.from('application_settings').select('application_id,confirmation_message,start_date,applicant_instructions').eq('public_slug',slug).single(); if(se)throw se
     const {data:a,error:ae}=await supabase.from('applications').select('id,name,description,deadline').eq('id',s.application_id).eq('status','published').single(); if(ae)throw ae
     const today=new Date().toISOString().slice(0,10); if(s.start_date&&today<s.start_date)throw new Error(`Applications open on ${new Date(s.start_date+'T00:00:00').toLocaleDateString()}.`); if(a.deadline&&today>a.deadline)throw new Error('Applications for this programme are now closed.')
     const {data:v,error:ve}=await supabase.from('form_versions').select('id').eq('application_id',a.id).eq('status','published').order('version_number',{ascending:false}).limit(1).single(); if(ve)throw ve
