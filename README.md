@@ -1,667 +1,798 @@
 # ApplyFlow
 
-> **Application intake, screening, review, and participant management — in one workspace.**
+> **Application intake, screening, participant operations, communication, attendance, assignments and reporting — in one workspace.**
 
-ApplyFlow is a web-based application management platform for organisations running programmes, scholarships, fellowships, grants, recruitment drives, community programmes, and other application-based initiatives.
+ApplyFlow is a production-oriented application and programme operations platform for organisations running grants, fellowships, scholarships, training programmes, community initiatives, recruitment drives and other application-based programmes.
 
-**Create programme → Build form → Publish → Collect applications → Check eligibility → Screen → Approve → Enrol participants → Track outcomes → Analyse**
+The core workflow is:
 
-AI-assisted screening supports reviewers; it does not replace human decision-making.
+~~~text
+Create programme
+→ Build or import form
+→ Publish
+→ Collect applications
+→ Check eligibility
+→ Screen / review
+→ Approve or reject
+→ Approved applicant becomes participant
+→ Assign participant to staff
+→ Communicate / onboard
+→ Track attendance and assignments
+→ Analyse outcomes
+~~~
+
+AI and automated screening features assist the programme team. Final approval/rejection decisions remain human-controlled.
 
 ---
 
-## ✨ Product at a glance
+## Current status — 29 September 2026
 
 | Area | Status |
 |---|---|
-| 🏗️ Foundation & workspace | 🟢 Built |
-| 🔐 Authentication & profiles | 🟢 Built |
-| 🏢 Organisation profile & logo | 🟢 Built |
-| 📋 Application management | 🟢 Built |
-| 🧩 Form builder & versioning | 🟢 Built / QA |
-| 🌍 Public applicant experience | 🟢 Built / QA |
-| 🔎 Eligibility rules | 🟢 Built / QA |
-| 🎯 Reviewer scoring | 🟢 Built / QA |
-| 🤖 AI-assisted screening | 🟢 Built / QA |
-| 👥 Review teams & assignments | 🟢 Built / QA |
-| 👤 Participant management | 🟢 Built / QA |
-| 📊 Analytics & reporting | 🟢 Built / QA |
-| 🔔 Notifications | 🟢 Built / QA |
-| 🛡️ Production hardening | 🟡 Ongoing |
+| Workspace foundation | ✅ Built |
+| Authentication and profiles | ✅ Built + hardened |
+| Organisation branding | ✅ Built |
+| Programme management | ✅ Built |
+| Form builder and versioning | ✅ Built + verified |
+| Google Form CSV import | ✅ Built |
+| Public application flow | ✅ Built |
+| Eligibility rules | ✅ Built |
+| Screening and review | ✅ Built |
+| Quick screening profile | ✅ Built |
+| Participant management | ✅ Built |
+| Participant-to-staff assignment | ✅ Built |
+| Participant CSV export | ✅ Built |
+| Email Center / Zoho SMTP | ✅ Integrated + mailbox validated |
+| Attendance | ✅ Built |
+| Programme assignments | ✅ Built |
+| Grading and participant results | ✅ Built |
+| Programme leaderboard | ✅ Built |
+| Team invite links | ✅ Built |
+| In-app notifications | ✅ Built |
+| Analytics | ✅ Built |
+| Security hardening | 🟡 Advanced / ongoing |
+| Full end-to-end production QA | 🟡 Ongoing |
 
-> 🟢 Built · 🟡 In progress / QA · 🔴 Planned
+**Latest verified commit:** 85f7020baa66cb18ecc915befbd9929af3339193
 
----
+For that commit:
 
-## 🖼️ Current product workflow
-
-```text
-┌──────────────────────┐
-│ Organisation creates │
-│ a programme          │
-└──────────┬───────────┘
-           ▼
-┌──────────────────────┐
-│ Build application    │
-│ form + rules         │
-└──────────┬───────────┘
-           ▼
-┌──────────────────────┐
-│ Publish programme    │
-│ and public form      │
-└──────────┬───────────┘
-           ▼
-┌──────────────────────┐
-│ Applicant submits    │
-│ application          │
-└──────────┬───────────┘
-           ▼
-┌──────────────────────┐
-│ Eligibility +        │
-│ validation           │
-└──────────┬───────────┘
-           ▼
-┌──────────────────────┐
-│ Screening + reviewer │
-│ scoring + AI support │
-└──────────┬───────────┘
-           ▼
-     ┌─────┴─────┐
-     ▼           ▼
-┌──────────┐  ┌──────────┐
-│ Approve  │  │  Reject  │
-└────┬─────┘  └──────────┘
-     ▼
-┌──────────────────────┐
-│ Automatically enrol  │
-│ as participant        │
-└──────────┬───────────┘
-           ▼
-┌──────────────────────┐
-│ Active → Completed / │
-│ Withdrawn            │
-└──────────┬───────────┘
-           ▼
-┌──────────────────────┐
-│ Analytics & reporting│
-└──────────────────────┘
-```
-
-ApplyFlow no longer uses a separate shortlist/final-selection stage. Once a submitted application is approved during screening, the applicant becomes a participant automatically.
+- TypeScript/Vite production build passed.
+- Vercel deployment status passed.
+- ApplyFlow QA Supervisor passed.
+- Browser smoke check found rendered content and no runtime error overlay.
+- The form publishing regression involving legacy conditional rules was fixed and deployed.
 
 ---
 
-## 🚀 What has been built
+## Product roles
 
-### 1. Foundation & workspace
+ApplyFlow currently uses three workspace roles:
 
-- React + TypeScript + Vite
-- Responsive application shell
-- Dashboard and workspace navigation
-- Organisation/workspace context
-- Supabase/Postgres
-- Row Level Security (RLS)
-- Role-aware workspace structure
-- Light and dark themes
-- Reusable UI components
-- Workspace-level organisation branding
+### Owner
 
-### 2. Authentication & account management
+The Owner has the highest organisation-level control.
 
-- Email/password sign up and sign in
-- Google sign in/sign up
-- Username-based sign in
-- Organisation creation during signup
-- User profiles
-- Username management
-- Profile photo upload
-- Forgot password and password reset
-- Team invitation account setup
-- Owner, Admin, and Reviewer roles
+Key capabilities include:
 
-Username rules: **3–30 characters**, using lowercase letters, numbers, and underscores, with case-insensitive uniqueness.
+- Manage the organisation.
+- Manage programmes.
+- Manage Admins and Programme Staff.
+- Remove Admins safely.
+- Publish and manage forms.
+- Manage screening and review operations.
+- Assign participants to staff.
+- Send participant email.
+- Manage attendance and assignments.
+- Access analytics and settings.
 
-### 3. Organisation profile & branding
+### Admin
 
-Organisation settings now support:
+Admins can manage normal programme operations but cannot remove or manage an Owner and cannot remove peer Admins where owner-only hierarchy applies.
 
-- Organisation name and workspace details
-- Organisation profile/logo image
-- JPG, PNG, and WebP uploads
-- 5 MB upload limit
-- Public organisation avatar storage
-- Logo display in the workspace switcher
+### Programme Staff
 
-Organisation profile images are stored securely in Supabase Storage and linked to the organisation record.
+The UI uses **Programme Staff** for the operational reviewer/staff role. Some internal database code still uses the legacy role value **reviewer**.
 
-### 4. Programme management
+Programme Staff access is assignment-aware. They can work with applications/participants assigned to them according to the current programme permissions.
 
-Programme creation and editing supports:
+---
 
-- Programme name
-- Description
-- Application deadline
-- Target participant count
-- Public application slug
-- Applicant instructions
-- Submission limits
-- Confirmation messages
-- Participant ID prefix
-- Draft/published/closed/completed lifecycle
-- Publish and unpublish controls
-- Close applications
+## Programme lifecycle
 
-Before publishing, ApplyFlow validates the programme configuration, including the Participant ID prefix, public slug, and published form version.
+Programmes support:
 
-```text
-Draft → Published → Closed → Completed
-```
+- Name and description.
+- Application deadline.
+- Target participant count.
+- Public application slug.
+- Applicant instructions.
+- Submission limits.
+- Confirmation messages.
+- Participant ID prefix.
+- Draft / Published / Closed / Completed lifecycle.
+- Publish/unpublish and close controls.
+- Protected programme deletion.
 
-### 5. Form builder & versioning
+Programme deletion is restricted to Owner/Admin access and handled through protected database logic.
 
-The visual form builder supports:
+---
 
-- Question creation, editing, ordering, and deletion
-- Required questions
-- Descriptions and placeholders
-- Choice options
-- Multiple choice and dropdowns
-- Rating questions
-- File and image uploads
-- Date, number, email, and phone fields
-- Nigerian state and LGA selection
-- Conditional questions
-- Eligibility rules
-- Applicant preview
-- Draft and published versions
+## Form builder and versioning
 
-Published forms are treated as immutable. Future edits are made through a new draft version so historical submissions remain tied to the form version they used.
+The form builder supports:
 
-When form versions are cloned, conditional and eligibility rules are remapped to the newly created question IDs.
+- Short text.
+- Long text.
+- Email.
+- Phone.
+- Number.
+- Date.
+- Dropdown.
+- Single choice.
+- Multiple choice.
+- Yes/No.
+- Nigerian State.
+- Nigerian LGA.
+- File upload.
+- Image upload.
+- Rating.
+- Required fields.
+- Descriptions.
+- Placeholders.
+- Options.
+- Conditional questions.
+- Preview.
+- Reordering.
+- Draft and published versions.
 
-```text
-Draft v1 → Publish v1 → Draft v2 → Publish v2 → Draft v3
-```
+### Version integrity
 
-### 6. Public applicant experience
+Published form versions are immutable. Editing a published form creates a new draft version.
+
+~~~text
+Published v1
+→ Draft v2
+→ Publish v2
+→ Draft v3
+~~~
+
+Conditional rules and eligibility references are remapped when a version is cloned.
+
+A September 29 regression exposed older imported conditional-rule values stored as empty JSON objects rather than arrays. The current draft data was repaired, and the frontend now normalises legacy conditional-rule values so preview, loading and publishing do not crash.
+
+---
+
+## Google Form import
+
+ApplyFlow supports importing Google Form responses/data through the import workflow.
+
+Implemented capabilities include:
+
+- CSV-based import.
+- Import staging.
+- Batch tracking.
+- Mapping imported questions.
+- Handling imported forms where no local form exists yet.
+- Timestamp validation fixes.
+- Import into the real application/submission model.
+
+Imported form structures can be edited after import through ApplyFlow's form workflow.
+
+---
+
+## Public application experience
 
 The public application flow supports:
 
-- Public programme pages
-- Application availability checks
-- Start-date checks
-- Deadline checks
-- Submission-limit checks
-- Published form loading
-- Dynamic questions
-- Conditional questions
-- Eligibility evaluation
-- Nigerian state/LGA selection
-- File and image uploads
-- Application submission
-- Submission confirmation
-- Participant ID presentation
+- Published programme validation.
+- Start date.
+- Deadline.
+- Submission-limit enforcement.
+- Published form loading.
+- Conditional questions.
+- State/LGA logic.
+- File/image uploads.
+- Required-field validation.
+- Submission confirmation.
+- Participant ID generation.
 
-After submission, the applicant receives a Participant ID generated by ApplyFlow.
+Public file uploads are validated before upload. Current browser validation allows the supported JPG, PNG, WebP, PDF, DOC and DOCX types with a 15 MB per-file limit.
 
-### 7. Participant ID system
+Submission limits are enforced in protected backend logic rather than trusting a public browser count.
 
-ApplyFlow uses a single user-facing identifier for the applicant/participant lifecycle:
+---
 
-```text
-OWNER PREFIX - YEAR - SYSTEM NUMBER
-```
+## Participant identity
 
-Examples:
+Applicants/participants use a human-readable ID:
 
-```text
+~~~text
+PREFIX-YEAR-00001
+~~~
+
+Example:
+
+~~~text
 ECA-2026-00001
-ECA-2026-00002
-ATH-2026-00001
-```
+~~~
 
-The system:
+The same public ID is retained through the applicant-to-participant lifecycle while internal UUIDs remain private database identifiers.
 
-1. Uses the programme owner's configured prefix.
-2. Adds the year automatically.
-3. Generates a sequential five-digit number.
-4. Keeps the same Participant ID through the application and participant lifecycle.
-5. Keeps internal UUIDs private for database relationships.
+---
 
-Participant IDs are generated atomically in the database to prevent duplicate numbers for the same organisation prefix and year.
+## Eligibility
 
-### 8. Eligibility rules
+Eligibility rules are configured from application questions.
 
-Programmes can define eligibility requirements using application answers.
+The current system supports:
 
-The system supports:
+- Question-based requirements.
+- Numeric ranges.
+- Single expected values.
+- Multi-value matching.
+- Enabled/disabled rules.
+- Automatic evaluation.
+- Pending results when required evidence is missing.
 
-- Eligibility rule configuration
-- Question-based conditions
-- Conditional logic
-- Automatic eligibility evaluation
-- Eligibility status used during screening
-- Re-evaluation when relevant answers change
+Eligibility is one input to human review; it does not silently make the final programme decision.
 
-Eligibility is presented clearly during applicant review so reviewers can understand whether an application meets the configured requirements.
+---
 
-### 9. Screening & reviewer scoring
+## Screening and review
 
-The Screening workspace provides reviewers with:
+The current visible review flow is intentionally simpler than the earlier score-heavy design.
 
-- Submitted applications
-- Pending, approved, and rejected decisions
-- Applicant answers
-- Eligibility result
-- Reviewer scoring
-- AI recommendation
-- Review assignments
-- Reviewer access controls
-- Review audit history
+Human reviewer scoring was removed from the main screening UI and analytics.
 
-The applicant review experience includes a clear review summary:
+Current screening/review includes:
 
-- **Eligibility**
-- **Reviewer score**
-- **AI recommendation**
+- Submitted applications.
+- Eligibility state.
+- Review modal/full application view.
+- Assigned Programme Staff.
+- Owner/Admin review assignment management.
+- Owner/Admin **Assigned to me** personal queue.
+- Final approve/reject action.
+- Audit/history records.
+- Pagination.
+- Page-scoped selection.
 
-AI recommendations are advisory. The authorised reviewer remains responsible for the final decision.
+### Quick screening profile
 
-Final actions are intentionally clear:
+The current quick screening action is optimised for fast operational review and extracts only:
 
-- **Approve & enrol participant**
-- **Reject application**
+1. Age.
+2. Residential Address.
+3. Trade.
 
-Approving an application automatically moves the applicant into the Participants area.
+This avoids the previous long recommendation/strength/concern output for routine screening.
 
-### 10. AI-assisted screening
+Final decisions remain human-controlled.
 
-ApplyFlow includes Gemini-powered AI assistance for application screening.
+---
 
-AI assistance can provide:
+## Participant management
 
-- Applicant summaries
-- Criteria-based analysis
-- Strengths and potential concerns
-- Programme-fit analysis
-- Screening recommendations
-- Explainable screening output
+Approved applicants become participants automatically.
 
-```text
-Applicant
-   ↓
-Eligibility
-   ↓
-Reviewer score + AI assistance
-   ↓
-Human reviewer
-   ↓
-Approve & enrol / Reject
-```
+Participant lifecycle:
 
-AI output is advisory and does not make the final decision.
-
-The AI screening Edge Function includes retry and fallback handling for transient model/API failures.
-
-### 11. Participant management
-
-Approved applicants automatically become participants.
-
-Participant records support:
-
-- Participant ID
-- Applicant relationship
-- Programme relationship
-- Active/enrolled status
-- Completed status
-- Withdrawn status
-- Joined date
-- Attendance count
-
-Current participant lifecycle:
-
-```text
+~~~text
 Approved
-   ↓
-Active / Enrolled
-   ├──→ Completed
-   └──→ Withdrawn
-```
+→ Active / Enrolled
+→ Completed
+   or
+→ Withdrawn
+~~~
 
-There is no separate shortlist or selected stage in the current product model. **Approved = selected/enrolled.**
+Participant management includes:
 
-### 12. Analytics & reporting
+- Participant ID.
+- Name.
+- Email.
+- Programme.
+- Status.
+- Joined date.
+- Full-screen participant profile.
+- Attendance information.
+- Selection checkboxes.
+- Bulk staff assignment.
+- Page-scoped selection.
+- Pagination.
 
-Analytics now follows the actual ApplyFlow lifecycle.
+### Pagination
 
-Current metrics include:
+Participant, Screening and Review lists use reusable pagination controls.
 
-- Total submissions
-- Approved applications
-- Rejected applications
-- Enrolled participants
-- Active participants
-- Completed participants
-- Withdrawn participants
-- Scored applications
-- Average reviewer score
-- Approval rate
-- Completion rate
-- Withdrawal rate
+Default page size:
 
-The funnel follows:
+- 50 rows.
 
-```text
-Submitted
-    ↓
-Approved / Enrolled
-    ↓
-Completed
-```
+Supported operational sizes include:
 
-Rejected applications and withdrawn participants are tracked separately.
+- 50.
+- 100.
+- 200.
+- 300.
 
-Programme-level reporting includes:
-
-- Submissions
-- Approved/enrolled participants
-- Rejected applications
-- Completed participants
-- Withdrawn participants
+The Email Center uses 50-step sizes such as 50, 100, 150, 200 and so on.
 
 ---
 
-## 🔐 Security & data architecture
+## Participant-to-staff assignment
 
-ApplyFlow uses Supabase/Postgres with organisation-level data isolation.
+ApplyFlow has a dedicated participant staff assignment model.
 
-Security work includes:
+Owners/Admins can:
 
-- Row Level Security
-- Role-aware access
-- Protected workspace routes
-- Organisation-scoped data access
-- User-scoped profile data
-- Profile image storage policies
-- Organisation logo storage policies
-- Authenticated profile updates
-- Protected database functions
-- Public application submission RPC controls
-- Secure application deletion
-- Cascade handling for application-related records
-- Review audit logging
-- Eligibility trigger safeguards
+- Select participants.
+- Assign them to an Admin or Programme Staff member.
+- Work in operational groups such as 50 participants per staff member.
 
-Production security review still includes:
-
-- SECURITY DEFINER functions
-- RPC permissions
-- Storage policies
-- Leaked-password protection
-- Role boundaries
-- Public submission permissions
+These assignments are reused by Email Center. ApplyFlow does not create a separate email grouping system.
 
 ---
 
-## 🔔 Notifications
+## Participant export
 
-ApplyFlow currently includes an in-app notifications center for workspace users.
+Participant export supports configurable CSV fields.
 
-Implemented:
+Base fields include:
 
-- Notification bell in the workspace header
-- Unread notification count
-- Notification list with titles, messages, types, and relative timestamps
-- Mark individual notifications as read
-- Mark all notifications as read
-- Real-time notification updates through Supabase Realtime
-- Notification click-through to the relevant workspace area
-- Latest 30 notifications displayed
+- Participant ID.
+- Name.
+- Email.
+- Programme.
+- Status.
+- Joined Date.
 
-Applicant email and automated programme communication workflows are separate from the in-app notification center and remain planned.
+The export can also include selected answers from the participant's application form, including imported contact fields.
+
+This allows teams to export only the data required for a specific operational task.
 
 ---
 
-## 🧰 Technology stack
+## Email Center
+
+ApplyFlow includes an Email workspace with:
+
+- Compose.
+- Templates.
+- Zoho connection.
+- Programme selection.
+- Audience filtering.
+- Assigned-staff filtering.
+- Participant search.
+- Recipient checkboxes.
+- Merge fields.
+- WhatsApp group link merge field.
+- Template saving.
+- Zoho delivery state.
+
+### Zoho transport
+
+ApplyFlow uses a Zoho **application-specific password + SMTP** integration.
+
+The secret values stay in Supabase Edge Function Secrets and are never shipped to React.
+
+The OAuth Self Client path was intentionally abandoned for this single-organisation setup because SMTP App Password authentication is operationally simpler.
+
+Current SMTP configuration:
+
+- Secure direct TLS connection.
+- Port 465.
+- Organisation/standard Zoho SMTP host fallback.
+- Owner/Admin authorization.
+- Individual recipient delivery.
+- Maximum backend batch size of 50.
+
+The frontend can select more than 50 recipients and automatically sends them in safe groups of 50.
+
+### Assignment-aware email groups
+
+Email recipients can be filtered by the staff member they are assigned to.
+
+Example workflow:
+
+~~~text
+Programme
+→ Assigned to: Staff A (50)
+→ Select all 50
+→ Add Staff A WhatsApp group link
+→ Send
+
+Then:
+
+Assigned to: Staff B (50)
+→ Select all 50
+→ Add Staff B WhatsApp group link
+→ Send
+~~~
+
+Changing the assigned-staff filter clears the previous selection to reduce cross-group mistakes.
+
+**Connection status:** the Zoho mailbox has been successfully validated in production.
+
+**Still to verify:** a real participant email delivery should be exercised and confirmed end-to-end before email delivery is called fully production-verified.
+
+---
+
+## Attendance
+
+Attendance operations include:
+
+- Attendance sessions.
+- Session date.
+- Friendly editable check-in slug.
+- Shareable public check-in link.
+- Native date picker support.
+- Dark-mode-safe date/calendar controls.
+- Participant self check-in.
+- Duplicate prevention.
+- Attendance records linked to participants.
+
+Public participant check-in requires:
+
+- Participant ID.
+- Application email.
+
+This avoids using a participant ID alone as the only lookup secret.
+
+---
+
+## Programme assignments
+
+ApplyFlow includes programme assignment infrastructure:
+
+- Assignment creation.
+- Assignment questions.
+- Public assignment link.
+- Participant submission.
+- Secure assignment file uploads.
+- One participant submission flow.
+- Grading.
+- Score.
+- Marker feedback.
+- Grade history.
+- Result release.
+- Participant results portal.
+- Programme-wide leaderboard.
+
+Participant assignment/results access requires both:
+
+- Participant ID.
+- Application email.
+
+Leaderboard behaviour is programme-wide and only released/graded entries are surfaced according to the assignment/result rules.
+
+---
+
+## Team management and invitations
+
+Team operations include:
+
+- Owner.
+- Admin.
+- Programme Staff.
+- Invite team member flow.
+- Shareable invitation links.
+- Role-specific invite links.
+- Expiring links.
+- Single-use links.
+- Invitee account setup.
+- Safe member removal.
+- Owner-only Admin removal.
+
+The invite-link endpoint is public by necessity, but validates the invite token and cleans up newly created auth users if the invite claim fails.
+
+---
+
+## Authentication and account security
+
+Supported authentication:
+
+- Email/password.
+- Google OAuth.
+- Username/password.
+- Password reset.
+- Profile setup.
+- Team invite signup.
+
+Recent hardening includes:
+
+- Minimum 10-character password requirement for new/reset/invited accounts.
+- Username login moved behind a server-side Edge Function.
+- Generic invalid-credential responses to reduce username/email enumeration.
+- Session creation from the authenticated server response.
+- Sign out all sessions control.
+- Participant public portals require ID + application email.
+- Public file upload type/size validation.
+- Protected privileged RPC grants.
+- Organisation-scoped RLS.
+- Owner/Admin hierarchy checks.
+
+Service-role credentials remain server-side only.
+
+---
+
+## Storage and uploaded documents
+
+ApplyFlow separates public branding assets from protected programme/application files.
+
+Uploaded-document infrastructure includes:
+
+- Storage path.
+- Original filename.
+- MIME type.
+- File size.
+- Submission/question relationship.
+- Extraction status.
+- Extracted text.
+
+Document extraction infrastructure supports supported text/data/image cases and authenticated organisation access.
+
+Full PDF extraction/verification remains an area for further production QA and implementation.
+
+---
+
+## In-app notifications
+
+Workspace notifications include:
+
+- Notification bell.
+- Unread count.
+- Latest notifications list.
+- Relative timestamps.
+- Mark one as read.
+- Mark all as read.
+- Supabase Realtime updates.
+- Click-through to relevant workspace areas.
+
+---
+
+## Analytics
+
+Analytics follows the current participant lifecycle.
+
+Metrics include:
+
+- Submissions.
+- Approved/enrolled.
+- Rejected.
+- Active participants.
+- Completed.
+- Withdrawn.
+- Approval rate.
+- Completion rate.
+- Withdrawal rate.
+- Submission trend.
+- Programme breakdown.
+
+Human reviewer score metrics were removed from the visible product after the review workflow was simplified.
+
+---
+
+## Security architecture
+
+ApplyFlow uses Supabase/Postgres with organisation-scoped access.
+
+Core boundaries include:
+
+- Row Level Security on public tables.
+- Protected privileged RPCs.
+- Secure Edge Functions.
+- Organisation-scoped access checks.
+- Role hierarchy.
+- Immutable published form versions.
+- Public token validation.
+- Private server secrets.
+- Restricted public participant lookups.
+- File validation.
+- Audit logs.
+
+Security hardening is advanced but remains an ongoing production discipline. Remaining work includes continued review of:
+
+- SECURITY DEFINER surface.
+- RPC grants.
+- Storage policies.
+- Rate limiting.
+- MFA strategy.
+- Monitoring/alerting.
+- Backup/recovery.
+- Security advisor/performance advisor cleanup.
+
+---
+
+## Active Supabase Edge Functions
+
+The live project currently has these active Edge Functions:
+
+- run-ai-screening
+- extract-application-document
+- invite-team-member
+- manage-team-member
+- accept-team-invite-link
+- zoho-mail-status
+- send-zoho-email
+- username-login
+
+Most private functions verify authenticated sessions. Public functions such as invite acceptance and username login use purpose-specific validation instead of exposing general database access.
+
+---
+
+## Technology stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | React |
+| Frontend | React 19 |
 | Language | TypeScript |
-| Build | Vite |
-| Styling | Tailwind CSS + custom CSS |
-| UI | shadcn/ui + Lucide |
+| Build | Vite 7 |
+| Icons | Lucide React |
 | Database | PostgreSQL |
 | Backend | Supabase |
 | Authentication | Supabase Auth |
 | Storage | Supabase Storage |
+| Realtime | Supabase Realtime |
+| Server functions | Supabase Edge Functions |
 | Deployment | Vercel |
 | Source control | GitHub |
-| AI | Google Gemini |
-| Automation | GitHub Actions |
+| CI/QA | GitHub Actions + ApplyFlow QA Supervisor |
 
 ---
 
-## 🗂️ Project structure
+## Repository structure
 
-```text
+~~~text
 Apply-Flow/
 ├── agent/
-│   ├── state.json
 │   └── supervisor.mjs
-├── supabase/
-│   ├── migrations/
-│   └── functions/
+├── docs/
+│   └── APPLYFLOW_PROJECT_MASTER.md
 ├── src/
 │   ├── components/
-│   │   ├── ParticipantsPanel.tsx
+│   │   ├── EmailWorkspace.tsx
 │   │   ├── GoogleFormImport.tsx
+│   │   ├── ParticipantsPanel.tsx
+│   │   ├── TablePagination.tsx
 │   │   └── WorkspaceModules.tsx
 │   ├── lib/
-│   │   ├── supabase.ts
-│   │   └── nigeria.ts
 │   ├── App.tsx
 │   └── styles.css
-├── public/
+├── supabase/
+│   ├── functions/
+│   └── migrations/
 ├── package.json
 └── README.md
-```
+~~~
 
 ---
 
-## 🤖 Autonomous deployment supervisor
+## Development
 
-The repository contains a supervisor intended to verify and monitor deployments.
+Install:
 
-```text
-GitHub
-   ↓
-Production build
-   ↓
-Vercel deployment
-   ↓
-Browser verification
-   ↓
-Gemini diagnosis
-   ↓
-Safe patch
-   ↓
-Commit + push
-   ↺
-Re-verify
-```
-
-The supervisor is designed to:
-
-- Verify required credentials
-- Run the application build
-- Inspect Vercel deployments
-- Browser-check deployments
-- Send failure evidence to Gemini
-- Apply safe patches when appropriate
-- Commit and push fixes
-- Re-verify the deployment
-
-**Current status:** the supervisor code exists, but its GitHub Actions environment still has a Vercel token injection issue that must be resolved before the autonomous loop can run successfully.
-
----
-
-## 🧪 Development
-
-Install dependencies:
-
-```bash
+~~~bash
 npm install
-```
+~~~
 
-Start the development server:
+Run locally:
 
-```bash
+~~~bash
 npm run dev
-```
+~~~
 
-Run a production build:
+Production build:
 
-```bash
+~~~bash
 npm run build
-```
+~~~
 
-Preview the production build:
+Preview:
 
-```bash
+~~~bash
 npm run preview
-```
+~~~
+
+Run the QA supervisor:
+
+~~~bash
+npm run agent
+~~~
 
 ---
 
-## 🛣️ Current roadmap
+## Deployment and automated QA
 
-| Phase | Area | Status |
-|---:|---|---|
-| 1 | Foundation & Authentication | 🟢 Built |
-| 2 | Organisation & Programme Management | 🟢 Built / QA |
-| 3 | Form Builder & Versioning | 🟢 Built / QA |
-| 4 | Public Applicant Experience | 🟢 Built / QA |
-| 5 | Eligibility Rules | 🟢 Built / QA |
-| 6 | Screening & Reviewer Scoring | 🟢 Built / QA |
-| 7 | AI-assisted Screening | 🟢 Built / QA |
-| 8 | Participant Management | 🟢 Built / QA |
-| 9 | Analytics & Reporting | 🟢 Built / QA |
-| 10 | In-app Notifications | 🟢 Built / QA |
-| 11 | Participant Progress & Attendance | 🟡 Next |
-| 12 | Certificates & Completion | 🔴 Planned |
-| 13 | Production Hardening | 🟡 Ongoing |
+ApplyFlow uses a GitHub → Vercel workflow plus an automated QA supervisor.
 
-### Immediate implementation priority
+The supervisor verifies:
 
-```text
-Finish Vercel build / deployment QA
-        ↓
-End-to-end application lifecycle test
-        ↓
-Participant management QA
-        ↓
-Analytics QA
-        ↓
-Participant progress & attendance
-        ↓
-Applicant email & automated communications
-        ↓
-Production hardening
-```
+1. GitHub access.
+2. Build.
+3. Vercel deployment readiness.
+4. Browser page content.
+5. Runtime error overlay state.
+
+The earlier Vercel-token configuration issue has been resolved.
+
+**Current state:** the supervisor is active in GitHub Actions and passes on the current main branch.
 
 ---
 
-## 🎯 Product principles
+## Latest system verification
 
-### Human-controlled decisions
+A full regression/audit pass on 29 September 2026 confirmed:
 
-AI may assist with analysis and screening, but authorised people make final decisions.
+- Fresh Build Check passed.
+- Fresh QA Supervisor passed.
+- Vercel was READY.
+- Browser smoke test passed.
+- Public database tables had RLS enabled.
+- No broken participant/application references were found.
+- No broken participant/staff references were found.
+- No broken review/submission references were found.
+- No invalid participant/review states were found after checking the real schema constraints.
+- No duplicate participant codes were found.
+- No duplicate participant/staff assignment pairs were found.
+- No duplicate review assignments were found.
+- Zoho status endpoint returned authenticated HTTP 200 responses.
 
-### Version integrity
-
-Published forms remain stable so historical submissions can always be interpreted against the version they used.
-
-### Organisation isolation
-
-An organisation should only access data it is authorised to access.
-
-### Auditability
-
-Important screening and reviewer actions should leave a traceable history.
-
-### Applicant clarity
-
-Applicants should understand what they submitted, receive their Participant ID, and know what happens next.
-
-### Simple participant lifecycle
-
-Approved applicants become participants automatically. ApplyFlow does not introduce unnecessary shortlist or selection stages between approval and enrolment.
-
-### Secure by default
-
-Authentication, authorisation, storage, database policies, and public submission paths are treated as production security boundaries.
+The automated browser supervisor is a smoke test, not a full authenticated click-through suite. Authenticated workflows still require real user-journey QA when a feature is changed.
 
 ---
 
-## 📋 Production-readiness checklist
+## Known items still requiring final production verification
 
-- [ ] Authentication fully tested
-- [ ] Organisation isolation verified
-- [ ] Programme lifecycle verified
-- [ ] Form versioning verified
-- [ ] Conditional questions verified
-- [ ] Eligibility rules verified
-- [ ] Public applicant flow verified
-- [ ] Participant ID generation verified
-- [ ] Participant ID displayed after submission
-- [ ] Screening workflow verified
-- [ ] Reviewer permissions verified
-- [ ] Approve → participant flow verified
-- [ ] Reject workflow verified
-- [ ] Participant status lifecycle verified
-- [ ] Analytics verified
-- [ ] AI screening reviewed and tested
-- [x] In-app notifications implemented
-- [ ] Supabase security review complete
-- [ ] Storage security review complete
-- [ ] Accessibility review complete
-- [ ] Mobile QA complete
-- [ ] Vercel deployment verified
-- [ ] Supervisor automation working
-- [ ] End-to-end production test complete
+- Real Zoho participant email delivery.
+- Assignment-aware email with real populated staff groups.
+- Full attendance end-to-end user journey.
+- Assignment → grading → released result end-to-end QA.
+- Full Google Form import QA against representative production exports.
+- Document/PDF extraction completeness.
+- Mobile QA.
+- Accessibility QA.
+- Security advisor cleanup.
+- Storage/security review.
+- Backup/recovery plan.
+- Monitoring and alerting.
+- MFA product decision and implementation if required.
 
 ---
 
-## 📈 Current project status
+## Product decisions to preserve
 
-**Stage:** Active product build
+1. **Approved = selected/enrolled.** Do not reintroduce a separate shortlist/final-selection stage unless requirements change.
+2. **AI/automation is advisory.** Humans make approval/rejection decisions.
+3. **Published form versions are immutable.**
+4. **Participant ID is the user-facing lifecycle identifier.**
+5. **Internal UUIDs stay internal.**
+6. **Staff assignment is the shared grouping model.** Email should reuse participant staff assignments rather than inventing separate groups.
+7. **Security is enforced server-side and in RLS, not only in UI visibility.**
+8. **Secrets never belong in GitHub or frontend code.**
 
-**Current focus:** Completing production QA across the full application → screening → participant lifecycle.
+---
 
-The core ApplyFlow workflow is now established:
+## Current roadmap
 
-```text
-Programme
-   ↓
-Form
-   ↓
-Application
-   ↓
-Eligibility
-   ↓
-Screening
-   ↓
-Approve / Reject
-   ↓
-Participant
-   ↓
-Active / Completed / Withdrawn
-   ↓
-Analytics
-```
+### Near-term
 
-ApplyFlow is being developed as a production-oriented platform rather than a static prototype. Features are implemented against the real Supabase/Vercel environment and are being tested and hardened incrementally.
+- Complete end-to-end QA for Email Center.
+- Exercise 50-person staff assignment → email group workflow.
+- Complete remaining security hardening.
+- Continue storage/RPC review.
+- Finish attendance and assignment operational QA.
+- Expand test automation beyond smoke coverage.
+
+### Later
+
+- Rich HTML email templates.
+- Communication delivery history/queue/retry UI.
+- More form-answer email merge fields.
+- Automated approval/rejection/onboarding email triggers.
+- Full document verification.
+- Certificates/completion workflows.
+- MFA if adopted as a product requirement.
 
 ---
 
