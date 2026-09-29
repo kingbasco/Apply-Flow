@@ -1,15 +1,70 @@
-name: ApplyFlow QA Bootstrap
+name: ApplyFlow QA Supervisor
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/applyflow-qa-supervisor.yml
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Build Check
+    types:
+      - completed
+  schedule:
+    - cron: "*/15 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: applyflow-qa-supervisor
+  cancel-in-progress: false
 
 jobs:
-  registration-check:
+  supervise:
+    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    environment: Configure Agent 1
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - name: Confirm workflow registration
-        run: echo "ApplyFlow QA workflow registered"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Install browser agent
+        run: npm install --global agent-browser
+
+      - name: Diagnose secret availability
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+        run: |
+          test -n "$GEMINI_API_KEY" && echo "GEMINI_API_KEY: SET" || echo "GEMINI_API_KEY: EMPTY"
+          test -n "$VERCEL_TOKEN" && echo "VERCEL_TOKEN: SET" || echo "VERCEL_TOKEN: EMPTY"
+          test -n "$VERCEL_PROJECT_ID" && echo "VERCEL_PROJECT_ID: SET" || echo "VERCEL_PROJECT_ID: EMPTY"
+          test -n "$VERCEL_TEAM_ID" && echo "VERCEL_TEAM_ID: SET" || echo "VERCEL_TEAM_ID: EMPTY"
+
+      - name: Run supervisor
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          SUPERVISOR_MAX_ATTEMPTS: 5
+          SUPERVISOR_MODEL: gemini-3.8-flash
+        run: npm run agent
