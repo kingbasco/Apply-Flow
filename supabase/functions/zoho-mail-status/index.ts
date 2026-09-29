@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { closeZohoSmtp, getZohoSmtpConfig, openZohoSmtp } from "./smtp.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,50 +32,41 @@ async function authorize(req: Request, organizationId: string) {
   }
 }
 
-async function refreshZohoToken() {
-  const accountsBase = (Deno.env.get("ZOHO_ACCOUNTS_BASE_URL") || "https://accounts.zoho.com").replace(/\/$/, "");
-  const params = new URLSearchParams({
-    grant_type: "refresh_token",
-    client_id: Deno.env.get("ZOHO_CLIENT_ID") || "",
-    client_secret: Deno.env.get("ZOHO_CLIENT_SECRET") || "",
-    refresh_token: Deno.env.get("ZOHO_REFRESH_TOKEN") || "",
-  });
-  const response = await fetch(accountsBase + "/oauth/v2/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params,
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || !payload?.access_token) throw new Error(payload?.error || "Zoho token refresh failed.");
-  return true;
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
+
   try {
     const body = await req.json().catch(() => ({}));
     const organizationId = String(body?.organization_id || "");
     if (!organizationId) return json({ error: "organization_id is required." }, 400);
     await authorize(req, organizationId);
 
-    const required = ["ZOHO_CLIENT_ID","ZOHO_CLIENT_SECRET","ZOHO_REFRESH_TOKEN","ZOHO_ACCOUNT_ID","ZOHO_FROM_ADDRESS"];
-    const missing = required.filter((name) => !Deno.env.get(name));
-    const configured = missing.length === 0;
+    const { config, missing } = getZohoSmtpConfig();
+    const configured = Boolean(config);
     let validated = false;
     let validationError = "";
+    let smtpHost: string | null = null;
 
-    if (configured && body?.validate === true) {
-      try { validated = await refreshZohoToken(); }
-      catch (error) { validationError = error instanceof Error ? error.message : "Could not validate Zoho Mail."; }
+    if (config && body?.validate === true) {
+      try {
+        const session = await openZohoSmtp(config);
+        smtpHost = session.host;
+        validated = true;
+        await closeZohoSmtp(session);
+      } catch (error) {
+        validationError = error instanceof Error ? error.message : "Could not validate Zoho Mail.";
+      }
     }
 
     return json({
       provider: "zoho",
+      transport: "smtp",
       configured,
       validated,
       validation_error: validationError || null,
-      from_address: configured ? Deno.env.get("ZOHO_FROM_ADDRESS") : null,
+      from_address: config?.fromAddress || null,
+      smtp_host: smtpHost,
       missing,
     });
   } catch (error) {
