@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { BadgeCheck, CalendarCheck2, Gift, Upload, Plus, Search, X, Users, CheckCircle2, ChevronDown, Mail, Hash, ClipboardList, Link2, Pencil, Trash2 } from 'lucide-react'
+import { BadgeCheck, CalendarCheck2, Gift, Upload, Download, Plus, Search, X, Users, CheckCircle2, ChevronDown, Mail, Hash, ClipboardList, Link2, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
 
 type Application = { id:string; name:string }
 type Participant = {
-  id:string; participant_id:string; full_name:string|null; email:string|null
+  id:string; participant_id:string; full_name:string|null; email:string|null; submission_id:string|null
   application_id:string; status:'active'|'completed'|'withdrawn'; joined_at:string
   attendance_count?:number
 }
@@ -76,6 +76,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [benefitForm,setBenefitForm]=useState({application_id:'',name:'',description:'',distribution_date:''})
   const [ids,setIds]=useState('')
   const [saving,setSaving]=useState(false)
+  const [exporting,setExporting]=useState(false)
 
   const appName=(id:string)=>applications.find(a=>a.id===id)?.name||'Programme'
 
@@ -131,7 +132,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     setLoading(true);setError('')
     try{
       const [p,s,b,recipients,a,staff,staffAssignments]=await Promise.all([
-        supabase.from('participants').select('id,participant_id,application_id,status,joined_at,applicants(full_name,email)').eq('organization_id',organizationId).order('participant_id'),
+        supabase.from('participants').select('id,participant_id,submission_id,application_id,status,joined_at,applicants(full_name,email)').eq('organization_id',organizationId).order('participant_id'),
         supabase.from('attendance_sessions').select('id,application_id,title,session_date,check_in_slug,check_in_open,check_in_opened_at').eq('organization_id',organizationId).order('session_date',{ascending:false}),
         supabase.from('benefit_distributions').select('id,application_id,name,description,distribution_date,status').eq('organization_id',organizationId).order('created_at',{ascending:false}),
         supabase.from('benefit_recipients').select('distribution_id,participant_id'),
@@ -143,7 +144,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       // Load attendance/recipient aggregates separately so an empty organisation does not
       // create an invalid IN () query in PostgREST.
       const participantRows=(p.data||[]).map((row:any)=>({
-        id:row.id,participant_id:row.participant_id,application_id:row.application_id,status:row.status,joined_at:row.joined_at,
+        id:row.id,participant_id:row.participant_id,submission_id:row.submission_id||null,application_id:row.application_id,status:row.status,joined_at:row.joined_at,
         full_name:row.applicants?.full_name||null,email:row.applicants?.email||null
       })) as Participant[]
       const sessionRows=(s.data||[]) as Session[]
@@ -200,6 +201,68 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     const visibleIds=filtered.map(p=>p.id)
     setSelectedParticipantIds(current=>checked?[...new Set([...current,...visibleIds])]:current.filter(id=>!visibleIds.includes(id)))
   }
+  function csvCell(value:unknown){
+    const text=value===null||value===undefined?'':String(value)
+    return '"'+text.replace(/"/g,'""')+'"'
+  }
+
+  function answerText(value:unknown){
+    if(value===null||value===undefined)return ''
+    if(Array.isArray(value))return value.map(answerText).filter(Boolean).join(', ')
+    if(typeof value==='object'){
+      try{return JSON.stringify(value)}
+      catch{return String(value)}
+    }
+    return String(value)
+  }
+
+  async function exportSelectedParticipants(){
+    if(!isAdmin||!selectedParticipantIds.length)return
+    setExporting(true);setError('');setNotice('')
+    try{
+      const selectedRows=participants
+        .filter(p=>selectedParticipantIds.includes(p.id))
+        .sort((a,b)=>a.participant_id.localeCompare(b.participant_id))
+      const submissionIds=selectedRows.map(p=>p.submission_id).filter((id):id is string=>Boolean(id))
+      const answerRows:{submission_id:string;question_id:string;value:unknown}[]=[]
+      for(let i=0;i<submissionIds.length;i+=200){
+        const {data,error}=await supabase.from('answers').select('submission_id,question_id,value').in('submission_id',submissionIds.slice(i,i+200))
+        if(error)throw error
+        answerRows.push(...((data||[]) as {submission_id:string;question_id:string;value:unknown}[]))
+      }
+      const questionIds=[...new Set(answerRows.map(row=>row.question_id))]
+      const phoneQuestionIds=new Set<string>()
+      for(let i=0;i<questionIds.length;i+=200){
+        const {data,error}=await supabase.from('questions').select('id,type').in('id',questionIds.slice(i,i+200))
+        if(error)throw error
+        for(const question of data||[])if(question.type==='phone')phoneQuestionIds.add(question.id)
+      }
+      const phoneBySubmission=new Map<string,string>()
+      for(const answer of answerRows){
+        if(!phoneQuestionIds.has(answer.question_id)||phoneBySubmission.has(answer.submission_id))continue
+        phoneBySubmission.set(answer.submission_id,answerText(answer.value))
+      }
+      const csv=[
+        ['Participant ID','Name','Email','Phone Number'].map(csvCell).join(','),
+        ...selectedRows.map(p=>[
+          p.participant_id,
+          p.full_name||'',
+          p.email||'',
+          p.submission_id?phoneBySubmission.get(p.submission_id)||'':''
+        ].map(csvCell).join(','))
+      ].join('\r\n')
+      const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
+      const url=URL.createObjectURL(blob)
+      const link=document.createElement('a')
+      const programme=(applications.find(a=>a.id===applicationFilter)?.name||'participants').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')
+      link.href=url
+      link.download=(programme||'participants')+'-selected-participants-'+new Date().toISOString().slice(0,10)+'.csv'
+      document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url)
+      const count=selectedRows.length
+      setNotice(count+' selected participant'+(count===1?'':'s')+' exported.')
+    }catch(e){setError(friendlyErrorMessage(e,'Could not export selected participants.'))}finally{setExporting(false)}
+  }
+
   async function bulkAssignProgrammeStaff(){
     if(!isAdmin||!bulkStaffId||!selectedParticipantIds.length)return
     setSaving(true);setError('');setNotice('')
@@ -564,8 +627,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           <span className="participant-filter-count">{filtered.length} participant{filtered.length===1?'':'s'}</span>
         </div>
         {isAdmin&&<div className="participant-bulk-bar">
-          <div className="participant-bulk-summary"><strong>{selectedParticipantIds.length} selected</strong><span>Select participants below, then assign them to a staff member.</span></div>
-          <div className="participant-bulk-actions"><div className="participant-select-wrap"><select aria-label="Choose staff member" value={bulkStaffId} onChange={e=>setBulkStaffId(e.target.value)}><option value="">Choose staff member</option>{programmeStaff.map(staff=><option key={staff.id} value={staff.id}>{staff.full_name||'Staff member'}</option>)}</select><ChevronDown size={16}/></div><button type="button" className="primary-button" disabled={saving||!bulkStaffId||!selectedParticipantIds.length} onClick={bulkAssignProgrammeStaff}>Assign selected</button>{selectedParticipantIds.length>0&&<button type="button" className="text-button" onClick={()=>setSelectedParticipantIds([])}>Clear</button>}</div>
+          <div className="participant-bulk-summary"><strong>{selectedParticipantIds.length} selected</strong><span>Select participants below, then assign them to staff or export their contact details.</span></div>
+          <div className="participant-bulk-actions"><button type="button" className="secondary-button" disabled={exporting||!selectedParticipantIds.length} onClick={exportSelectedParticipants}><Download size={16}/>{exporting?'Exporting…':'Export selected'}</button><div className="participant-select-wrap"><select aria-label="Choose staff member" value={bulkStaffId} onChange={e=>setBulkStaffId(e.target.value)}><option value="">Choose staff member</option>{programmeStaff.map(staff=><option key={staff.id} value={staff.id}>{staff.full_name||'Staff member'}</option>)}</select><ChevronDown size={16}/></div><button type="button" className="primary-button" disabled={saving||!bulkStaffId||!selectedParticipantIds.length} onClick={bulkAssignProgrammeStaff}>Assign selected</button>{selectedParticipantIds.length>0&&<button type="button" className="text-button" onClick={()=>setSelectedParticipantIds([])}>Clear</button>}</div>
         </div>}
         <div className="table-wrap"><table><thead><tr>{isAdmin&&<th className="participant-select-cell"><input type="checkbox" aria-label="Select all visible participants" checked={filtered.length>0&&filtered.every(p=>selectedParticipantIds.includes(p.id))} onChange={e=>toggleAllVisibleParticipants(e.target.checked)}/></th>}<th>Participant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
           {filtered.length?filtered.map(p=><tr key={p.id} className="clickable-row" onClick={()=>openParticipant(p)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openParticipant(p)}}} tabIndex={0} role="button" aria-label={'Open participant '+(p.full_name||p.participant_id)}>
