@@ -14,6 +14,8 @@ type Participant = {
   full_name:string|null
   email:string|null
 }
+type StaffMember = { id:string; full_name:string|null; role:'admin'|'reviewer' }
+type ParticipantStaffAssignment = { participant_id:string; staff_id:string }
 type Template = {
   id:string
   application_id:string
@@ -51,12 +53,15 @@ export default function EmailWorkspace({
   const [view,setView]=useState<View>('compose')
   const [participants,setParticipants]=useState<Participant[]>([])
   const [templates,setTemplates]=useState<Template[]>([])
+  const [staffMembers,setStaffMembers]=useState<StaffMember[]>([])
+  const [participantStaffAssignments,setParticipantStaffAssignments]=useState<ParticipantStaffAssignment[]>([])
   const [loading,setLoading]=useState(true)
   const [saving,setSaving]=useState(false)
   const [error,setError]=useState('')
   const [notice,setNotice]=useState('')
   const [applicationId,setApplicationId]=useState(applications[0]?.id||'')
   const [audience,setAudience]=useState<'all'|'active'|'completed'|'withdrawn'>('active')
+  const [staffFilter,setStaffFilter]=useState('all')
   const [recipientQuery,setRecipientQuery]=useState('')
   const [recipientPage,setRecipientPage]=useState(1)
   const [recipientPageSize,setRecipientPageSize]=useState(50)
@@ -113,7 +118,7 @@ export default function EmailWorkspace({
     ;(async()=>{
       setLoading(true);setError('')
       try{
-        const [participantResult,templateResult]=await Promise.all([
+        const [participantResult,templateResult,staffResult,staffAssignmentResult]=await Promise.all([
           supabase.from('participants')
             .select('id,participant_id,application_id,status,applicants(full_name,email)')
             .eq('organization_id',organizationId)
@@ -121,9 +126,19 @@ export default function EmailWorkspace({
           supabase.from('communication_templates')
             .select('id,application_id,name,audience_status,subject,body,status,created_at')
             .order('created_at',{ascending:false}),
+          supabase.from('profiles')
+            .select('id,full_name,role')
+            .eq('organization_id',organizationId)
+            .in('role',['admin','reviewer'])
+            .order('full_name'),
+          supabase.from('participant_staff_assignments')
+            .select('participant_id,staff_id')
+            .eq('organization_id',organizationId),
         ])
         if(participantResult.error)throw participantResult.error
         if(templateResult.error)throw templateResult.error
+        if(staffResult.error)throw staffResult.error
+        if(staffAssignmentResult.error)throw staffAssignmentResult.error
         if(cancelled)return
         setParticipants((participantResult.data||[]).map((row:any)=>({
           id:row.id,
@@ -134,6 +149,8 @@ export default function EmailWorkspace({
           email:row.applicants?.email||null,
         })))
         setTemplates((templateResult.data||[]) as Template[])
+        setStaffMembers((staffResult.data||[]) as StaffMember[])
+        setParticipantStaffAssignments((staffAssignmentResult.data||[]) as ParticipantStaffAssignment[])
       }catch(e){
         if(!cancelled)setError(friendlyErrorMessage(e,'Could not load the email workspace.'))
       }finally{
@@ -145,14 +162,38 @@ export default function EmailWorkspace({
 
   const programmeName=applications.find(a=>a.id===applicationId)?.name||'Programme'
   const programmeParticipants=useMemo(()=>participants.filter(p=>p.application_id===applicationId),[participants,applicationId])
+  const staffIdsByParticipant=useMemo(()=>{
+    const map=new Map<string,string[]>()
+    for(const assignment of participantStaffAssignments){
+      const current=map.get(assignment.participant_id)||[]
+      if(!current.includes(assignment.staff_id))current.push(assignment.staff_id)
+      map.set(assignment.participant_id,current)
+    }
+    return map
+  },[participantStaffAssignments])
+  const audienceParticipants=useMemo(()=>programmeParticipants.filter(p=>audience==='all'||p.status===audience),[programmeParticipants,audience])
+  const staffAssignmentCounts=useMemo(()=>{
+    const counts=new Map<string,number>()
+    let unassigned=0
+    for(const participant of audienceParticipants){
+      const staffIds=staffIdsByParticipant.get(participant.id)||[]
+      if(!staffIds.length)unassigned+=1
+      for(const staffId of staffIds)counts.set(staffId,(counts.get(staffId)||0)+1)
+    }
+    return {counts,unassigned}
+  },[audienceParticipants,staffIdsByParticipant])
+  const selectedStaff=staffMembers.find(staff=>staff.id===staffFilter)||null
   const visibleRecipients=useMemo(()=>{
     const term=recipientQuery.trim().toLowerCase()
-    return programmeParticipants.filter(p=>{
-      const matchesAudience=audience==='all'||p.status===audience
+    return audienceParticipants.filter(p=>{
+      const assignedStaffIds=staffIdsByParticipant.get(p.id)||[]
+      const matchesStaff=staffFilter==='all'
+        ||(staffFilter==='unassigned'&&assignedStaffIds.length===0)
+        ||assignedStaffIds.includes(staffFilter)
       const haystack=[p.participant_id,p.full_name,p.email].filter(Boolean).join(' ').toLowerCase()
-      return matchesAudience&&(!term||haystack.includes(term))
+      return matchesStaff&&(!term||haystack.includes(term))
     })
-  },[programmeParticipants,audience,recipientQuery])
+  },[audienceParticipants,staffIdsByParticipant,staffFilter,recipientQuery])
   const recipientPageCount=Math.max(1,Math.ceil(visibleRecipients.length/recipientPageSize))
   const pagedRecipients=useMemo(()=>{
     const start=(recipientPage-1)*recipientPageSize
@@ -166,7 +207,7 @@ export default function EmailWorkspace({
   const validSelected=useMemo(()=>selectedRecipientIds.filter(id=>programmeParticipants.some(p=>p.id===id)),[selectedRecipientIds,programmeParticipants])
   const programmeTemplates=templates.filter(t=>t.application_id===applicationId&&t.status!=='archived')
 
-  useEffect(()=>{setRecipientPage(1)},[applicationId,audience,recipientQuery])
+  useEffect(()=>{setRecipientPage(1)},[applicationId,audience,staffFilter,recipientQuery])
   useEffect(()=>{setRecipientPage(current=>Math.min(current,recipientPageCount))},[recipientPageCount])
 
   function toggleRecipient(id:string,checked:boolean){
@@ -271,10 +312,11 @@ export default function EmailWorkspace({
             <div className="email-composer-grid">
               <label>Programme<div className="participant-select-wrap"><select value={applicationId} onChange={e=>{setApplicationId(e.target.value);setSelectedRecipientIds([])}}>{applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select><ChevronDown size={16}/></div></label>
               <label>Audience<div className="participant-select-wrap"><select value={audience} onChange={e=>setAudience(e.target.value as typeof audience)}><option value="all">All participants</option><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select><ChevronDown size={16}/></div></label>
+              <label>Assigned to<div className="participant-select-wrap"><select value={staffFilter} onChange={e=>{setStaffFilter(e.target.value);setSelectedRecipientIds([])}}><option value="all">All participants</option>{staffMembers.map(staff=><option key={staff.id} value={staff.id}>{staff.full_name||'Staff member'} — {staff.role==='reviewer'?'Programme Staff':'Admin'} ({staffAssignmentCounts.counts.get(staff.id)||0})</option>)}<option value="unassigned">Unassigned ({staffAssignmentCounts.unassigned})</option></select><ChevronDown size={16}/></div></label>
             </div>
             <label>Subject<input value={subject} onFocus={()=>setBodyFocused(false)} onChange={e=>setSubject(e.target.value)} placeholder="Welcome to {{programme_name}}, {{name}}"/></label>
             <label>Email body<textarea rows={12} value={body} onFocus={()=>setBodyFocused(true)} onChange={e=>setBody(e.target.value)} placeholder={'Hi {{name}},\n\nCongratulations. Your Participant ID is {{participant_id}}.\n\nJoin the programme WhatsApp group here: {{whatsapp_group_link}}'}/></label>
-            <label>WhatsApp group link <span className="optional">Optional</span><input value={whatsappGroupLink} onChange={e=>setWhatsappGroupLink(e.target.value)} placeholder="https://chat.whatsapp.com/…"/><small className="field-help">Used when your message contains {'{{whatsapp_group_link}}'}. Programme-level saved links come in the next backend phase.</small></label>
+            <label>WhatsApp group link <span className="optional">Optional</span><input value={whatsappGroupLink} onChange={e=>setWhatsappGroupLink(e.target.value)} placeholder="https://chat.whatsapp.com/…"/><small className="field-help">{selectedStaff?'This link will be used for the '+(selectedStaff.full_name||'selected staff')+' participant group in this send. ':'Used when your message contains {{whatsapp_group_link}}. '}Choose the assigned staff group above before sending a group-specific WhatsApp link.</small></label>
             <div className="email-merge-fields"><div><strong>Merge fields</strong><span>Click to insert into the {bodyFocused?'email body':'subject'}.</span></div><div className="email-merge-chip-list">{mergeFields.map(field=><button type="button" key={field.tag} onClick={()=>insertMergeField(field.tag)}>{field.tag}<small>{field.label}</small></button>)}</div></div>
             <div className="email-template-save"><div><label>Template name<input value={templateName} onChange={e=>setTemplateName(e.target.value)} placeholder="Acceptance email"/></label></div><button type="button" className="secondary-button" disabled={saving||!canManage||!templateName.trim()||!subject.trim()||!body.trim()} onClick={saveTemplate}>{saving?'Saving…':'Save as template'}</button></div>
           </div>
@@ -283,7 +325,7 @@ export default function EmailWorkspace({
       </div>
 
       <aside className="card email-recipient-card">
-        <div className="card-header"><div><p className="eyebrow">Recipients</p><h2>Select participants</h2><p>{programmeName} · {visibleRecipients.length} matching</p></div><Users size={20}/></div>
+        <div className="card-header"><div><p className="eyebrow">Recipients</p><h2>Select participants</h2><p>{programmeName} · {selectedStaff?(selectedStaff.full_name||'Staff member')+' group · ':staffFilter==='unassigned'?'Unassigned · ':''}{visibleRecipients.length} matching</p></div><Users size={20}/></div>
         <div className="email-recipient-tools">
           <div className="search"><Search size={15}/><input value={recipientQuery} onChange={e=>setRecipientQuery(e.target.value)} placeholder="Search participant…"/></div>
           <label className="email-select-all"><input type="checkbox" checked={pagedRecipients.length>0&&pagedRecipients.every(p=>selectedRecipientIds.includes(p.id))} onChange={e=>toggleVisible(e.target.checked)}/><span>Select all {pagedRecipients.length} on this page</span></label>
