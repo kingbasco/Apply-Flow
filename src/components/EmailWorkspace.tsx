@@ -62,6 +62,10 @@ export default function EmailWorkspace({
   const [body,setBody]=useState('')
   const [templateName,setTemplateName]=useState('')
   const [bodyFocused,setBodyFocused]=useState(true)
+  const [whatsappGroupLink,setWhatsappGroupLink]=useState('')
+  const [sending,setSending]=useState(false)
+  const [zohoStatus,setZohoStatus]=useState<{configured:boolean;validated:boolean;from_address:string|null;missing:string[];validation_error:string|null}>({configured:false,validated:false,from_address:null,missing:[],validation_error:null})
+  const [checkingZoho,setCheckingZoho]=useState(false)
 
   useEffect(()=>{
     setApplicationId(current=>applications.some(a=>a.id===current)?current:(applications[0]?.id||''))
@@ -72,6 +76,34 @@ export default function EmailWorkspace({
     const timer=window.setTimeout(()=>{setNotice('');setError('')},5000)
     return()=>window.clearTimeout(timer)
   },[notice,error])
+
+
+  async function refreshZohoStatus(validate=false){
+    if(!canManage)return
+    setCheckingZoho(true)
+    try{
+      const {data,error}=await supabase.functions.invoke('zoho-mail-status',{body:{organization_id:organizationId,validate}})
+      if(error)throw error
+      setZohoStatus({
+        configured:Boolean(data?.configured),
+        validated:Boolean(data?.validated),
+        from_address:data?.from_address||null,
+        missing:Array.isArray(data?.missing)?data.missing:[],
+        validation_error:data?.validation_error||null,
+      })
+      if(validate){
+        if(data?.validated)setNotice('Zoho Mail connection validated.')
+        else if(data?.configured&&data?.validation_error)setError(data.validation_error)
+      }
+    }catch(e){
+      setZohoStatus(current=>({...current,configured:false,validated:false}))
+      if(validate)setError(friendlyErrorMessage(e,'Could not validate Zoho Mail.'))
+    }finally{
+      setCheckingZoho(false)
+    }
+  }
+
+  useEffect(()=>{void refreshZohoStatus(false)},[organizationId,role])
 
   useEffect(()=>{
     let cancelled=false
@@ -167,12 +199,36 @@ export default function EmailWorkspace({
     }
   }
 
+
+  async function sendSelectedEmail(){
+    if(!canManage||!zohoStatus.configured||!applicationId||!validSelected.length||!subject.trim()||!body.trim())return
+    setSending(true);setError('');setNotice('')
+    try{
+      const {data,error}=await supabase.functions.invoke('send-zoho-email',{body:{
+        organization_id:organizationId,
+        application_id:applicationId,
+        participant_ids:validSelected,
+        subject:subject.trim(),
+        body:body.trim(),
+        whatsapp_group_link:whatsappGroupLink.trim(),
+      }})
+      if(error)throw error
+      const sent=Number(data?.sent_count||0),failed=Number(data?.failed_count||0),skipped=Number(data?.skipped_count||0)
+      if(failed>0)setError(sent+' sent, '+failed+' failed'+(skipped?', '+skipped+' skipped':'')+'.')
+      else setNotice(sent+' email'+(sent===1?'':'s')+' sent through Zoho Mail'+(skipped?' · '+skipped+' skipped':'')+'.')
+    }catch(e){
+      setError(friendlyErrorMessage(e,'Could not send through Zoho Mail.'))
+    }finally{
+      setSending(false)
+    }
+  }
+
   if(loading)return <div className="loading-card card">Loading Email Center…</div>
 
   return <section className="email-workspace">
     <div className="page-heading compact email-page-heading">
       <div><p className="eyebrow">Communications</p><h1>Email Center</h1><p className="subtitle">Compose participant emails, reuse programme templates and deliver through your organisation's Zoho Mail account.</p></div>
-      <div className="email-provider-pill"><span className="email-provider-dot"></span><div><strong>Zoho Mail</strong><small>Not connected</small></div></div>
+      <div className={'email-provider-pill '+(zohoStatus.configured?'is-connected':'')}><span className="email-provider-dot"></span><div><strong>Zoho Mail</strong><small>{zohoStatus.configured?(zohoStatus.from_address||'Configured'):'Not connected'}</small></div></div>
     </div>
 
     {(error||notice)&&<div className={'email-inline-notice '+(error?'is-error':'is-success')}><div>{error?<X size={16}/>:<CheckCircle2 size={16}/>}</div><span>{error||notice}</span></div>}
@@ -194,10 +250,11 @@ export default function EmailWorkspace({
             </div>
             <label>Subject<input value={subject} onFocus={()=>setBodyFocused(false)} onChange={e=>setSubject(e.target.value)} placeholder="Welcome to {{programme_name}}, {{name}}"/></label>
             <label>Email body<textarea rows={12} value={body} onFocus={()=>setBodyFocused(true)} onChange={e=>setBody(e.target.value)} placeholder={'Hi {{name}},\n\nCongratulations. Your Participant ID is {{participant_id}}.\n\nJoin the programme WhatsApp group here: {{whatsapp_group_link}}'}/></label>
+            <label>WhatsApp group link <span className="optional">Optional</span><input value={whatsappGroupLink} onChange={e=>setWhatsappGroupLink(e.target.value)} placeholder="https://chat.whatsapp.com/…"/><small className="field-help">Used when your message contains {{whatsapp_group_link}}. Programme-level saved links come in the next backend phase.</small></label>
             <div className="email-merge-fields"><div><strong>Merge fields</strong><span>Click to insert into the {bodyFocused?'email body':'subject'}.</span></div><div className="email-merge-chip-list">{mergeFields.map(field=><button type="button" key={field.tag} onClick={()=>insertMergeField(field.tag)}>{field.tag}<small>{field.label}</small></button>)}</div></div>
             <div className="email-template-save"><div><label>Template name<input value={templateName} onChange={e=>setTemplateName(e.target.value)} placeholder="Acceptance email"/></label></div><button type="button" className="secondary-button" disabled={saving||!canManage||!templateName.trim()||!subject.trim()||!body.trim()} onClick={saveTemplate}>{saving?'Saving…':'Save as template'}</button></div>
           </div>
-          <div className="email-send-bar"><div><strong>{validSelected.length} recipient{validSelected.length===1?'':'s'} selected</strong><span>Zoho delivery will unlock after the organisation mailbox is connected.</span></div><button type="button" className="primary-button" disabled title="Connect Zoho Mail before sending"><Send size={16}/> Send email</button></div>
+          <div className="email-send-bar"><div><strong>{validSelected.length} recipient{validSelected.length===1?'':'s'} selected</strong><span>{zohoStatus.configured?'Messages will be sent individually through '+(zohoStatus.from_address||'Zoho Mail')+'.':'Zoho delivery unlocks after the server-side OAuth credentials are configured.'}</span></div><button type="button" className="primary-button" onClick={sendSelectedEmail} disabled={sending||!zohoStatus.configured||!validSelected.length||!subject.trim()||!body.trim()} title={zohoStatus.configured?'Send selected participant emails':'Configure Zoho Mail before sending'}><Send size={16}/>{sending?'Sending…':'Send email'}</button></div>
         </div>
       </div>
 
@@ -222,8 +279,8 @@ export default function EmailWorkspace({
     {view==='connection'&&<div className="email-connection-layout">
       <div className="card email-connection-card">
         <div className="email-connection-logo"><Mail size={24}/></div>
-        <div className="email-connection-copy"><p className="eyebrow">Delivery provider</p><h2>Connect Zoho Mail</h2><p>ApplyFlow will use OAuth to send from your organisation mailbox. Your Zoho password will never be stored in ApplyFlow.</p><div className="email-connection-status"><span></span><strong>Not connected</strong></div></div>
-        <button className="primary-button" disabled title="OAuth backend configuration is the next implementation step"><Link2 size={16}/> Connect Zoho Mail</button>
+        <div className="email-connection-copy"><p className="eyebrow">Delivery provider</p><h2>Zoho Mail</h2><p>ApplyFlow uses OAuth refresh credentials only on the server. Your mailbox password and OAuth secrets are never exposed to React.</p><div className={'email-connection-status '+(zohoStatus.configured?'is-connected':'')}><span></span><strong>{zohoStatus.configured?(zohoStatus.validated?'Connected & validated':'Configured'):'Not configured'}</strong>{zohoStatus.from_address&&<small>{zohoStatus.from_address}</small>}</div>{!zohoStatus.configured&&zohoStatus.missing.length>0&&<p className="email-missing-config">Missing server secrets: {zohoStatus.missing.join(', ')}</p>}{zohoStatus.validation_error&&<p className="email-missing-config">{zohoStatus.validation_error}</p>}</div>
+        <button className="primary-button" onClick={()=>refreshZohoStatus(true)} disabled={checkingZoho||!zohoStatus.configured}><Link2 size={16}/>{checkingZoho?'Checking…':'Validate Zoho'}</button>
       </div>
       <div className="card email-security-card">
         <div className="card-header"><div><p className="eyebrow">Secure setup</p><h2>What happens next</h2></div><ShieldCheck size={20}/></div>
