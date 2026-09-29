@@ -4532,3 +4532,14 @@ html.dark-theme .email-template-card{color:#e7ebf1}.dark-theme .email-connection
 .email-connection-status small{font-size:8px;color:#8d96a3;margin-left:4px}
 .email-missing-config{margin:8px 0 0!important;padding:8px 9px;border:1px solid #eee1c9;border-radius:8px;background:#fffaf1;color:#956f2f!important;font-size:8px!important;line-height:1.5!important;word-break:break-word}
 html.dark-theme .email-missing-config{background:#211c13;border-color:#4b3c21;color:#d0ae72!important}
+
+
+/* Quick AI screening profile */
+.screening-quick-profile{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:16px 20px 20px}
+.screening-quick-profile article{display:grid;gap:6px;min-width:0;padding:15px;border:1px solid #e6e9ef;border-radius:10px;background:#fff}
+.screening-quick-profile article span{font-size:8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:#8d96a3}
+.screening-quick-profile article strong{font-family:Manrope,sans-serif;font-size:13px;line-height:1.45;color:#303846;overflow-wrap:anywhere}
+html.dark-theme .screening-quick-profile article{background:#12161d;border-color:#303642}
+html.dark-theme .screening-quick-profile article span{color:#8f98a8}
+html.dark-theme .screening-quick-profile article strong{color:#e7ebf1}
+@media(max-width:720px){.screening-quick-profile{grid-template-columns:1fr;margin-left:16px;margin-right:16px}}
