@@ -1274,7 +1274,7 @@ function ReviewsPanel({applicationId}:{applicationId:string}){
  async function assign(){
   if(!selected||!reviewer)return
   setBusy(true);setNotice('')
-  const {error}=await supabase.from('review_assignments').insert({submission_id:selected,reviewer_id:reviewer,status:'assigned'})
+  const {error}=await supabase.rpc('assign_review_submission',{p_submission_id:selected,p_reviewer_id:reviewer})
   if(error)setNotice(error.message);else{setNotice('Review assigned.');setSelected('');setReviewer('');await load()}
   setBusy(false)
  }
@@ -1349,7 +1349,7 @@ function ScreeningPanel({applicationId}:{applicationId:string}){
  }
 
  async function setDecision(row:ScreeningRow,decision:'approved'|'rejected'){
-  const {error}=await supabase.from('submissions').update({decision}).eq('id',row.submissionId)
+  const {error}=await supabase.rpc('set_submission_decision',{p_submission_id:row.submissionId,p_decision:decision})
   if(error){setNotice(error.message);return}
   setRows(current=>current.map(r=>r.submissionId===row.submissionId?{...r,decision}:r))
   setSelected(current=>current?.submissionId===row.submissionId?{...current,decision}:current)
