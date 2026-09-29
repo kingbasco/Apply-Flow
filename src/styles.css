@@ -4419,3 +4419,51 @@ html.dark-theme .clickable-row[role="button"]:focus-visible{
 html.dark-theme .toolbar-select select{background:#1b2029;border-color:#3a414d;color:#d7dce4}
 html.dark-theme .toolbar-select>svg{color:#929baa}
 @media(max-width:560px){.toolbar-select{width:100%}}
+
+
+/* Configurable participant export */
+.participant-export-modal{width:min(780px,100%);max-height:calc(100vh - 36px);overflow:hidden;display:flex;flex-direction:column}
+.participant-export-header{flex:0 0 auto}
+.participant-export-header p:last-child{max-width:620px}
+.participant-export-body{min-height:0;overflow:auto;padding:18px 22px 22px;display:grid;gap:16px}
+.participant-export-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:2;background:#fff;padding-bottom:4px}
+.participant-export-search{flex:1;max-width:430px}
+.participant-export-toolbar-actions{display:flex;align-items:center;gap:6px}
+.participant-export-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border:1px solid #e5e8ee;border-radius:11px;background:#fafbfc}
+.participant-export-summary strong{font-size:11px;color:#303846}.participant-export-summary span{font-size:10px;color:#7b8491}
+.participant-export-loading{margin:0}
+.participant-export-groups{display:grid;gap:18px}
+.participant-export-group{display:grid;gap:10px}
+.participant-export-group-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.participant-export-group-heading h3{margin:2px 0 0;font-size:13px;letter-spacing:-.02em}
+.participant-export-group-heading>span{min-width:28px;height:24px;padding:0 8px;border-radius:999px;background:#eef0f5;color:#667083;font-size:10px;font-weight:700;display:grid;place-items:center}
+.participant-export-field-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.participant-export-field-list.form-fields{grid-template-columns:1fr}
+.participant-export-field{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1px solid #e5e8ee;border-radius:11px;background:#fff;cursor:pointer;transition:border-color .15s ease,background .15s ease}
+.participant-export-field:hover{border-color:#cdd2dd;background:#fbfcfe}
+.participant-export-field input{margin:2px 0 0;flex:0 0 auto}
+.participant-export-field>span{display:grid;gap:3px;min-width:0}
+.participant-export-field strong{font-size:11px;line-height:1.45;color:#313946;font-weight:650}
+.participant-export-field small{font-size:9px;color:#9098a6}
+.participant-export-footer{justify-content:space-between;align-items:center}
+.participant-export-footer-copy{display:grid;gap:2px}.participant-export-footer-copy strong{font-size:11px}.participant-export-footer-copy span{font-size:9px;color:#8d96a5}
+.participant-export-footer-actions{display:flex;gap:8px}
+html.dark-theme .participant-export-toolbar{background:#171b23}
+html.dark-theme .participant-export-summary{background:#12161d;border-color:#303642}
+html.dark-theme .participant-export-summary strong,html.dark-theme .participant-export-group-heading h3,html.dark-theme .participant-export-field strong{color:#e7ebf1}
+html.dark-theme .participant-export-summary span,html.dark-theme .participant-export-field small,html.dark-theme .participant-export-footer-copy span{color:#8f98a8}
+html.dark-theme .participant-export-group-heading>span{background:#252b35;color:#aab2c0}
+html.dark-theme .participant-export-field{background:#12161d;border-color:#303642}
+html.dark-theme .participant-export-field:hover{background:#161b23;border-color:#444c5b}
+@media(max-width:700px){
+  .participant-export-modal{max-height:calc(100vh - 20px)}
+  .participant-export-body{padding:14px 16px 18px}
+  .participant-export-toolbar{align-items:stretch;flex-direction:column}
+  .participant-export-search{max-width:none;width:100%}
+  .participant-export-toolbar-actions{justify-content:flex-end}
+  .participant-export-summary{align-items:flex-start;flex-direction:column}
+  .participant-export-field-list{grid-template-columns:1fr}
+  .participant-export-footer{align-items:stretch;flex-direction:column}
+  .participant-export-footer-actions{display:grid;grid-template-columns:1fr 1fr}
+  .participant-export-footer-actions button{justify-content:center}
+}
