@@ -29,6 +29,11 @@ type ParticipantAttendance = {
   id:string; status:'present'|'absent'; marked_at:string
   attendance_sessions?:{title:string;session_date:string;application_id:string}|{title:string;session_date:string;application_id:string}[]
 }
+type ExportField = {
+  key:string; label:string; group:'participant'|'form'; position:number
+  core?:'participant_id'|'full_name'|'email'|'programme'|'status'|'joined_at'
+  questionIds?:string[]
+}
 
 export default function ParticipantsPanel({organizationId,applications,role}:{organizationId:string;applications:Application[];role?:'owner'|'admin'|'reviewer'}) {
   const [tab,setTab]=useState<'participants'|'attendance'|'assignments'|'benefits'>('participants')
@@ -77,6 +82,11 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [ids,setIds]=useState('')
   const [saving,setSaving]=useState(false)
   const [exporting,setExporting]=useState(false)
+  const [exportOpen,setExportOpen]=useState(false)
+  const [exportLoadingFields,setExportLoadingFields]=useState(false)
+  const [exportFieldQuery,setExportFieldQuery]=useState('')
+  const [exportFields,setExportFields]=useState<ExportField[]>([])
+  const [selectedExportFieldKeys,setSelectedExportFieldKeys]=useState<string[]>([])
 
   const appName=(id:string)=>applications.find(a=>a.id===id)?.name||'Programme'
 
@@ -216,74 +226,142 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     return String(value)
   }
 
-  async function exportSelectedParticipants(){
+  function cleanExportLabel(value:unknown){
+    return String(value||'Question').replace(/\s+/g,' ').trim()
+  }
+
+  function coreExportFields():ExportField[]{
+    return [
+      {key:'core:participant_id',label:'Participant ID',group:'participant',core:'participant_id',position:0},
+      {key:'core:full_name',label:'Name',group:'participant',core:'full_name',position:1},
+      {key:'core:email',label:'Email',group:'participant',core:'email',position:2},
+      {key:'core:programme',label:'Programme',group:'participant',core:'programme',position:3},
+      {key:'core:status',label:'Status',group:'participant',core:'status',position:4},
+      {key:'core:joined_at',label:'Joined Date',group:'participant',core:'joined_at',position:5}
+    ]
+  }
+
+  async function openParticipantExport(){
     if(!isAdmin||!selectedParticipantIds.length)return
+    setExportOpen(true);setExportLoadingFields(true);setExportFieldQuery('');setError('')
+    const coreFields=coreExportFields()
+    setExportFields(coreFields)
+    setSelectedExportFieldKeys(['core:participant_id','core:full_name','core:email'])
+    try{
+      const selectedRows=participants.filter(p=>selectedParticipantIds.includes(p.id))
+      const submissionIds=selectedRows.map(p=>p.submission_id).filter((id):id is string=>Boolean(id))
+      if(!submissionIds.length)return
+      const formVersionIds:string[]=[]
+      for(let i=0;i<submissionIds.length;i+=200){
+        const {data,error}=await supabase.from('submissions').select('id,form_version_id').in('id',submissionIds.slice(i,i+200))
+        if(error)throw error
+        for(const row of data||[])if(row.form_version_id)formVersionIds.push(row.form_version_id)
+      }
+      const uniqueVersionIds=[...new Set(formVersionIds)]
+      const questionRows:{id:string;label:string;type:string;position:number;form_version_id:string}[]=[]
+      for(let i=0;i<uniqueVersionIds.length;i+=100){
+        const {data,error}=await supabase.from('questions').select('id,label,type,position,form_version_id').in('form_version_id',uniqueVersionIds.slice(i,i+100)).order('position')
+        if(error)throw error
+        questionRows.push(...((data||[]) as {id:string;label:string;type:string;position:number;form_version_id:string}[]))
+      }
+      const grouped=new Map<string,ExportField>()
+      for(const question of questionRows){
+        const label=cleanExportLabel(question.label)
+        const normalized=label.toLowerCase()
+        const existing=grouped.get(normalized)
+        if(existing){
+          existing.questionIds=[...new Set([...(existing.questionIds||[]),question.id])]
+          existing.position=Math.min(existing.position,Number(question.position)||0)
+        }else{
+          grouped.set(normalized,{
+            key:'question:'+question.id,
+            label,
+            group:'form',
+            position:Number(question.position)||0,
+            questionIds:[question.id]
+          })
+        }
+      }
+      const formFields=[...grouped.values()].sort((a,b)=>a.position-b.position||a.label.localeCompare(b.label))
+      setExportFields([...coreFields,...formFields])
+    }catch(e){
+      setError(friendlyErrorMessage(e,'Could not load export fields from the selected form.'))
+    }finally{
+      setExportLoadingFields(false)
+    }
+  }
+
+  function toggleExportField(key:string,checked:boolean){
+    setSelectedExportFieldKeys(current=>checked?[...new Set([...current,key])]:current.filter(item=>item!==key))
+  }
+
+  function participantCoreExportValue(participant:Participant,field:ExportField){
+    if(field.core==='participant_id')return participant.participant_id
+    if(field.core==='full_name')return participant.full_name||''
+    if(field.core==='email')return participant.email||''
+    if(field.core==='programme')return appName(participant.application_id)
+    if(field.core==='status')return participant.status==='active'?'Active / Enrolled':participant.status
+    if(field.core==='joined_at')return participant.joined_at?new Date(participant.joined_at).toLocaleDateString():''
+    return ''
+  }
+
+  async function exportSelectedParticipants(){
+    if(!isAdmin||!selectedParticipantIds.length||!selectedExportFieldKeys.length)return
     setExporting(true);setError('');setNotice('')
     try{
       const selectedRows=participants
         .filter(p=>selectedParticipantIds.includes(p.id))
         .sort((a,b)=>a.participant_id.localeCompare(b.participant_id))
+      const chosenFields=exportFields.filter(field=>selectedExportFieldKeys.includes(field.key))
+      const formFields=chosenFields.filter(field=>field.group==='form')
+      const chosenQuestionIds=[...new Set(formFields.flatMap(field=>field.questionIds||[]))]
+      const questionFieldById=new Map<string,string>()
+      for(const field of formFields)for(const questionId of field.questionIds||[])questionFieldById.set(questionId,field.key)
       const submissionIds=selectedRows.map(p=>p.submission_id).filter((id):id is string=>Boolean(id))
-      const answerRows:{submission_id:string;question_id:string;value:unknown}[]=[]
-      for(let i=0;i<submissionIds.length;i+=200){
-        const {data,error}=await supabase.from('answers').select('submission_id,question_id,value').in('submission_id',submissionIds.slice(i,i+200))
-        if(error)throw error
-        answerRows.push(...((data||[]) as {submission_id:string;question_id:string;value:unknown}[]))
-      }
-      const questionIds=[...new Set(answerRows.map(row=>row.question_id))]
-      const contactQuestionKind=new Map<string,'phone'|'whatsapp'|'data'>()
-      for(let i=0;i<questionIds.length;i+=200){
-        const {data,error}=await supabase.from('questions').select('id,type,label').in('id',questionIds.slice(i,i+200))
-        if(error)throw error
-        for(const question of data||[]){
-          const label=String(question.label||'').toLowerCase().replace(/\s+/g,' ').trim()
-          const isWhatsapp=/whats?app/.test(label)
-          const isData=/(subscribe|subscription).*data|data.*(number|line)|number.*data/.test(label)
-          const isPhone=question.type==='phone'||(!isWhatsapp&&!isData&&/(phone|telephone|mobile|contact number|contact no\.?)/.test(label))
-          if(isWhatsapp)contactQuestionKind.set(question.id,'whatsapp')
-          else if(isData)contactQuestionKind.set(question.id,'data')
-          else if(isPhone)contactQuestionKind.set(question.id,'phone')
+      const answerBySubmission=new Map<string,Map<string,string>>()
+      if(submissionIds.length&&chosenQuestionIds.length){
+        for(let si=0;si<submissionIds.length;si+=200){
+          for(let qi=0;qi<chosenQuestionIds.length;qi+=200){
+            const {data,error}=await supabase.from('answers')
+              .select('submission_id,question_id,value')
+              .in('submission_id',submissionIds.slice(si,si+200))
+              .in('question_id',chosenQuestionIds.slice(qi,qi+200))
+            if(error)throw error
+            for(const answer of data||[]){
+              const fieldKey=questionFieldById.get(answer.question_id)
+              if(!fieldKey)continue
+              const submissionMap=answerBySubmission.get(answer.submission_id)||new Map<string,string>()
+              if(!submissionMap.has(fieldKey))submissionMap.set(fieldKey,answerText(answer.value))
+              answerBySubmission.set(answer.submission_id,submissionMap)
+            }
+          }
         }
       }
-      const phoneBySubmission=new Map<string,string>()
-      const whatsappBySubmission=new Map<string,string>()
-      const dataBySubmission=new Map<string,string>()
-      for(const answer of answerRows){
-        const kind=contactQuestionKind.get(answer.question_id)
-        if(!kind)continue
-        const value=answerText(answer.value).trim()
-        if(!value)continue
-        if(kind==='phone'&&!phoneBySubmission.has(answer.submission_id))phoneBySubmission.set(answer.submission_id,value)
-        if(kind==='whatsapp'&&!whatsappBySubmission.has(answer.submission_id))whatsappBySubmission.set(answer.submission_id,value)
-        if(kind==='data'&&!dataBySubmission.has(answer.submission_id))dataBySubmission.set(answer.submission_id,value)
-      }
       const csv=[
-        ['Participant ID','Name','Email','Phone Number','WhatsApp Number','Data Number'].map(csvCell).join(','),
-        ...selectedRows.map(p=>{
-          const submissionId=p.submission_id||''
-          const whatsapp=submissionId?whatsappBySubmission.get(submissionId)||'':''
-          const phone=submissionId?(phoneBySubmission.get(submissionId)||whatsapp):''
-          const dataNumber=submissionId?dataBySubmission.get(submissionId)||'':''
-          return [
-            p.participant_id,
-            p.full_name||'',
-            p.email||'',
-            phone,
-            whatsapp,
-            dataNumber
-          ].map(csvCell).join(',')
-        })
+        chosenFields.map(field=>csvCell(field.label)).join(','),
+        ...selectedRows.map(participant=>chosenFields.map(field=>{
+          if(field.group==='participant')return csvCell(participantCoreExportValue(participant,field))
+          if(!participant.submission_id)return csvCell('')
+          return csvCell(answerBySubmission.get(participant.submission_id)?.get(field.key)||'')
+        }).join(','))
       ].join('\r\n')
       const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
       const url=URL.createObjectURL(blob)
       const link=document.createElement('a')
-      const programme=(applications.find(a=>a.id===applicationFilter)?.name||'participants').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')
+      const selectedApplicationIds=[...new Set(selectedRows.map(row=>row.application_id))]
+      const programme=selectedApplicationIds.length===1?(applications.find(a=>a.id===selectedApplicationIds[0])?.name||'participants'):'selected-participants'
+      const safeName=programme.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'participants'
       link.href=url
-      link.download=(programme||'participants')+'-selected-participants-'+new Date().toISOString().slice(0,10)+'.csv'
+      link.download=safeName+'-export-'+new Date().toISOString().slice(0,10)+'.csv'
       document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url)
       const count=selectedRows.length
-      setNotice(count+' selected participant'+(count===1?'':'s')+' exported.')
-    }catch(e){setError(friendlyErrorMessage(e,'Could not export selected participants.'))}finally{setExporting(false)}
+      setExportOpen(false)
+      setNotice(count+' selected participant'+(count===1?'':'s')+' exported with '+chosenFields.length+' field'+(chosenFields.length===1?'':'s')+'.')
+    }catch(e){
+      setError(friendlyErrorMessage(e,'Could not export the selected participant data.'))
+    }finally{
+      setExporting(false)
+    }
   }
 
   async function bulkAssignProgrammeStaff(){
@@ -650,8 +728,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           <span className="participant-filter-count">{filtered.length} participant{filtered.length===1?'':'s'}</span>
         </div>
         {isAdmin&&<div className="participant-bulk-bar">
-          <div className="participant-bulk-summary"><strong>{selectedParticipantIds.length} selected</strong><span>Select participants below, then assign them to staff or export their contact details.</span></div>
-          <div className="participant-bulk-actions"><button type="button" className="secondary-button" disabled={exporting||!selectedParticipantIds.length} onClick={exportSelectedParticipants}><Download size={16}/>{exporting?'Exporting…':'Export selected'}</button><div className="participant-select-wrap"><select aria-label="Choose staff member" value={bulkStaffId} onChange={e=>setBulkStaffId(e.target.value)}><option value="">Choose staff member</option>{programmeStaff.map(staff=><option key={staff.id} value={staff.id}>{staff.full_name||'Staff member'}</option>)}</select><ChevronDown size={16}/></div><button type="button" className="primary-button" disabled={saving||!bulkStaffId||!selectedParticipantIds.length} onClick={bulkAssignProgrammeStaff}>Assign selected</button>{selectedParticipantIds.length>0&&<button type="button" className="text-button" onClick={()=>setSelectedParticipantIds([])}>Clear</button>}</div>
+          <div className="participant-bulk-summary"><strong>{selectedParticipantIds.length} selected</strong><span>Select participants below, then assign them to staff or choose exactly which participant/form fields to export.</span></div>
+          <div className="participant-bulk-actions"><button type="button" className="secondary-button" disabled={exporting||!selectedParticipantIds.length} onClick={openParticipantExport}><Download size={16}/>Export selected</button><div className="participant-select-wrap"><select aria-label="Choose staff member" value={bulkStaffId} onChange={e=>setBulkStaffId(e.target.value)}><option value="">Choose staff member</option>{programmeStaff.map(staff=><option key={staff.id} value={staff.id}>{staff.full_name||'Staff member'}</option>)}</select><ChevronDown size={16}/></div><button type="button" className="primary-button" disabled={saving||!bulkStaffId||!selectedParticipantIds.length} onClick={bulkAssignProgrammeStaff}>Assign selected</button>{selectedParticipantIds.length>0&&<button type="button" className="text-button" onClick={()=>setSelectedParticipantIds([])}>Clear</button>}</div>
         </div>}
         <div className="table-wrap"><table><thead><tr>{isAdmin&&<th className="participant-select-cell"><input type="checkbox" aria-label="Select all visible participants" checked={filtered.length>0&&filtered.every(p=>selectedParticipantIds.includes(p.id))} onChange={e=>toggleAllVisibleParticipants(e.target.checked)}/></th>}<th>Participant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
           {filtered.length?filtered.map(p=><tr key={p.id} className="clickable-row" onClick={()=>openParticipant(p)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openParticipant(p)}}} tabIndex={0} role="button" aria-label={'Open participant '+(p.full_name||p.participant_id)}>
@@ -773,6 +851,34 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
         </div>
       </div>
     </div>}
+
+    {exportOpen&&createPortal(<div className="modal-backdrop participant-export-backdrop" role="dialog" aria-modal="true" aria-label="Choose participant export fields" onMouseDown={e=>{if(e.target===e.currentTarget&&!exporting)setExportOpen(false)}}>
+      <div className="modal card participant-export-modal">
+        <div className="modal-header participant-export-header">
+          <div><p className="eyebrow">Export selected participants</p><h2>Choose what to export</h2><p>Select participant details and any questions from the form used by the selected participants. Empty answers are exported as blank cells.</p></div>
+          <button type="button" className="icon-button" aria-label="Close export" onClick={()=>setExportOpen(false)} disabled={exporting}><X size={18}/></button>
+        </div>
+        <div className="participant-export-body">
+          <div className="participant-export-toolbar">
+            <div className="search participant-export-search"><Search size={16}/><input value={exportFieldQuery} onChange={e=>setExportFieldQuery(e.target.value)} placeholder="Search fields or form questions…"/></div>
+            <div className="participant-export-toolbar-actions"><button type="button" className="text-button" onClick={()=>setSelectedExportFieldKeys(exportFields.map(field=>field.key))} disabled={exportLoadingFields}>Select all</button><button type="button" className="text-button" onClick={()=>setSelectedExportFieldKeys([])}>Clear</button></div>
+          </div>
+          <div className="participant-export-summary"><strong>{selectedExportFieldKeys.length} field{selectedExportFieldKeys.length===1?'':'s'} selected</strong><span>{selectedParticipantIds.length} participant{selectedParticipantIds.length===1?'':'s'} will be exported.</span></div>
+          {exportLoadingFields?<div className="loading-card participant-export-loading">Loading fields from the selected form…</div>:(()=>{
+            const term=exportFieldQuery.trim().toLowerCase()
+            const visible=exportFields.filter(field=>!term||field.label.toLowerCase().includes(term))
+            const participantFields=visible.filter(field=>field.group==='participant')
+            const formFields=visible.filter(field=>field.group==='form')
+            return <div className="participant-export-groups">
+              {participantFields.length>0&&<section className="participant-export-group"><div className="participant-export-group-heading"><div><p className="eyebrow">Participant fields</p><h3>ApplyFlow participant data</h3></div><span>{participantFields.length}</span></div><div className="participant-export-field-list">{participantFields.map(field=><label className="participant-export-field" key={field.key}><input type="checkbox" checked={selectedExportFieldKeys.includes(field.key)} onChange={e=>toggleExportField(field.key,e.target.checked)}/><span><strong>{field.label}</strong><small>Participant record</small></span></label>)}</div></section>}
+              {formFields.length>0&&<section className="participant-export-group"><div className="participant-export-group-heading"><div><p className="eyebrow">Form questions</p><h3>Fields from the submitted form</h3></div><span>{formFields.length}</span></div><div className="participant-export-field-list form-fields">{formFields.map(field=><label className="participant-export-field" key={field.key}><input type="checkbox" checked={selectedExportFieldKeys.includes(field.key)} onChange={e=>toggleExportField(field.key,e.target.checked)}/><span><strong>{field.label}</strong><small>Form response</small></span></label>)}</div></section>}
+              {!visible.length&&<div className="table-empty">No export fields match your search.</div>}
+            </div>
+          })()}
+        </div>
+        <div className="modal-footer participant-export-footer"><div className="participant-export-footer-copy"><strong>{selectedExportFieldKeys.length} columns</strong><span>CSV export</span></div><div className="participant-export-footer-actions"><button type="button" className="secondary-button" onClick={()=>setExportOpen(false)} disabled={exporting}>Cancel</button><button type="button" className="primary-button" onClick={exportSelectedParticipants} disabled={exporting||exportLoadingFields||!selectedExportFieldKeys.length}><Download size={16}/>{exporting?'Exporting…':'Export CSV'}</button></div></div>
+      </div>
+    </div>,document.body)}
 
     {selectedParticipant&&createPortal(<div ref={participantProfileScrollRef} className="participant-profile-backdrop" role="dialog" aria-modal="true" aria-label="Participant profile">
       <div className="participant-profile-modal">
