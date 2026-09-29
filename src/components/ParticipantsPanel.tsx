@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { BadgeCheck, CalendarCheck2, Gift, Upload, Download, Plus, Search, X, Users, CheckCircle2, ChevronDown, Mail, Hash, ClipboardList, Link2, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
+import TablePagination from './TablePagination'
 
 type Application = { id:string; name:string }
 type Participant = {
@@ -74,6 +75,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [bulkStaffId,setBulkStaffId]=useState('')
   const [applicationFilter,setApplicationFilter]=useState(applications[0]?.id||'')
   const [statusFilter,setStatusFilter]=useState<'all'|'active'|'completed'|'withdrawn'>('all')
+  const [participantPage,setParticipantPage]=useState(1)
+  const [participantPageSize,setParticipantPageSize]=useState(50)
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState('')
   const [notice,setNotice]=useState('')
@@ -185,6 +188,13 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       && (statusFilter==='all'||p.status===statusFilter)
   }),[participants,query,applicationFilter,statusFilter,applications])
 
+  const participantPageCount=Math.max(1,Math.ceil(filtered.length/participantPageSize))
+  const currentParticipantPage=Math.min(participantPage,participantPageCount)
+  const pagedParticipants=useMemo(()=>filtered.slice((currentParticipantPage-1)*participantPageSize,currentParticipantPage*participantPageSize),[filtered,currentParticipantPage,participantPageSize])
+
+  useEffect(()=>{setParticipantPage(1)},[query,applicationFilter,statusFilter])
+  useEffect(()=>{if(participantPage>participantPageCount)setParticipantPage(participantPageCount)},[participantPage,participantPageCount])
+
   const scopedParticipants=useMemo(()=>participants.filter(p=>!applicationFilter||p.application_id===applicationFilter),[participants,applicationFilter])
   const scopedSessions=useMemo(()=>sessions.filter(s=>!applicationFilter||s.application_id===applicationFilter),[sessions,applicationFilter])
   const scopedBenefits=useMemo(()=>benefits.filter(b=>!applicationFilter||b.application_id===applicationFilter),[benefits,applicationFilter])
@@ -208,7 +218,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     setSelectedParticipantIds(current=>checked?[...new Set([...current,participantId])]:current.filter(id=>id!==participantId))
   }
   function toggleAllVisibleParticipants(checked:boolean){
-    const visibleIds=filtered.map(p=>p.id)
+    const visibleIds=pagedParticipants.map(p=>p.id)
     setSelectedParticipantIds(current=>checked?[...new Set([...current,...visibleIds])]:current.filter(id=>!visibleIds.includes(id)))
   }
   function csvCell(value:unknown){
@@ -731,8 +741,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           <div className="participant-bulk-summary"><strong>{selectedParticipantIds.length} selected</strong><span>Select participants below, then assign them to staff or choose exactly which participant/form fields to export.</span></div>
           <div className="participant-bulk-actions"><button type="button" className="secondary-button" disabled={exporting||!selectedParticipantIds.length} onClick={openParticipantExport}><Download size={16}/>Export selected</button><div className="participant-select-wrap"><select aria-label="Choose staff member" value={bulkStaffId} onChange={e=>setBulkStaffId(e.target.value)}><option value="">Choose staff member</option>{programmeStaff.map(staff=><option key={staff.id} value={staff.id}>{staff.full_name||'Staff member'}</option>)}</select><ChevronDown size={16}/></div><button type="button" className="primary-button" disabled={saving||!bulkStaffId||!selectedParticipantIds.length} onClick={bulkAssignProgrammeStaff}>Assign selected</button>{selectedParticipantIds.length>0&&<button type="button" className="text-button" onClick={()=>setSelectedParticipantIds([])}>Clear</button>}</div>
         </div>}
-        <div className="table-wrap"><table><thead><tr>{isAdmin&&<th className="participant-select-cell"><input type="checkbox" aria-label="Select all visible participants" checked={filtered.length>0&&filtered.every(p=>selectedParticipantIds.includes(p.id))} onChange={e=>toggleAllVisibleParticipants(e.target.checked)}/></th>}<th>Participant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
-          {filtered.length?filtered.map(p=><tr key={p.id} className="clickable-row" onClick={()=>openParticipant(p)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openParticipant(p)}}} tabIndex={0} role="button" aria-label={'Open participant '+(p.full_name||p.participant_id)}>
+        <div className="table-wrap"><table><thead><tr>{isAdmin&&<th className="participant-select-cell"><input type="checkbox" aria-label="Select all participants on this page" checked={pagedParticipants.length>0&&pagedParticipants.every(p=>selectedParticipantIds.includes(p.id))} onChange={e=>toggleAllVisibleParticipants(e.target.checked)}/></th>}<th>Participant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
+          {filtered.length?pagedParticipants.map(p=><tr key={p.id} className="clickable-row" onClick={()=>openParticipant(p)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openParticipant(p)}}} tabIndex={0} role="button" aria-label={'Open participant '+(p.full_name||p.participant_id)}>
             {isAdmin&&<td className="participant-select-cell" onClick={e=>e.stopPropagation()}><input type="checkbox" aria-label={'Select '+(p.full_name||p.participant_id)} checked={selectedParticipantIds.includes(p.id)} onChange={e=>toggleParticipantSelection(p.id,e.target.checked)}/></td>}
             <td><strong>{p.participant_id}</strong></td>
             <td><strong>{p.full_name||'Unnamed participant'}</strong><span className="table-sub">{p.email||'No email'}</span></td>
@@ -742,6 +752,13 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
             <td>{new Date(p.joined_at).toLocaleDateString()}</td>
           </tr>):<tr><td colSpan={isAdmin?7:6}><div className="table-empty">{participants.length?'No participants match these filters.':'No approved participants yet. Approved applicants appear here automatically.'}</div></td></tr>}
         </tbody></table></div>
+        <TablePagination
+          total={filtered.length}
+          page={currentParticipantPage}
+          pageSize={participantPageSize}
+          onPageChange={setParticipantPage}
+          onPageSizeChange={size=>{setParticipantPageSize(size);setParticipantPage(1)}}
+        />
       </div>
     </>}
 
