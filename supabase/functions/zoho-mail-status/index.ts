@@ -34,6 +34,7 @@ async function authorize(req: Request, organizationId: string) {
 
 const applyflowAllowedOrigins = new Set([
   "https://apply-flow-one.vercel.app",
+  "https://apply-flow-bascocreative.vercel.app",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   ...(Deno.env.get("APPLYFLOW_ALLOWED_ORIGINS") || "").split(",").map((value) => value.trim()).filter(Boolean),

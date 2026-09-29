@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
 const DEFAULT_ALLOWED_ORIGINS = [
   "https://apply-flow-one.vercel.app",
+  "https://apply-flow-bascocreative.vercel.app",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
 ];
