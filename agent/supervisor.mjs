@@ -56,13 +56,21 @@ async function vercelCheck(){
   return {ok:String(s).toUpperCase()==='READY',status:s,url,id:d.uid||d.id,sha:d.meta?.githubCommitSha||d.gitSource?.sha||'',output:logs||('Vercel deployment status: '+s)};
 }
 
+function browserEvalValue(raw){
+  const text=String(raw||'').trim();
+  try{
+    const parsed=JSON.parse(text);
+    return typeof parsed==='string'?parsed:text;
+  }catch{return text}
+}
+
 async function browserCheck(url){
   if(!url) return {ok:false,output:'No deployment URL available.'};
   try{
     run('agent-browser',['open',url],60000);
     run('agent-browser',['wait','--load','networkidle'],60000);
-    const body=run('agent-browser',['eval',"document.body.innerText.trim().length > 0 ? 'HAS_CONTENT' : 'BLANK'"],30000).trim();
-    const overlay=run('agent-browser',['eval',"document.querySelector('[data-nextjs-dialog], .vite-error-overlay, #webpack-dev-server-client-overlay') ? 'ERROR_OVERLAY' : 'OK'"],30000).trim();
+    const body=browserEvalValue(run('agent-browser',['eval',"document.body.innerText.trim().length > 0 ? 'HAS_CONTENT' : 'BLANK'"],30000));
+    const overlay=browserEvalValue(run('agent-browser',['eval',"document.querySelector('[data-nextjs-dialog], .vite-error-overlay, #webpack-dev-server-client-overlay') ? 'ERROR_OVERLAY' : 'OK'"],30000));
     try{run('agent-browser',['close'],30000)}catch{}
     return {ok:body==='HAS_CONTENT'&&overlay==='OK',output:'body='+body+'; overlay='+overlay};
   }catch(e){
@@ -109,8 +117,13 @@ async function main(){
     s.attempts=attempt;s.status='verifying';s.lastSha=sha();await stateWrite(s);
     const b=await build(); const v=await vercelCheck(); const br=v.url?await browserCheck(v.url):{ok:false,output:'Skipped: no deployment URL.'};
     const evidence={git:{sha:sha(),status:status()},build:b,vercel:v,browser:br,phase:s.currentPhase};
+    log('Verification evidence: '+JSON.stringify(evidence));
     if(b.ok&&v.ok&&br.ok){s.status='phase-passed';s.lastVerification=evidence;s.lastVerifiedAt=new Date().toISOString();await stateWrite(s);log('All checks passed.');return;}
     s.status='diagnosing';s.lastFailure=evidence;await stateWrite(s);
+    if(!process.env.GEMINI_API_KEY){
+      s.status='blocked';s.blockedReason='QA checks failed and GEMINI_API_KEY is not configured for automated remediation.';await stateWrite(s);
+      throw new Error('QA checks failed: '+JSON.stringify(evidence));
+    }
     const result=await askModel(evidence,attempt); log('Diagnosis: '+result.diagnosis);
     if(result.action!=='patch'||!result.patch?.trim()){s.status=result.action==='permission'?'blocked-permission':'blocked';s.blockedReason=result.diagnosis;await stateWrite(s);throw new Error('Supervisor stopped: '+result.diagnosis)}
     await applyPatch(result.patch); s.status='fixed-locally';s.diagnosis=result.diagnosis;await stateWrite(s);
