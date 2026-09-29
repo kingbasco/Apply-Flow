@@ -231,25 +231,48 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
         answerRows.push(...((data||[]) as {submission_id:string;question_id:string;value:unknown}[]))
       }
       const questionIds=[...new Set(answerRows.map(row=>row.question_id))]
-      const phoneQuestionIds=new Set<string>()
+      const contactQuestionKind=new Map<string,'phone'|'whatsapp'|'data'>()
       for(let i=0;i<questionIds.length;i+=200){
-        const {data,error}=await supabase.from('questions').select('id,type').in('id',questionIds.slice(i,i+200))
+        const {data,error}=await supabase.from('questions').select('id,type,label').in('id',questionIds.slice(i,i+200))
         if(error)throw error
-        for(const question of data||[])if(question.type==='phone')phoneQuestionIds.add(question.id)
+        for(const question of data||[]){
+          const label=String(question.label||'').toLowerCase().replace(/\s+/g,' ').trim()
+          const isWhatsapp=/whats?app/.test(label)
+          const isData=/(subscribe|subscription).*data|data.*(number|line)|number.*data/.test(label)
+          const isPhone=question.type==='phone'||(!isWhatsapp&&!isData&&/(phone|telephone|mobile|contact number|contact no\.?)/.test(label))
+          if(isWhatsapp)contactQuestionKind.set(question.id,'whatsapp')
+          else if(isData)contactQuestionKind.set(question.id,'data')
+          else if(isPhone)contactQuestionKind.set(question.id,'phone')
+        }
       }
       const phoneBySubmission=new Map<string,string>()
+      const whatsappBySubmission=new Map<string,string>()
+      const dataBySubmission=new Map<string,string>()
       for(const answer of answerRows){
-        if(!phoneQuestionIds.has(answer.question_id)||phoneBySubmission.has(answer.submission_id))continue
-        phoneBySubmission.set(answer.submission_id,answerText(answer.value))
+        const kind=contactQuestionKind.get(answer.question_id)
+        if(!kind)continue
+        const value=answerText(answer.value).trim()
+        if(!value)continue
+        if(kind==='phone'&&!phoneBySubmission.has(answer.submission_id))phoneBySubmission.set(answer.submission_id,value)
+        if(kind==='whatsapp'&&!whatsappBySubmission.has(answer.submission_id))whatsappBySubmission.set(answer.submission_id,value)
+        if(kind==='data'&&!dataBySubmission.has(answer.submission_id))dataBySubmission.set(answer.submission_id,value)
       }
       const csv=[
-        ['Participant ID','Name','Email','Phone Number'].map(csvCell).join(','),
-        ...selectedRows.map(p=>[
-          p.participant_id,
-          p.full_name||'',
-          p.email||'',
-          p.submission_id?phoneBySubmission.get(p.submission_id)||'':''
-        ].map(csvCell).join(','))
+        ['Participant ID','Name','Email','Phone Number','WhatsApp Number','Data Number'].map(csvCell).join(','),
+        ...selectedRows.map(p=>{
+          const submissionId=p.submission_id||''
+          const whatsapp=submissionId?whatsappBySubmission.get(submissionId)||'':''
+          const phone=submissionId?(phoneBySubmission.get(submissionId)||whatsapp):''
+          const dataNumber=submissionId?dataBySubmission.get(submissionId)||'':''
+          return [
+            p.participant_id,
+            p.full_name||'',
+            p.email||'',
+            phone,
+            whatsapp,
+            dataNumber
+          ].map(csvCell).join(',')
+        })
       ].join('\r\n')
       const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
       const url=URL.createObjectURL(blob)
