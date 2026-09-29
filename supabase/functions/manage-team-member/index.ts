@@ -42,6 +42,9 @@ Deno.serve(async (req) => {
       .eq("id", memberId).single();
     if (memberError || !member || member.organization_id !== organizationId) return json({ error: "Team member not found." }, 404);
     if (member.role === "owner") return json({ error: "The workspace owner cannot be removed." }, 400);
+    if (member.role === "admin" && manager.role !== "owner") {
+      return json({ error: "Only the workspace Owner can manage or remove an Admin." }, 403);
+    }
 
     const { data: authMember, error: authMemberError } = await admin.auth.admin.getUserById(memberId);
     if (authMemberError || !authMember.user) return json({ error: "The member account could not be found." }, 404);
@@ -80,8 +83,45 @@ Deno.serve(async (req) => {
       return json({ resent: true, user_id: invited.user.id, email });
     }
 
+    const [
+      { data: assignedRows, error: assignedRowsError },
+      { data: createdInviteRows, error: createdInviteRowsError },
+      { data: usedInviteRows, error: usedInviteRowsError },
+    ] = await Promise.all([
+      admin.from("participant_staff_assignments").select("id").eq("assigned_by", memberId),
+      admin.from("team_invite_links").select("id").eq("created_by", memberId),
+      admin.from("team_invite_links").select("id").eq("used_by", memberId),
+    ]);
+    if (assignedRowsError) throw assignedRowsError;
+    if (createdInviteRowsError) throw createdInviteRowsError;
+    if (usedInviteRowsError) throw usedInviteRowsError;
+
+    const assignedIds = (assignedRows || []).map((row: any) => row.id);
+    const createdInviteIds = (createdInviteRows || []).map((row: any) => row.id);
+    const usedInviteIds = (usedInviteRows || []).map((row: any) => row.id);
+
+    if (assignedIds.length) {
+      const { error } = await admin.from("participant_staff_assignments").update({ assigned_by: manager.id }).in("id", assignedIds);
+      if (error) throw error;
+    }
+    if (createdInviteIds.length) {
+      const { error } = await admin.from("team_invite_links").update({ created_by: manager.id }).in("id", createdInviteIds);
+      if (error) throw error;
+    }
+    if (usedInviteIds.length) {
+      const { error } = await admin.from("team_invite_links").update({ used_by: null }).in("id", usedInviteIds);
+      if (error) throw error;
+    }
+
     const { error: deleteError } = await admin.auth.admin.deleteUser(memberId);
-    if (deleteError) return json({ error: deleteError.message }, 400);
+    if (deleteError) {
+      try {
+        if (assignedIds.length) await admin.from("participant_staff_assignments").update({ assigned_by: memberId }).in("id", assignedIds);
+        if (createdInviteIds.length) await admin.from("team_invite_links").update({ created_by: memberId }).in("id", createdInviteIds);
+        if (usedInviteIds.length) await admin.from("team_invite_links").update({ used_by: memberId }).in("id", usedInviteIds);
+      } catch {}
+      return json({ error: deleteError.message }, 400);
+    }
     return json({ deleted: true, user_id: memberId });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Could not manage team member." }, 500);
