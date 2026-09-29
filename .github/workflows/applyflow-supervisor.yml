@@ -2,6 +2,11 @@ name: ApplyFlow Supervisor
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Build Check
+    types:
+      - completed
   schedule:
     - cron: "*/15 * * * *"
 
@@ -14,6 +19,7 @@ concurrency:
 
 jobs:
   supervise:
+    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     environment: Configure Agent 1
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -21,6 +27,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
