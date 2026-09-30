@@ -90,6 +90,40 @@ Deno.serve(async (req) => {
       .select("id,name,organization_id").eq("id", applicationId).eq("organization_id", organizationId).single();
     if (applicationError || !application) return json({ error: "Programme not found." }, 404);
 
+    const persistDeliveryLog = async ({
+      status,
+      recipientCount,
+      metadata,
+    }:{
+      status:"sent"|"failed";
+      recipientCount:number;
+      metadata:Record<string,unknown>;
+    }) => {
+      const { error: logError } = await admin.from("communication_logs").insert({
+        application_id: applicationId,
+        recipient_count: recipientCount,
+        status,
+        sent_at: new Date().toISOString(),
+        created_by: authData.user.id,
+        metadata: {
+          delivery_id: deliveryId || null,
+          batch_number: batchNumber,
+          batch_count: batchCount,
+          subject: subjectTemplate,
+          application_name: application.name,
+          ...metadata,
+        },
+      });
+      if (logError) {
+        console.error(JSON.stringify({
+          event:"communication_log_write_failed",
+          delivery_id:deliveryId||null,
+          batch_number:batchNumber,
+          error:logError.message,
+        }));
+      }
+    };
+
     const { data: participants, error: participantError } = await admin.from("participants")
       .select("id,participant_id,application_id,applicants(full_name,email)")
       .eq("organization_id", organizationId)
@@ -100,6 +134,22 @@ Deno.serve(async (req) => {
     const { config: zeptoConfig, missing: zeptoMissing } = getZeptoMailConfig();
     const { config: smtpConfig, missing: smtpMissing } = getZohoSmtpConfig();
     if (!zeptoConfig && !smtpConfig) {
+      await persistDeliveryLog({
+        status:"failed",
+        recipientCount:participantIds.length,
+        metadata:{
+          provider:"none",
+          transport:"none",
+          requested:participantIds.length,
+          matched:(participants||[]).length,
+          sent_count:0,
+          skipped_count:0,
+          failed_count:participantIds.length,
+          first_failure_error:"No participant email provider is configured on the server.",
+          failure_code:"PROVIDER_NOT_CONFIGURED",
+          results:[],
+        },
+      });
       return json({
         error: "No participant email provider is configured on the server.",
         missing: [...zeptoMissing, ...smtpMissing],
@@ -123,6 +173,23 @@ Deno.serve(async (req) => {
         }));
         await closeZohoSmtp(smtpSession);
         smtpSession = null;
+        await persistDeliveryLog({
+          status:"failed",
+          recipientCount:participantIds.length,
+          metadata:{
+            provider,
+            transport,
+            from_address:smtpConfig?.fromAddress||null,
+            requested:participantIds.length,
+            matched:(participants||[]).length,
+            sent_count:0,
+            skipped_count:0,
+            failed_count:participantIds.length,
+            first_failure_error:transportError,
+            failure_code:"SENDER_PREFLIGHT_FAILED",
+            results:[],
+          },
+        });
         return json({
           error: transportError,
           provider,
@@ -181,6 +248,29 @@ Deno.serve(async (req) => {
             batch_number:batchNumber,
             error:message,
           }));
+          const blockedResults=(participants||[]).map((participant:any)=>{
+            const participantEmail=participant.applicants?.email?String(participant.applicants.email).trim():"";
+            return participantEmail&&participantEmail.includes("@")
+              ? {participant_id:participant.participant_id,email:participantEmail,status:"failed",error:blockedMessage}
+              : {participant_id:participant.participant_id,email:participantEmail||null,status:"skipped",error:"No valid email address."};
+          });
+          await persistDeliveryLog({
+            status:"failed",
+            recipientCount:participantIds.length,
+            metadata:{
+              provider:"zoho",
+              transport:"smtp",
+              from_address:smtpConfig?.fromAddress||null,
+              requested:participantIds.length,
+              matched:(participants||[]).length,
+              sent_count:0,
+              skipped_count:blockedResults.filter((item:any)=>item.status==="skipped").length,
+              failed_count:blockedResults.filter((item:any)=>item.status==="failed").length,
+              first_failure_error:blockedMessage,
+              failure_code:"ZOHO_USAGE_BLOCK",
+              results:blockedResults,
+            },
+          });
           return json({
             error:blockedMessage,
             error_code:"ZOHO_USAGE_BLOCK",
@@ -213,6 +303,23 @@ Deno.serve(async (req) => {
       first_failure_error: results.find((r) => r.status === "failed")?.error || null,
       results,
     };
+    await persistDeliveryLog({
+      status:summary.failed_count>0||summary.sent_count===0?"failed":"sent",
+      recipientCount:summary.requested,
+      metadata:{
+        provider:summary.provider,
+        transport:summary.transport,
+        from_address:summary.from_address,
+        requested:summary.requested,
+        matched:summary.matched,
+        sent_count:summary.sent_count,
+        skipped_count:summary.skipped_count,
+        failed_count:summary.failed_count,
+        first_failure_error:summary.first_failure_error,
+        results:summary.results,
+      },
+    });
+
     console.info(JSON.stringify({
       event: "zoho_email_batch_complete",
       delivery_id: summary.delivery_id,

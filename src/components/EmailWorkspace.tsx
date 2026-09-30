@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, ChevronDown, Mail, Search, Send, Settings2, Users, X, FileText, Link2, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, BarChart3, CheckCircle2, ChevronDown, Mail, Search, Send, Settings2, Users, X, FileText, Link2, ShieldCheck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
 import TablePagination from './TablePagination'
@@ -26,7 +26,40 @@ type Template = {
   status:'draft'|'ready'|'archived'
   created_at:string
 }
-type View = 'compose'|'templates'|'connection'
+type CommunicationLog = {
+  id:string
+  application_id:string
+  recipient_count:number
+  status:'draft'|'queued'|'sent'|'failed'
+  sent_at:string|null
+  created_at:string
+  metadata:Record<string,any>
+}
+type DeliveryRecipient = {
+  participant_id:string
+  email:string|null
+  status:'sent'|'failed'|'skipped'
+  error?:string
+  request_id?:string|null
+}
+type DeliveryReport = {
+  id:string
+  application_id:string
+  programme_name:string
+  subject:string
+  provider:string
+  transport:string
+  created_at:string
+  requested:number
+  sent:number
+  failed:number
+  skipped:number
+  first_failure_error:string|null
+  failure_code:string|null
+  results:DeliveryRecipient[]
+  batches:number
+}
+type View = 'compose'|'templates'|'reports'|'connection'
 
 const mergeFields = [
   {tag:'{{name}}',label:'Name'},
@@ -75,6 +108,10 @@ export default function EmailWorkspace({
   const [sendProgress,setSendProgress]=useState('')
   const [zohoStatus,setZohoStatus]=useState<{provider:'zoho'|'zeptomail';transport:'smtp'|'api';configured:boolean;validated:boolean;from_address:string|null;missing:string[];validation_error:string|null;validation_note:string|null;usage_blocked:boolean}>({provider:'zoho',transport:'smtp',configured:false,validated:false,from_address:null,missing:[],validation_error:null,validation_note:null,usage_blocked:false})
   const [checkingZoho,setCheckingZoho]=useState(false)
+  const [communicationLogs,setCommunicationLogs]=useState<CommunicationLog[]>([])
+  const [reportApplication,setReportApplication]=useState('all')
+  const [reportStatus,setReportStatus]=useState<'all'|'sent'|'failed'>('all')
+  const [reportsLoading,setReportsLoading]=useState(false)
 
   useEffect(()=>{
     setApplicationId(current=>applications.some(a=>a.id===current)?current:(applications[0]?.id||''))
@@ -117,7 +154,24 @@ export default function EmailWorkspace({
     }
   }
 
-  useEffect(()=>{void refreshZohoStatus(false)},[organizationId,role])
+  async function refreshDeliveryReports(){
+    if(!canManage)return
+    setReportsLoading(true)
+    try{
+      const {data,error}=await supabase.from('communication_logs')
+        .select('id,application_id,recipient_count,status,sent_at,created_at,metadata')
+        .order('created_at',{ascending:false})
+        .limit(500)
+      if(error)throw error
+      setCommunicationLogs((data||[]) as CommunicationLog[])
+    }catch(e){
+      setError(friendlyErrorMessage(e,'Could not load email delivery reports.'))
+    }finally{
+      setReportsLoading(false)
+    }
+  }
+
+  useEffect(()=>{void refreshZohoStatus(false);void refreshDeliveryReports()},[organizationId,role])
 
   useEffect(()=>{
     let cancelled=false
@@ -167,6 +221,58 @@ export default function EmailWorkspace({
   },[organizationId])
 
   const programmeName=applications.find(a=>a.id===applicationId)?.name||'Programme'
+  const deliveryReports=useMemo<DeliveryReport[]>(()=>{
+    const grouped=new Map<string,DeliveryReport>()
+    for(const log of communicationLogs){
+      const metadata=log.metadata||{}
+      const id=String(metadata.delivery_id||log.id)
+      const existing=grouped.get(id)
+      const results=Array.isArray(metadata.results)?metadata.results as DeliveryRecipient[]:[]
+      const next:DeliveryReport=existing||{
+        id,
+        application_id:log.application_id,
+        programme_name:String(metadata.application_name||applications.find(a=>a.id===log.application_id)?.name||'Programme'),
+        subject:String(metadata.subject||'Participant email'),
+        provider:String(metadata.provider||'unknown'),
+        transport:String(metadata.transport||''),
+        created_at:log.sent_at||log.created_at,
+        requested:0,
+        sent:0,
+        failed:0,
+        skipped:0,
+        first_failure_error:null,
+        failure_code:null,
+        results:[],
+        batches:0,
+      }
+      next.requested+=Number(metadata.requested??log.recipient_count??0)
+      next.sent+=Number(metadata.sent_count||0)
+      next.failed+=Number(metadata.failed_count||0)
+      next.skipped+=Number(metadata.skipped_count||0)
+      next.batches+=1
+      next.results.push(...results)
+      if(!next.first_failure_error&&metadata.first_failure_error)next.first_failure_error=String(metadata.first_failure_error)
+      if(!next.failure_code&&metadata.failure_code)next.failure_code=String(metadata.failure_code)
+      if((log.sent_at||log.created_at)>next.created_at)next.created_at=log.sent_at||log.created_at
+      grouped.set(id,next)
+    }
+    return [...grouped.values()].sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())
+  },[communicationLogs,applications])
+  const filteredDeliveryReports=useMemo(()=>deliveryReports.filter(report=>{
+    const matchesApplication=reportApplication==='all'||report.application_id===reportApplication
+    const reportOutcome=report.failed>0?'failed':'sent'
+    const matchesStatus=reportStatus==='all'||reportOutcome===reportStatus
+    return matchesApplication&&matchesStatus
+  }),[deliveryReports,reportApplication,reportStatus])
+  const reportTotals=useMemo(()=>deliveryReports.reduce((totals,report)=>({
+    requested:totals.requested+report.requested,
+    sent:totals.sent+report.sent,
+    failed:totals.failed+report.failed,
+    skipped:totals.skipped+report.skipped,
+  }),{requested:0,sent:0,failed:0,skipped:0}),[deliveryReports])
+  const reportSuccessRate=(reportTotals.sent+reportTotals.failed)>0
+    ? Math.round((reportTotals.sent/(reportTotals.sent+reportTotals.failed))*100)
+    : 0
   const programmeParticipants=useMemo(()=>participants.filter(p=>p.application_id===applicationId),[participants,applicationId])
   const staffIdsByParticipant=useMemo(()=>{
     const map=new Map<string,string[]>()
@@ -317,6 +423,7 @@ export default function EmailWorkspace({
     }finally{
       setSendProgress('')
       setSending(false)
+      void refreshDeliveryReports()
     }
   }
 
@@ -333,6 +440,7 @@ export default function EmailWorkspace({
     <div className="email-tabs">
       <button className={view==='compose'?'secondary-button':'text-button'} onClick={()=>setView('compose')}><Mail size={16}/> Compose</button>
       <button className={view==='templates'?'secondary-button':'text-button'} onClick={()=>setView('templates')}><FileText size={16}/> Templates</button>
+      <button className={view==='reports'?'secondary-button':'text-button'} onClick={()=>{setView('reports');void refreshDeliveryReports()}}><BarChart3 size={16}/> Delivery reports</button>
       <button className={view==='connection'?'secondary-button':'text-button'} onClick={()=>setView('connection')}><Settings2 size={16}/> Email connection</button>
     </div>
 
@@ -380,6 +488,56 @@ export default function EmailWorkspace({
       <div className="card-header"><div><p className="eyebrow">Saved messages</p><h2>Email templates</h2><p>Reuse programme communication without rewriting every message.</p></div><FileText size={20}/></div>
       <div className="email-template-filter"><label>Programme<div className="participant-select-wrap"><select value={applicationId} onChange={e=>setApplicationId(e.target.value)}>{applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select><ChevronDown size={16}/></div></label></div>
       {programmeTemplates.length?<div className="email-template-grid">{programmeTemplates.map(template=><button key={template.id} className="email-template-card" onClick={()=>applyTemplate(template)}><div><span className="status neutral">{template.status}</span><small>{new Date(template.created_at).toLocaleDateString()}</small></div><h3>{template.name}</h3><strong>{template.subject}</strong><p>{template.body}</p><footer><span>Audience: {template.audience_status}</span><span>Use template →</span></footer></button>)}</div>:<div className="table-empty">No email templates for this programme yet. Compose a message and save it as a template.</div>}
+    </div>}
+
+    {view==='reports'&&<div className="email-report-workspace">
+      <div className="stats-grid email-report-stats">
+        <div className="card stat-card"><div className="stat-icon"><Mail size={16}/></div><div><p className="eyebrow">Attempted</p><div className="stat-value">{reportTotals.requested}</div><p className="muted">{deliveryReports.length} delivery{deliveryReports.length===1?'':'ies'}</p></div></div>
+        <div className="card stat-card"><div className="stat-icon"><CheckCircle2 size={16}/></div><div><p className="eyebrow">Sent</p><div className="stat-value">{reportTotals.sent}</div><p className="muted">Confirmed accepted by provider</p></div></div>
+        <div className="card stat-card"><div className="stat-icon"><AlertTriangle size={16}/></div><div><p className="eyebrow">Failed</p><div className="stat-value">{reportTotals.failed}</div><p className="muted">{reportTotals.skipped} skipped</p></div></div>
+        <div className="card stat-card"><div className="stat-icon"><BarChart3 size={16}/></div><div><p className="eyebrow">Success rate</p><div className="stat-value">{reportSuccessRate}%</div><p className="muted">Sent ÷ sent + failed</p></div></div>
+      </div>
+
+      <div className="card table-card email-report-card">
+        <div className="card-header">
+          <div><p className="eyebrow">Delivery history</p><h2>Email delivery reports</h2><p>Every recorded batch is grouped into one delivery, with recipient-level outcomes and provider errors.</p></div>
+          <button type="button" className="secondary-button" onClick={()=>void refreshDeliveryReports()} disabled={reportsLoading}>{reportsLoading?'Refreshing…':'Refresh'}</button>
+        </div>
+        <div className="email-report-filters">
+          <label>Programme<select value={reportApplication} onChange={e=>setReportApplication(e.target.value)}><option value="all">All programmes</option>{applications.map(application=><option key={application.id} value={application.id}>{application.name}</option>)}</select></label>
+          <label>Status<select value={reportStatus} onChange={e=>setReportStatus(e.target.value as 'all'|'sent'|'failed')}><option value="all">All outcomes</option><option value="sent">Sent</option><option value="failed">Failed / partial</option></select></label>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Delivery</th><th>Provider</th><th>Attempted</th><th>Sent</th><th>Failed</th><th>Status</th><th>Date</th></tr></thead>
+            <tbody>
+              {filteredDeliveryReports.map(report=><tr key={report.id}>
+                <td>
+                  <strong>{report.subject}</strong>
+                  <span className="table-sub">{report.programme_name} · {report.batches} batch{report.batches===1?'':'es'}</span>
+                  <details className="email-report-details">
+                    <summary>View recipient report</summary>
+                    <div className="email-report-recipient-list">
+                      {report.results.length?report.results.map((recipient,index)=><div key={report.id+'-'+index} className={'email-report-recipient '+recipient.status}>
+                        <span><strong>{recipient.participant_id||'Participant'}</strong><small>{recipient.email||'No email address'}</small></span>
+                        <span className={'status '+(recipient.status==='sent'?'green':recipient.status==='failed'?'amber':'neutral')}>{recipient.status}</span>
+                        {recipient.error&&<p>{recipient.error}</p>}
+                      </div>):<p className="email-report-empty-detail">Recipient-level details were not recorded for this delivery.</p>}
+                      {report.first_failure_error&&<div className="email-report-error"><strong>Failure reason</strong><p>{report.first_failure_error}</p></div>}
+                    </div>
+                  </details>
+                </td>
+                <td>{report.provider==='zeptomail'?'ZeptoMail':report.provider==='zoho'?'Zoho Mail':report.provider}<span className="table-sub">{report.transport||'—'}</span></td>
+                <td>{report.requested}</td>
+                <td>{report.sent}</td>
+                <td>{report.failed}{report.skipped>0&&<span className="table-sub">{report.skipped} skipped</span>}</td>
+                <td><span className={'status '+(report.failed>0?'amber':'green')}>{report.failure_code==='ZOHO_USAGE_BLOCK'?'Provider blocked':report.failed>0?'Failed / partial':'Sent'}</span></td>
+                <td>{new Date(report.created_at).toLocaleString()}</td>
+              </tr>):<tr><td colSpan={7}><div className="table-empty">{reportsLoading?'Loading delivery reports…':'No recorded email deliveries yet. New sends will appear here automatically.'}</div></td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>}
 
     {view==='connection'&&<div className="email-connection-layout">
