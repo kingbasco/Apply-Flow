@@ -65,11 +65,18 @@ Deno.serve(async (req) => {
     const subjectTemplate = String(requestBody?.subject || "").trim();
     const bodyTemplate = String(requestBody?.body || "").trim();
     const whatsappGroupLink = String(requestBody?.whatsapp_group_link || "").trim();
+    const deliveryId = String(requestBody?.delivery_id || "").trim();
+    const batchNumber = Number(requestBody?.batch_number || 1);
+    const batchCount = Number(requestBody?.batch_count || 1);
 
     if (!organizationId || !applicationId || !participantIds.length || !subjectTemplate || !bodyTemplate) {
       return json({ error: "organization_id, application_id, participant_ids, subject and body are required." }, 400);
     }
-    if (participantIds.length > 50) return json({ error: "This delivery version supports up to 50 recipients per send." }, 400);
+    if (participantIds.length > 10) return json({ error: "This delivery version supports up to 10 recipients per batch." }, 400);
+    if (deliveryId && !/^[0-9a-f-]{36}$/i.test(deliveryId)) return json({ error: "Invalid delivery identifier." }, 400);
+    if (!Number.isInteger(batchNumber) || batchNumber < 1 || !Number.isInteger(batchCount) || batchCount < 1 || batchNumber > batchCount) {
+      return json({ error: "Invalid delivery batch metadata." }, 400);
+    }
 
     const { data: profile, error: profileError } = await admin.from("profiles")
       .select("id,organization_id,role").eq("id", authData.user.id).single();
@@ -126,17 +133,32 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({
+    const summary = {
       provider: "zoho",
       transport: "smtp",
       from_address: config.fromAddress,
+      delivery_id: deliveryId || null,
+      batch_number: batchNumber,
+      batch_count: batchCount,
       requested: participantIds.length,
       matched: (participants || []).length,
       sent_count: results.filter((r) => r.status === "sent").length,
       skipped_count: results.filter((r) => r.status === "skipped").length,
       failed_count: results.filter((r) => r.status === "failed").length,
       results,
-    });
+    };
+    console.info(JSON.stringify({
+      event: "zoho_email_batch_complete",
+      delivery_id: summary.delivery_id,
+      batch_number: summary.batch_number,
+      batch_count: summary.batch_count,
+      requested: summary.requested,
+      matched: summary.matched,
+      sent_count: summary.sent_count,
+      skipped_count: summary.skipped_count,
+      failed_count: summary.failed_count,
+    }));
+    return json(summary);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not send participant email.";
     return json({ error: message }, 500);

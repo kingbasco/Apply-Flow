@@ -72,6 +72,7 @@ export default function EmailWorkspace({
   const [bodyFocused,setBodyFocused]=useState(true)
   const [whatsappGroupLink,setWhatsappGroupLink]=useState('')
   const [sending,setSending]=useState(false)
+  const [sendProgress,setSendProgress]=useState('')
   const [zohoStatus,setZohoStatus]=useState<{configured:boolean;validated:boolean;from_address:string|null;missing:string[];validation_error:string|null}>({configured:false,validated:false,from_address:null,missing:[],validation_error:null})
   const [checkingZoho,setCheckingZoho]=useState(false)
 
@@ -259,12 +260,14 @@ export default function EmailWorkspace({
 
   async function sendSelectedEmail(){
     if(!canManage||!zohoStatus.configured||!applicationId||!validSelected.length||!subject.trim()||!body.trim())return
-    setSending(true);setError('');setNotice('')
+    setSending(true);setError('');setNotice('');setSendProgress('')
+    let sent=0,failed=0,skipped=0,processed=0
+    const deliveryId=crypto.randomUUID()
+    const batches=Array.from({length:Math.ceil(validSelected.length/10)},(_,index)=>validSelected.slice(index*10,(index+1)*10))
     try{
-      let sent=0,failed=0,skipped=0
-      const batches=Array.from({length:Math.ceil(validSelected.length/50)},(_,index)=>validSelected.slice(index*50,(index+1)*50))
-
-      for(const participantIds of batches){
+      for(let index=0;index<batches.length;index++){
+        const participantIds=batches[index]
+        setSendProgress('Sending batch '+(index+1)+' of '+batches.length+'…')
         const {data,error}=await supabase.functions.invoke('send-zoho-email',{body:{
           organization_id:organizationId,
           application_id:applicationId,
@@ -272,18 +275,30 @@ export default function EmailWorkspace({
           subject:subject.trim(),
           body:body.trim(),
           whatsapp_group_link:whatsappGroupLink.trim(),
+          delivery_id:deliveryId,
+          batch_number:index+1,
+          batch_count:batches.length,
         }})
-        if(error)throw error
+        if(error){
+          throw new Error('Batch '+(index+1)+' of '+batches.length+' could not be confirmed after '+processed+' recipient'+(processed===1?'':'s')+' were processed. Sending stopped to avoid duplicate emails. '+friendlyErrorMessage(error,'Zoho Mail request failed.'))
+        }
+        if(data?.error){
+          throw new Error('Batch '+(index+1)+' of '+batches.length+' failed after '+processed+' recipient'+(processed===1?'':'s')+' were processed. '+String(data.error))
+        }
         sent+=Number(data?.sent_count||0)
         failed+=Number(data?.failed_count||0)
         skipped+=Number(data?.skipped_count||0)
+        processed+=Number(data?.requested||participantIds.length)
       }
 
-      if(failed>0)setError(sent+' sent, '+failed+' failed'+(skipped?', '+skipped+' skipped':'')+'.')
-      else setNotice(sent+' email'+(sent===1?'':'s')+' sent through Zoho Mail'+(skipped?' · '+skipped+' skipped':'')+'.')
+      const summary=sent+' sent'+(failed?', '+failed+' failed':'')+(skipped?', '+skipped+' skipped':'')
+      if(failed>0)setError(summary+'.')
+      else setNotice(summary+' through Zoho Mail.')
     }catch(e){
-      setError(friendlyErrorMessage(e,'Could not send through Zoho Mail.'))
+      const partial=(sent||failed||skipped)?' Current confirmed totals: '+sent+' sent, '+failed+' failed, '+skipped+' skipped.':''
+      setError(friendlyErrorMessage(e,'Could not send through Zoho Mail.')+partial)
     }finally{
+      setSendProgress('')
       setSending(false)
     }
   }
@@ -320,7 +335,7 @@ export default function EmailWorkspace({
             <div className="email-merge-fields"><div><strong>Merge fields</strong><span>Click to insert into the {bodyFocused?'email body':'subject'}.</span></div><div className="email-merge-chip-list">{mergeFields.map(field=><button type="button" key={field.tag} onClick={()=>insertMergeField(field.tag)}>{field.tag}<small>{field.label}</small></button>)}</div></div>
             <div className="email-template-save"><div><label>Template name<input value={templateName} onChange={e=>setTemplateName(e.target.value)} placeholder="Acceptance email"/></label></div><button type="button" className="secondary-button" disabled={saving||!canManage||!templateName.trim()||!subject.trim()||!body.trim()} onClick={saveTemplate}>{saving?'Saving…':'Save as template'}</button></div>
           </div>
-          <div className="email-send-bar"><div><strong>{validSelected.length} recipient{validSelected.length===1?'':'s'} selected</strong><span>{zohoStatus.configured?'Messages will be sent individually through '+(zohoStatus.from_address||'Zoho Mail')+'.':'Zoho delivery unlocks after the secure SMTP credentials are configured.'}</span></div><button type="button" className="primary-button" onClick={sendSelectedEmail} disabled={sending||!zohoStatus.configured||!validSelected.length||!subject.trim()||!body.trim()} title={zohoStatus.configured?'Send selected participant emails':'Configure Zoho Mail before sending'}><Send size={16}/>{sending?'Sending…':'Send email'}</button></div>
+          <div className="email-send-bar"><div><strong>{validSelected.length} recipient{validSelected.length===1?'':'s'} selected</strong><span>{sending&&sendProgress?sendProgress:zohoStatus.configured?'Messages are sent individually in confirmed batches of 10 through '+(zohoStatus.from_address||'Zoho Mail')+'.':'Zoho delivery unlocks after the secure SMTP credentials are configured.'}</span></div><button type="button" className="primary-button" onClick={sendSelectedEmail} disabled={sending||!zohoStatus.configured||!validSelected.length||!subject.trim()||!body.trim()} title={zohoStatus.configured?'Send selected participant emails':'Configure Zoho Mail before sending'}><Send size={16}/>{sending?(sendProgress||'Sending…'):'Send email'}</button></div>
         </div>
       </div>
 
