@@ -9,7 +9,7 @@ type Application = { id:string; name:string }
 type Participant = {
   id:string; applicant_id:string; participant_id:string; full_name:string|null; email:string|null; whatsapp_phone:string|null; submission_id:string|null
   application_id:string; status:'active'|'completed'|'withdrawn'; joined_at:string
-  attendance_count?:number
+  attendance_count?:number; trade?:string|null
 }
 type Session = { id:string; application_id:string; title:string; session_date:string; check_in_slug:string; check_in_open:boolean; check_in_opened_at:string|null }
 type Benefit = {
@@ -456,16 +456,33 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   }
 
   async function openParticipant(participant:Participant){
-    setSelectedParticipant(participant);setParticipantAttendance([]);setParticipantAttendanceLoading(true);setError('');loadLeaderboard(participant.application_id)
+    setSelectedParticipant({...participant,trade:undefined});setParticipantAttendance([]);setParticipantAttendanceLoading(true);setError('');loadLeaderboard(participant.application_id)
     try{
-      const {data,error}=await supabase.from('attendance_records')
+      const attendancePromise=supabase.from('attendance_records')
         .select('id,status,marked_at,attendance_sessions!inner(title,session_date,application_id)')
         .eq('participant_id',participant.id)
         .eq('attendance_sessions.application_id',participant.application_id)
         .order('marked_at',{ascending:false})
-      if(error)throw error
-      setParticipantAttendance((data||[]) as ParticipantAttendance[])
-    }catch(e){setError(friendlyErrorMessage(e,'Could not load participant attendance history.'))}finally{setParticipantAttendanceLoading(false)}
+
+      const tradePromise=participant.submission_id
+        ? supabase.from('answers')
+          .select('value,questions!inner(label)')
+          .eq('submission_id',participant.submission_id)
+          .eq('questions.label','What is your trade?')
+          .limit(1)
+        : Promise.resolve({data:[],error:null})
+
+      const [attendanceResult,tradeResult]=await Promise.all([attendancePromise,tradePromise])
+      if(attendanceResult.error)throw attendanceResult.error
+      if(tradeResult.error)throw tradeResult.error
+
+      setParticipantAttendance((attendanceResult.data||[]) as ParticipantAttendance[])
+      const tradeValue=answerText((tradeResult.data?.[0] as {value?:unknown}|undefined)?.value).trim()
+      setSelectedParticipant(current=>current?.id===participant.id?{...current,trade:tradeValue||null}:current)
+    }catch(e){
+      setSelectedParticipant(current=>current?.id===participant.id?{...current,trade:null}:current)
+      setError(friendlyErrorMessage(e,'Could not load participant profile details.'))
+    }finally{setParticipantAttendanceLoading(false)}
   }
 
   async function updateParticipantStatus(participantId:string,status:'active'|'completed'){
@@ -1025,7 +1042,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           </section>
           <section className="participant-profile-section participant-contact-section">
             <div className="participant-section-heading"><div><p className="eyebrow">Contact details</p><h3>Participant information</h3></div><Mail size={18}/></div>
-            <div className="participant-contact-grid"><div><span>Name</span><strong>{selectedParticipant.full_name||'Unnamed participant'}</strong></div><div><span>Email</span><strong>{selectedParticipant.email||'No email available'}</strong></div><div><span>WhatsApp phone number</span><strong>{selectedParticipant.whatsapp_phone||'No WhatsApp number available'}</strong>{selectedParticipant.whatsapp_phone&&whatsappUrl(selectedParticipant.whatsapp_phone)&&<a className="participant-whatsapp-link" href={whatsappUrl(selectedParticipant.whatsapp_phone)} target="_blank" rel="noopener noreferrer"><Phone size={12}/>Open WhatsApp</a>}</div></div>
+            <div className="participant-contact-grid"><div><span>Name</span><strong>{selectedParticipant.full_name||'Unnamed participant'}</strong></div><div><span>Email</span><strong>{selectedParticipant.email||'No email available'}</strong></div><div><span>WhatsApp phone number</span><strong>{selectedParticipant.whatsapp_phone||'No WhatsApp number available'}</strong>{selectedParticipant.whatsapp_phone&&whatsappUrl(selectedParticipant.whatsapp_phone)&&<a className="participant-whatsapp-link" href={whatsappUrl(selectedParticipant.whatsapp_phone)} target="_blank" rel="noopener noreferrer"><Phone size={12}/>Open WhatsApp</a>}</div><div><span>Trade</span><strong>{selectedParticipant.trade===undefined?'Loading trade…':selectedParticipant.trade||'No trade provided'}</strong></div></div>
           </section>
         </div>
         <div className="participant-profile-footer"><button className="secondary-button" onClick={()=>setSelectedParticipant(null)}>Close profile</button></div>
