@@ -390,6 +390,22 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     }catch(e){setError(friendlyErrorMessage(e,'Could not assign selected participants.'))}finally{setSaving(false)}
   }
 
+  async function bulkUnassignProgrammeStaff(){
+    if(!isAdmin||!bulkStaffId||!selectedParticipantIds.length)return
+    setSaving(true);setError('');setNotice('')
+    try{
+      const {data,error}=await supabase.rpc('bulk_set_participant_staff_assignment',{p_participant_ids:selectedParticipantIds,p_staff_id:bulkStaffId,p_assigned:false})
+      if(error)throw error
+      setParticipantStaff(current=>current.filter(x=>!(x.staff_id===bulkStaffId&&selectedParticipantIds.includes(x.participant_id))))
+      const removed=typeof data==='number'?data:0
+      const selectedCount=selectedParticipantIds.length
+      setSelectedParticipantIds([]);setBulkStaffId('')
+      setNotice(removed>0
+        ? removed+' staff assignment'+(removed===1?'':'s')+' removed.'
+        : 'No matching staff assignments were found among the '+selectedCount+' selected participant'+(selectedCount===1?'':'s')+'.')
+    }catch(e){setError(friendlyErrorMessage(e,'Could not unassign selected participants.'))}finally{setSaving(false)}
+  }
+
   async function updateParticipantStaffAssignment(participantId:string,staffId:string,assigned:boolean){
     if(!isAdmin)return
     setSaving(true);setError('');setNotice('')
@@ -749,7 +765,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
         </div>
         {isAdmin&&<div className="participant-bulk-bar">
           <div className="participant-bulk-summary"><strong>{selectedParticipantIds.length} selected</strong><span>Select participants below, then assign them to staff or choose exactly which participant/form fields to export.</span></div>
-          <div className="participant-bulk-actions"><button type="button" className="secondary-button" disabled={exporting||!selectedParticipantIds.length} onClick={openParticipantExport}><Download size={16}/>Export selected</button><div className="participant-select-wrap"><select aria-label="Choose staff member" value={bulkStaffId} onChange={e=>setBulkStaffId(e.target.value)}><option value="">Choose staff member</option>{programmeStaff.map(staff=><option key={staff.id} value={staff.id}>{staff.full_name||'Staff member'}</option>)}</select><ChevronDown size={16}/></div><button type="button" className="primary-button" disabled={saving||!bulkStaffId||!selectedParticipantIds.length} onClick={bulkAssignProgrammeStaff}>Assign selected</button>{selectedParticipantIds.length>0&&<button type="button" className="text-button" onClick={()=>setSelectedParticipantIds([])}>Clear</button>}</div>
+          <div className="participant-bulk-actions"><button type="button" className="secondary-button" disabled={exporting||!selectedParticipantIds.length} onClick={openParticipantExport}><Download size={16}/>Export selected</button><div className="participant-select-wrap"><select aria-label="Choose staff member" value={bulkStaffId} onChange={e=>setBulkStaffId(e.target.value)}><option value="">Choose staff member</option>{programmeStaff.map(staff=><option key={staff.id} value={staff.id}>{staff.full_name||'Staff member'}</option>)}</select><ChevronDown size={16}/></div><button type="button" className="primary-button" disabled={saving||!bulkStaffId||!selectedParticipantIds.length} onClick={bulkAssignProgrammeStaff}>Assign selected</button><button type="button" className="secondary-button" disabled={saving||!bulkStaffId||!selectedParticipantIds.length} onClick={bulkUnassignProgrammeStaff}>Unassign selected</button>{selectedParticipantIds.length>0&&<button type="button" className="text-button" onClick={()=>setSelectedParticipantIds([])}>Clear</button>}</div>
         </div>}
         <div className="table-wrap"><table><thead><tr>{isAdmin&&<th className="participant-select-cell"><input type="checkbox" aria-label="Select all participants on this page" checked={pagedParticipants.length>0&&pagedParticipants.every(p=>selectedParticipantIds.includes(p.id))} onChange={e=>toggleAllVisibleParticipants(e.target.checked)}/></th>}<th>Participant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
           {filtered.length?pagedParticipants.map(p=><tr key={p.id} className="clickable-row" onClick={()=>openParticipant(p)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openParticipant(p)}}} tabIndex={0} role="button" aria-label={'Open participant '+(p.full_name||p.participant_id)}>
