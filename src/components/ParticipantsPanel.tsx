@@ -62,15 +62,6 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [leaderboard,setLeaderboard]=useState<LeaderboardRow[]>([])
   const [leaderboardLoading,setLeaderboardLoading]=useState(false)
   const [selectedParticipant,setSelectedParticipant]=useState<Participant|null>(null)
-  const [editingEmail,setEditingEmail]=useState(false)
-  const [emailDraft,setEmailDraft]=useState('')
-  const [emailConfirmation,setEmailConfirmation]=useState('')
-  const [emailReason,setEmailReason]=useState('')
-  const [emailSaving,setEmailSaving]=useState(false)
-  const [emailMessage,setEmailMessage]=useState('')
-  const [emailError,setEmailError]=useState('')
-  const [emailHistory,setEmailHistory]=useState<{id:string;old_email:string|null;new_email:string;reason:string;changed_at:string}[]>([])
-  const [emailHistoryVersion,setEmailHistoryVersion]=useState(0)
   const participantProfileScrollRef=useRef<HTMLDivElement>(null)
   const [participantAttendance,setParticipantAttendance]=useState<ParticipantAttendance[]>([])
   const [participantAttendanceLoading,setParticipantAttendanceLoading]=useState(false)
@@ -100,75 +91,6 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [exportFieldQuery,setExportFieldQuery]=useState('')
   const [exportFields,setExportFields]=useState<ExportField[]>([])
   const [selectedExportFieldKeys,setSelectedExportFieldKeys]=useState<string[]>([])
-
-  useEffect(()=>{
-    setEditingEmail(false);setEmailDraft('');setEmailConfirmation('');setEmailReason('');setEmailMessage('');setEmailError('')
-  },[selectedParticipant?.id])
-
-  useEffect(()=>{
-    let cancelled=false
-    setEmailHistory([])
-    if(selectedParticipant&&isAdmin){
-      void supabase.from('participant_email_changes').select('id,old_email,new_email,reason,changed_at')
-        .eq('participant_id',selectedParticipant.id).eq('organization_id',organizationId)
-        .order('changed_at',{ascending:false}).limit(10)
-        .then(({data,error})=>{if(!cancelled){if(error)setEmailError('Could not load email change history.');else setEmailHistory(data||[])}})
-    }
-    return()=>{cancelled=true}
-  },[selectedParticipant?.id,organizationId,isAdmin,emailHistoryVersion])
-
-  async function correctParticipantEmail(event:FormEvent){
-    event.preventDefault()
-    if(!isAdmin||!selectedParticipant||emailSaving)return
-    const target=selectedParticipant
-    const nextEmail=emailDraft.trim().toLowerCase()
-    setEmailError('');setEmailMessage('')
-    if(nextEmail!==emailConfirmation.trim().toLowerCase()){
-      setEmailError('The two email addresses do not match.');return
-    }
-    setEmailSaving(true)
-    try{
-      const {data,error}=await supabase.rpc('correct_participant_email',{
-        p_participant_id:target.id,p_expected_email:target.email,p_new_email:nextEmail,p_reason:emailReason.trim(),
-      })
-      if(error)throw error
-      if(!data?.email)throw new Error('The correction could not be confirmed. Refresh the profile before retrying.')
-      setParticipants(current=>current.map(p=>p.applicant_id===data.applicant_id?{...p,email:data.email}:p))
-      setSelectedParticipant(current=>current?.id===target.id?{...current,email:data.email}:current)
-      setEditingEmail(false);setEmailHistoryVersion(v=>v+1)
-      setEmailMessage('Email updated. The participant must now use '+data.email+' with their existing Participant ID. Future emails will use this address.')
-    }catch(error){
-      // Reconcile against the canonical applicant email before showing an error.
-      // This covers a dropped browser response after the database transaction
-      // already committed, and stale participant data left open in the modal.
-      try{
-        const {data:canonical}=await supabase.from('applicants')
-          .select('id,email')
-          .eq('id',target.applicant_id)
-          .maybeSingle()
-        const canonicalEmail=String(canonical?.email||'').trim().toLowerCase()
-        if(canonicalEmail===nextEmail){
-          setParticipants(current=>current.map(p=>p.applicant_id===target.applicant_id?{...p,email:canonicalEmail}:p))
-          setSelectedParticipant(current=>current?.id===target.id?{...current,email:canonicalEmail}:current)
-          setEditingEmail(false);setEmailHistoryVersion(v=>v+1)
-          setEmailMessage('Email updated. The participant must now use '+canonicalEmail+' with their existing Participant ID. Future emails will use this address.')
-          return
-        }
-        if(canonicalEmail&&canonicalEmail!==String(target.email||'').trim().toLowerCase()){
-          setParticipants(current=>current.map(p=>p.applicant_id===target.applicant_id?{...p,email:canonicalEmail}:p))
-          setSelectedParticipant(current=>current?.id===target.id?{...current,email:canonicalEmail}:current)
-          setEmailDraft(canonicalEmail)
-          setEmailConfirmation('')
-          setEmailError('This participant’s email changed while the profile was open. The current email is '+canonicalEmail+'. Confirm the correction again before saving.')
-          return
-        }
-      }catch{
-        // Fall back to the original RPC error if reconciliation itself fails.
-      }
-      // These RPC errors are intentionally written for the administrator.
-      setEmailError(friendlyErrorMessage(error,'Could not update the email. Refresh the profile before retrying.'))
-    }finally{setEmailSaving(false)}
-  }
 
   const appName=(id:string)=>applications.find(a=>a.id===id)?.name||'Programme'
   const whatsappUrl=(value:string|null|undefined)=>{
@@ -1036,7 +958,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
             <div className="participant-avatar">{(selectedParticipant.full_name||'P').trim().charAt(0).toUpperCase()}</div>
             <div><p className="eyebrow">Participant profile</p><h2>{selectedParticipant.full_name||'Unnamed participant'}</h2><div className="participant-profile-meta"><span><Hash size={13}/>{selectedParticipant.participant_id}</span><span>{appName(selectedParticipant.application_id)}</span></div></div>
           </div>
-          <button className="icon-button" disabled={emailSaving} onClick={()=>setSelectedParticipant(null)} aria-label="Close"><X size={18}/></button>
+          <button className="icon-button" onClick={()=>setSelectedParticipant(null)} aria-label="Close"><X size={18}/></button>
         </div>
         <div className="participant-profile-body">
           <div className="participant-profile-statusbar">
@@ -1060,25 +982,9 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           <section className="participant-profile-section participant-contact-section">
             <div className="participant-section-heading"><div><p className="eyebrow">Contact details</p><h3>Participant information</h3></div><Mail size={18}/></div>
             <div className="participant-contact-grid"><div><span>Name</span><strong>{selectedParticipant.full_name||'Unnamed participant'}</strong></div><div><span>Email</span><strong>{selectedParticipant.email||'No email available'}</strong></div><div><span>WhatsApp phone number</span><strong>{selectedParticipant.whatsapp_phone||'No WhatsApp number available'}</strong>{selectedParticipant.whatsapp_phone&&whatsappUrl(selectedParticipant.whatsapp_phone)&&<a className="participant-whatsapp-link" href={whatsappUrl(selectedParticipant.whatsapp_phone)} target="_blank" rel="noopener noreferrer"><Phone size={12}/>Open WhatsApp</a>}</div></div>
-            {isAdmin&&<div className="participant-email-editor">
-              {!editingEmail&&<button type="button" className="secondary-button" disabled={emailSaving} onClick={()=>{setEmailDraft(selectedParticipant.email||'');setEmailConfirmation('');setEmailReason('');setEmailMessage('');setEmailError('');setEditingEmail(true)}}><Pencil size={14}/>Correct email</button>}
-              {editingEmail&&<form onSubmit={correctParticipantEmail} className="email-composer-form">
-                <p>Correct the address for this participant’s programme record. Their ID, scores and attendance stay the same. They will use the new address for attendance, assignments and results. Confirm it with the participant before saving.</p>
-                <p><strong>Current email:</strong> {selectedParticipant.email||'No email recorded'}</p>
-                <div className="email-composer-grid">
-                  <label>Correct email<input type="email" required maxLength={254} autoComplete="off" value={emailDraft} disabled={emailSaving} onChange={e=>setEmailDraft(e.target.value)}/></label>
-                  <label>Confirm correct email<input type="email" required maxLength={254} autoComplete="off" value={emailConfirmation} disabled={emailSaving} onChange={e=>setEmailConfirmation(e.target.value)}/></label>
-                </div>
-                <label>Reason for correction<input required minLength={3} maxLength={500} value={emailReason} disabled={emailSaving} onChange={e=>setEmailReason(e.target.value)} placeholder="Example: participant confirmed a typo in the domain"/></label>
-                <div><button type="submit" className="primary-button" disabled={emailSaving||!emailDraft.trim()||emailDraft.trim().toLowerCase()!==emailConfirmation.trim().toLowerCase()||emailReason.trim().length<3}>{emailSaving?'Saving…':'Save corrected email'}</button> <button type="button" className="secondary-button" disabled={emailSaving} onClick={()=>setEditingEmail(false)}>Cancel</button></div>
-              </form>}
-              {emailError&&<p role="alert" className="email-missing-config">{emailError}</p>}
-              {emailMessage&&<p role="status">{emailMessage}</p>}
-              {emailHistory.length>0&&<details><summary>Email change history</summary>{emailHistory.map(change=><div key={change.id}><p><strong>{change.old_email||'No email'}</strong> → <strong>{change.new_email}</strong></p><p>{change.reason} · {new Date(change.changed_at).toLocaleString()}</p></div>)}</details>}
-            </div>}
           </section>
         </div>
-        <div className="participant-profile-footer"><button className="secondary-button" disabled={emailSaving} onClick={()=>setSelectedParticipant(null)}>Close profile</button></div>
+        <div className="participant-profile-footer"><button className="secondary-button" onClick={()=>setSelectedParticipant(null)}>Close profile</button></div>
       </div>
     </div>,document.body)}
   </section>
