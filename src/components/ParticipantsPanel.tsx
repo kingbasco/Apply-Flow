@@ -76,7 +76,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [selectedParticipantIds,setSelectedParticipantIds]=useState<string[]>([])
   const [bulkStaffId,setBulkStaffId]=useState('')
   const [applicationFilter,setApplicationFilter]=useState(applications[0]?.id||'')
-  const [statusFilter,setStatusFilter]=useState<'all'|'active'|'completed'|'withdrawn'>('all')
+  const [statusFilter,setStatusFilter]=useState<'all'|'active'|'completed'>('active')
   const [staffFilter,setStaffFilter]=useState('all')
   const [participantPage,setParticipantPage]=useState(1)
   const [participantPageSize,setParticipantPageSize]=useState(50)
@@ -154,7 +154,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     setLoading(true);setError('')
     try{
       const [p,s,b,recipients,a,staff,staffAssignments]=await Promise.all([
-        supabase.from('participants').select('id,applicant_id,participant_id,submission_id,application_id,status,joined_at,applicants(full_name,email,whatsapp_phone)').eq('organization_id',organizationId).order('participant_id'),
+        supabase.from('participants').select('id,applicant_id,participant_id,submission_id,application_id,status,joined_at,applicants(full_name,email,whatsapp_phone)').eq('organization_id',organizationId).in('status',['active','completed']).order('participant_id'),
         supabase.from('attendance_sessions').select('id,application_id,title,session_date,check_in_slug,check_in_open,check_in_opened_at').eq('organization_id',organizationId).order('session_date',{ascending:false}),
         supabase.from('benefit_distributions').select('id,application_id,name,description,distribution_date,status').eq('organization_id',organizationId).order('created_at',{ascending:false}),
         supabase.from('benefit_recipients').select('distribution_id,participant_id'),
@@ -203,6 +203,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   },[participantStaff,staffById])
 
   const filtered=useMemo(()=>participants.filter(p=>{
+    if(p.status==='withdrawn')return false
     const assignedStaff=staffByParticipant.get(p.id)||[]
     const assignedNames=assignedStaff.map(staff=>staff.full_name||'Staff member')
     const text=[p.participant_id,p.full_name,p.email,appName(p.application_id),...assignedNames].filter(Boolean).join(' ').toLowerCase()
@@ -232,15 +233,14 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
 
   useEffect(()=>{if(leaderboardPage>leaderboardPageCount)setLeaderboardPage(leaderboardPageCount)},[leaderboardPage,leaderboardPageCount])
 
-  const scopedParticipants=useMemo(()=>participants.filter(p=>!applicationFilter||p.application_id===applicationFilter),[participants,applicationFilter])
+  const scopedParticipants=useMemo(()=>participants.filter(p=>p.status!=='withdrawn'&&(!applicationFilter||p.application_id===applicationFilter)),[participants,applicationFilter])
   const scopedSessions=useMemo(()=>sessions.filter(s=>!applicationFilter||s.application_id===applicationFilter),[sessions,applicationFilter])
   const scopedBenefits=useMemo(()=>benefits.filter(b=>!applicationFilter||b.application_id===applicationFilter),[benefits,applicationFilter])
   const scopedAssignments=useMemo(()=>assignments.filter(a=>!applicationFilter||a.application_id===applicationFilter),[assignments,applicationFilter])
   const stats=useMemo(()=>({
     total:scopedParticipants.length,
     active:scopedParticipants.filter(p=>p.status==='active').length,
-    completed:scopedParticipants.filter(p=>p.status==='completed').length,
-    withdrawn:scopedParticipants.filter(p=>p.status==='withdrawn').length
+    completed:scopedParticipants.filter(p=>p.status==='completed').length
   }),[scopedParticipants])
 
   async function loadLeaderboard(applicationId:string){
@@ -468,15 +468,35 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     }catch(e){setError(friendlyErrorMessage(e,'Could not load participant attendance history.'))}finally{setParticipantAttendanceLoading(false)}
   }
 
-  async function updateParticipantStatus(participantId:string,status:Participant['status']){
+  async function updateParticipantStatus(participantId:string,status:'active'|'completed'){
     setSaving(true);setError('');setNotice('')
     try{
       const {data,error}=await supabase.from('participants').update({status,updated_at:new Date().toISOString()}).eq('id',participantId).select('id,participant_id,application_id,status,joined_at').single()
       if(error)throw error
       setParticipants(current=>current.map(p=>p.id===participantId?{...p,...data}:p))
       setSelectedParticipant(current=>current?.id===participantId?{...current,...data}:current)
-      setNotice(status==='active'?'Participant enrolled.':status==='completed'?'Participant marked completed.':'Participant withdrawn.')
+      setNotice(status==='active'?'Participant enrolled.':'Participant marked completed.')
     }catch(e){setError(friendlyErrorMessage(e,'Could not update participant status.'))}finally{setSaving(false)}
+  }
+
+  async function withdrawParticipant(participant:Participant){
+    if(!isAdmin||!participant.submission_id||saving)return
+    const confirmed=window.confirm(
+      'Withdraw '+(participant.full_name||participant.participant_id)+'? They will be removed from Participants and their application will return to Screening/Review as Rejected. Attendance and assignment history will be preserved.'
+    )
+    if(!confirmed)return
+    setSaving(true);setError('');setNotice('')
+    try{
+      const {error}=await supabase.rpc('set_submission_decision',{
+        p_submission_id:participant.submission_id,
+        p_decision:'rejected'
+      })
+      if(error)throw error
+      setParticipants(current=>current.map(p=>p.id===participant.id?{...p,status:'withdrawn'}:p))
+      setSelectedParticipantIds(current=>current.filter(id=>id!==participant.id))
+      setSelectedParticipant(current=>current?.id===participant.id?null:current)
+      setNotice('Participant withdrawn and returned to Screening/Review as Rejected. Their participant history was preserved.')
+    }catch(e){setError(friendlyErrorMessage(e,'Could not withdraw this participant.'))}finally{setSaving(false)}
   }
 
   async function openSession(session:Session){
@@ -789,16 +809,15 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
         <div className="card stat-card"><div className="stat-icon"><Users size={18}/></div><div><p className="eyebrow">Total</p><div className="stat-value">{stats.total}</div><p className="muted">Total participants</p></div></div>
         <div className="card stat-card"><div className="stat-icon"><BadgeCheck size={18}/></div><div><p className="eyebrow">Active</p><div className="stat-value">{stats.active}</div><p className="muted">Currently enrolled</p></div></div>
         <div className="card stat-card"><div className="stat-icon"><CheckCircle2 size={18}/></div><div><p className="eyebrow">Completed</p><div className="stat-value">{stats.completed}</div><p className="muted">Finished programme</p></div></div>
-        <div className="card stat-card"><div className="stat-icon"><X size={18}/></div><div><p className="eyebrow">Withdrawn</p><div className="stat-value">{stats.withdrawn}</div><p className="muted">No longer participating</p></div></div>
       </div>
 
       <div className="card table-card">
         <div className="card-header">
-          <div><h2>Participant directory</h2><p>Showing approved participants for the current application.</p></div>
+          <div><h2>Participant directory</h2><p>Showing active/enrolled and completed participants. Withdrawn participants return to Screening/Review as Rejected.</p></div>
           <div className="search"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search participants…"/></div>
         </div>
         <div className="participant-directory-filters">
-          <label className="participant-select-field"><span>Filter by status</span><div className="participant-select-wrap"><select aria-label="Filter participants by status" value={statusFilter} onChange={e=>setStatusFilter(e.target.value as any)}><option value="all">All statuses</option><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select><ChevronDown size={16}/></div></label>
+          <label className="participant-select-field"><span>Filter by status</span><div className="participant-select-wrap"><select aria-label="Filter participants by status" value={statusFilter} onChange={e=>setStatusFilter(e.target.value as 'all'|'active'|'completed')}><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="all">Active + Completed</option></select><ChevronDown size={16}/></div></label>
           {isAdmin&&<label className="participant-select-field participant-staff-filter"><span>Filter by assigned staff</span><div className="participant-select-wrap"><select aria-label="Filter participants by assigned staff" value={staffFilter} onChange={e=>setStaffFilter(e.target.value)}><option value="all">All staff assignments</option><option value="assigned">Assigned to anyone</option><option value="unassigned">Unassigned</option>{programmeStaff.map(staff=><option key={staff.id} value={staff.id}>{staff.full_name||'Staff member'}</option>)}</select><ChevronDown size={16}/></div></label>}
           <span className="participant-filter-count">{filtered.length} participant{filtered.length===1?'':'s'}</span>
         </div>
@@ -988,7 +1007,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
         <div className="participant-profile-body">
           <div className="participant-profile-statusbar">
             <div><span className="eyebrow">Participation status</span><strong>{selectedParticipant.status==='active'?'Active / Enrolled':selectedParticipant.status==='completed'?'Completed':'Withdrawn'}</strong><small>Update the participant's current programme status.</small></div>
-            {isAdmin&&<label className="participant-status-select"><span>Change status</span><div className="participant-select-wrap"><select value={selectedParticipant.status} disabled={saving} onChange={e=>updateParticipantStatus(selectedParticipant.id,e.target.value as Participant['status'])}><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select><ChevronDown size={16}/></div></label>}
+            {isAdmin&&<div className="participant-status-actions"><label className="participant-status-select"><span>Change status</span><div className="participant-select-wrap"><select value={selectedParticipant.status==='withdrawn'?'active':selectedParticipant.status} disabled={saving} onChange={e=>updateParticipantStatus(selectedParticipant.id,e.target.value as 'active'|'completed')}><option value="active">Active / Enrolled</option><option value="completed">Completed</option></select><ChevronDown size={16}/></div></label><button type="button" className="secondary-button" disabled={saving||!selectedParticipant.submission_id} onClick={()=>withdrawParticipant(selectedParticipant)}><X size={15}/> Withdraw & return to Review</button></div>}
           </div>
           {isAdmin&&<section className="participant-profile-section participant-staff-section"><div className="participant-section-heading"><div><p className="eyebrow">Staff assignment</p><h3>Assigned follow-up staff</h3><p>Assign staff who can follow attendance, submissions and grade this participant.</p></div><Users size={19}/></div>{programmeStaff.length?<div className="participant-staff-list">{programmeStaff.map(staff=>{const assigned=participantStaff.some(x=>x.participant_id===selectedParticipant.id&&x.staff_id===staff.id);return <label key={staff.id} className="participant-staff-option"><input type="checkbox" checked={assigned} disabled={saving} onChange={e=>updateParticipantStaffAssignment(selectedParticipant.id,staff.id,e.target.checked)}/><span><strong>{staff.full_name||'Staff member'}</strong><small>{assigned?'Assigned to this participant':'Not assigned'}</small></span></label>})}</div>:<div className="table-empty">No Admin or Programme Staff members are available yet.</div>}</section>}
           <div className="participant-profile-stats">
