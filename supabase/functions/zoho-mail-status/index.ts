@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { closeZohoSmtp, getZohoSmtpConfig, openZohoSmtp, validateZohoSmtpSender } from "./smtp.ts";
+import { getZeptoMailConfig } from "./zeptomail.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,6 +57,21 @@ Deno.serve(async (req) => {
     if (!organizationId) return json({ error: "organization_id is required." }, 400);
     await authorize(req, organizationId);
 
+    const { config: zeptoConfig, missing: zeptoMissing } = getZeptoMailConfig();
+    if (zeptoConfig) {
+      return json({
+        provider:"zeptomail",
+        transport:"api",
+        configured:true,
+        validated:false,
+        validation_error:null,
+        validation_note:"ZeptoMail API is configured. Token and verified-domain acceptance are confirmed on the first send.",
+        from_address:zeptoConfig.fromAddress,
+        smtp_host:null,
+        missing:[],
+      });
+    }
+
     const { config, missing } = getZohoSmtpConfig();
     const configured = Boolean(config);
     let validated = false;
@@ -80,9 +96,10 @@ Deno.serve(async (req) => {
       configured,
       validated,
       validation_error: validationError || null,
+      validation_note:null,
       from_address: config?.fromAddress || null,
       smtp_host: smtpHost,
-      missing,
+      missing: configured ? [] : [...zeptoMissing, ...missing],
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not check Zoho Mail status.";

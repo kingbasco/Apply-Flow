@@ -7,6 +7,7 @@ import {
   validateZohoSmtpSender,
   type ZohoSmtpSession,
 } from "./smtp.ts";
+import { getZeptoMailConfig, sendZeptoMailMessage } from "./zeptomail.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -96,32 +97,42 @@ Deno.serve(async (req) => {
       .in("id", participantIds);
     if (participantError) throw participantError;
 
-    const { config, missing } = getZohoSmtpConfig();
-    if (!config) return json({ error: "Zoho Mail is not configured on the server.", missing }, 503);
-
-    try {
-      smtpSession = await openZohoSmtp(config);
-      await validateZohoSmtpSender(smtpSession, config);
-    } catch (error) {
-      const transportError = error instanceof Error ? error.message : "Zoho SMTP validation failed.";
-      console.error(JSON.stringify({
-        event: "zoho_smtp_preflight_failed",
-        delivery_id: deliveryId || null,
-        batch_number: batchNumber,
-        batch_count: batchCount,
-        error: transportError,
-      }));
-      await closeZohoSmtp(smtpSession);
-      smtpSession = null;
+    const { config: zeptoConfig, missing: zeptoMissing } = getZeptoMailConfig();
+    const { config: smtpConfig, missing: smtpMissing } = getZohoSmtpConfig();
+    if (!zeptoConfig && !smtpConfig) {
       return json({
-        error: transportError,
-        provider: "zoho",
-        transport: "smtp",
-        stage: "sender_preflight",
-      }, 502);
+        error: "No participant email provider is configured on the server.",
+        missing: [...zeptoMissing, ...smtpMissing],
+      }, 503);
+    }
+    const provider = zeptoConfig ? "zeptomail" : "zoho";
+    const transport = zeptoConfig ? "api" : "smtp";
+
+    if (!zeptoConfig && smtpConfig) {
+      try {
+        smtpSession = await openZohoSmtp(smtpConfig);
+        await validateZohoSmtpSender(smtpSession, smtpConfig);
+      } catch (error) {
+        const transportError = error instanceof Error ? error.message : "Zoho SMTP validation failed.";
+        console.error(JSON.stringify({
+          event: "zoho_smtp_preflight_failed",
+          delivery_id: deliveryId || null,
+          batch_number: batchNumber,
+          batch_count: batchCount,
+          error: transportError,
+        }));
+        await closeZohoSmtp(smtpSession);
+        smtpSession = null;
+        return json({
+          error: transportError,
+          provider,
+          transport,
+          stage: "sender_preflight",
+        }, 502);
+      }
     }
 
-    const results: { participant_id:string; email:string|null; status:"sent"|"skipped"|"failed"; error?:string }[] = [];
+    const results: { participant_id:string; email:string|null; status:"sent"|"skipped"|"failed"; error?:string; request_id?:string|null }[] = [];
 
     for (const row of participants || []) {
       const email = row.applicants?.email ? String(row.applicants.email).trim() : "";
@@ -141,28 +152,56 @@ Deno.serve(async (req) => {
       const content = merge(bodyTemplate, values);
 
       try {
-        if (!smtpSession) {
-          smtpSession = await openZohoSmtp(config);
-          await validateZohoSmtpSender(smtpSession, config);
+        if (zeptoConfig) {
+          const accepted=await sendZeptoMailMessage(
+            zeptoConfig,
+            email,
+            String(row.applicants?.full_name||"Participant"),
+            subject,
+            content,
+          );
+          results.push({ participant_id: row.participant_id, email, status: "sent", request_id: accepted.request_id });
+        } else if (smtpConfig) {
+          if (!smtpSession) {
+            smtpSession = await openZohoSmtp(smtpConfig);
+            await validateZohoSmtpSender(smtpSession, smtpConfig);
+          }
+          await sendZohoSmtpMessage(smtpSession, smtpConfig, email, subject, content);
+          results.push({ participant_id: row.participant_id, email, status: "sent" });
         }
-        await sendZohoSmtpMessage(smtpSession, config, email, subject, content);
-        results.push({ participant_id: row.participant_id, email, status: "sent" });
       } catch (error) {
+        const message=error instanceof Error?error.message:"Send failed.";
         await closeZohoSmtp(smtpSession);
-        smtpSession = null;
+        smtpSession=null;
+        if(message.includes("550 5.4.6")&&message.toLowerCase().includes("unusual sending activity")){
+          const blockedMessage="Zoho Mail has temporarily blocked outgoing mail because it detected unusual sending activity. Do not retry bulk sends from this mailbox. Unblock the mailbox in Zoho or configure ZeptoMail for ApplyFlow automated participant email.";
+          console.error(JSON.stringify({
+            event:"zoho_usage_block",
+            delivery_id:deliveryId||null,
+            batch_number:batchNumber,
+            error:message,
+          }));
+          return json({
+            error:blockedMessage,
+            error_code:"ZOHO_USAGE_BLOCK",
+            provider:"zoho",
+            transport:"smtp",
+            stage:"message_send",
+          });
+        }
         results.push({
           participant_id: row.participant_id,
           email,
           status: "failed",
-          error: error instanceof Error ? error.message : "Send failed.",
+          error: message,
         });
       }
     }
 
     const summary = {
-      provider: "zoho",
-      transport: "smtp",
-      from_address: config.fromAddress,
+      provider,
+      transport,
+      from_address: zeptoConfig?.fromAddress || smtpConfig?.fromAddress || null,
       delivery_id: deliveryId || null,
       batch_number: batchNumber,
       batch_count: batchCount,
