@@ -4551,3 +4551,13 @@ html.dark-theme .email-report-filters select{background:#12161d;border-color:#34
 html.dark-theme .email-report-recipient-list{background:#12161d;border-color:#303642}
 html.dark-theme .email-report-recipient{background:#171b23;border-color:#303642}
 html.dark-theme .email-report-error{background:#281b1d;border-color:#553239}
+
+/* Participant email correction uses the existing form controls in both themes. */
+.participant-email-editor{display:grid;gap:14px;margin-top:16px;min-width:0}
+.participant-email-editor>.secondary-button{justify-self:start}
+.participant-email-editor .email-composer-form{padding:0}
+.participant-email-editor p{overflow-wrap:anywhere;line-height:1.6}
+.participant-email-editor details{font-size:12px;overflow-wrap:anywhere}
+.participant-email-editor summary{cursor:pointer;font-weight:600}
+.participant-email-editor details>div{padding:10px 0;border-bottom:1px solid #e0e4ea}
+html.dark-theme .participant-email-editor details>div{border-color:#343a47}
