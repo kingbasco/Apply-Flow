@@ -511,7 +511,7 @@ export default function EmailWorkspace({
           <table>
             <thead><tr><th>Delivery</th><th>Provider</th><th>Attempted</th><th>Sent</th><th>Failed</th><th>Status</th><th>Date</th></tr></thead>
             <tbody>
-              {filteredDeliveryReports.map(report=><tr key={report.id}>
+              {filteredDeliveryReports.length?filteredDeliveryReports.map(report=><tr key={report.id}>
                 <td>
                   <strong>{report.subject}</strong>
                   <span className="table-sub">{report.programme_name} · {report.batches} batch{report.batches===1?'':'es'}</span>
