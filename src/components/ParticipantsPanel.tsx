@@ -138,6 +138,33 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       setEditingEmail(false);setEmailHistoryVersion(v=>v+1)
       setEmailMessage('Email updated. The participant must now use '+data.email+' with their existing Participant ID. Future emails will use this address.')
     }catch(error){
+      // Reconcile against the canonical applicant email before showing an error.
+      // This covers a dropped browser response after the database transaction
+      // already committed, and stale participant data left open in the modal.
+      try{
+        const {data:canonical}=await supabase.from('applicants')
+          .select('id,email')
+          .eq('id',target.applicant_id)
+          .maybeSingle()
+        const canonicalEmail=String(canonical?.email||'').trim().toLowerCase()
+        if(canonicalEmail===nextEmail){
+          setParticipants(current=>current.map(p=>p.applicant_id===target.applicant_id?{...p,email:canonicalEmail}:p))
+          setSelectedParticipant(current=>current?.id===target.id?{...current,email:canonicalEmail}:current)
+          setEditingEmail(false);setEmailHistoryVersion(v=>v+1)
+          setEmailMessage('Email updated. The participant must now use '+canonicalEmail+' with their existing Participant ID. Future emails will use this address.')
+          return
+        }
+        if(canonicalEmail&&canonicalEmail!==String(target.email||'').trim().toLowerCase()){
+          setParticipants(current=>current.map(p=>p.applicant_id===target.applicant_id?{...p,email:canonicalEmail}:p))
+          setSelectedParticipant(current=>current?.id===target.id?{...current,email:canonicalEmail}:current)
+          setEmailDraft(canonicalEmail)
+          setEmailConfirmation('')
+          setEmailError('This participant’s email changed while the profile was open. The current email is '+canonicalEmail+'. Confirm the correction again before saving.')
+          return
+        }
+      }catch{
+        // Fall back to the original RPC error if reconciliation itself fails.
+      }
       // These RPC errors are intentionally written for the administrator.
       setEmailError(friendlyErrorMessage(error,'Could not update the email. Refresh the profile before retrying.'))
     }finally{setEmailSaving(false)}
