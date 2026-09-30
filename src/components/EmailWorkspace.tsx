@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, BarChart3, CheckCircle2, ChevronDown, Mail, Search, Send, Settings2, Users, X, FileText, Link2, ShieldCheck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
@@ -59,6 +59,9 @@ type DeliveryReport = {
   results:DeliveryRecipient[]
   batches:number
 }
+type EmailProvider = 'auto'|'gmail'|'zoho'|'zeptomail'
+const providerLabels:Record<EmailProvider,string> = {auto:'Existing default',gmail:'Gmail',zoho:'Zoho Mail',zeptomail:'ZeptoMail'}
+
 type View = 'compose'|'templates'|'reports'|'connection'
 
 const mergeFields = [
@@ -106,7 +109,9 @@ export default function EmailWorkspace({
   const [whatsappGroupLink,setWhatsappGroupLink]=useState('')
   const [sending,setSending]=useState(false)
   const [sendProgress,setSendProgress]=useState('')
-  const [zohoStatus,setZohoStatus]=useState<{provider:'zoho'|'zeptomail';transport:'smtp'|'api';configured:boolean;validated:boolean;from_address:string|null;missing:string[];validation_error:string|null;validation_note:string|null;usage_blocked:boolean}>({provider:'zoho',transport:'smtp',configured:false,validated:false,from_address:null,missing:[],validation_error:null,validation_note:null,usage_blocked:false})
+  const [emailProvider,setEmailProvider]=useState<EmailProvider>('auto')
+  const statusRequest=useRef(0)
+  const [zohoStatus,setZohoStatus]=useState<{provider:'zoho'|'zeptomail'|'gmail';transport:'smtp'|'api';configured:boolean;validated:boolean;from_address:string|null;missing:string[];validation_error:string|null;validation_note:string|null;usage_blocked:boolean}>({provider:'zoho',transport:'smtp',configured:false,validated:false,from_address:null,missing:[],validation_error:null,validation_note:null,usage_blocked:false})
   const [checkingZoho,setCheckingZoho]=useState(false)
   const [communicationLogs,setCommunicationLogs]=useState<CommunicationLog[]>([])
   const [reportApplication,setReportApplication]=useState('all')
@@ -126,12 +131,16 @@ export default function EmailWorkspace({
 
   async function refreshZohoStatus(validate=false){
     if(!canManage)return
+    const requestId=++statusRequest.current
     setCheckingZoho(true)
+    setZohoStatus(current=>({...current,configured:false,validated:false,usage_blocked:false}))
     try{
-      const {data,error}=await supabase.functions.invoke('zoho-mail-status',{body:{organization_id:organizationId,validate}})
+      const {data,error}=await supabase.functions.invoke('zoho-mail-status',{body:{organization_id:organizationId,validate,provider:emailProvider}})
+      if(requestId!==statusRequest.current)return
       if(error)throw error
+      if(data?.error)throw new Error(data.error)
       setZohoStatus({
-        provider:data?.provider==='zeptomail'?'zeptomail':'zoho',
+        provider:data?.provider==='gmail'?'gmail':data?.provider==='zeptomail'?'zeptomail':'zoho',
         transport:data?.transport==='api'?'api':'smtp',
         configured:Boolean(data?.configured),
         validated:Boolean(data?.validated),
@@ -142,15 +151,16 @@ export default function EmailWorkspace({
         usage_blocked:false,
       })
       if(validate){
-        if(data?.validated)setNotice('Zoho Mail connection validated.')
+        if(data?.validated)setNotice(providerLabels[data.provider as EmailProvider]+' connection validated. No email was sent.')
         else if(data?.provider==='zeptomail'&&data?.configured)setNotice('ZeptoMail API is configured. The token and sender domain will be confirmed on the first send.')
         else if(data?.configured&&data?.validation_error)setError(data.validation_error)
       }
     }catch(e){
+      if(requestId!==statusRequest.current)return
       setZohoStatus(current=>({...current,configured:false,validated:false}))
-      if(validate)setError(friendlyErrorMessage(e,'Could not validate Zoho Mail.'))
+      if(validate)setError(friendlyErrorMessage(e,'Could not validate the selected email connection.'))
     }finally{
-      setCheckingZoho(false)
+      if(requestId===statusRequest.current)setCheckingZoho(false)
     }
   }
 
@@ -171,7 +181,20 @@ export default function EmailWorkspace({
     }
   }
 
-  useEffect(()=>{void refreshZohoStatus(false);void refreshDeliveryReports()},[organizationId,role])
+  useEffect(()=>{
+    void refreshZohoStatus(false)
+    return()=>{statusRequest.current++}
+  },[organizationId,role,emailProvider])
+  useEffect(()=>{void refreshDeliveryReports()},[organizationId,role])
+
+  function changeProvider(value:EmailProvider){
+    statusRequest.current++
+    setZohoStatus(current=>({...current,configured:false,validated:false,usage_blocked:false,from_address:null,missing:[],validation_error:null,validation_note:null}))
+    setError('');setNotice('');setEmailProvider(value)
+  }
+  const providerLabel=providerLabels[emailProvider==='auto'?zohoStatus.provider:emailProvider]
+  const providerSelector=<label>Send using<div className="participant-select-wrap"><select aria-label="Send using" value={emailProvider} disabled={sending||checkingZoho||!canManage} onChange={e=>changeProvider(e.target.value as EmailProvider)}><option value="auto">Existing default (ZeptoMail / Zoho)</option><option value="gmail">Gmail</option><option value="zeptomail">ZeptoMail</option><option value="zoho">Zoho Mail SMTP</option></select><ChevronDown size={16}/></div></label>
+
 
   useEffect(()=>{
     let cancelled=false
@@ -370,7 +393,7 @@ export default function EmailWorkspace({
 
 
   async function sendSelectedEmail(){
-    if(!canManage||!zohoStatus.configured||!applicationId||!validSelected.length||!subject.trim()||!body.trim())return
+    if(!canManage||checkingZoho||zohoStatus.usage_blocked||!zohoStatus.configured||!applicationId||!validSelected.length||!subject.trim()||!body.trim())return
     setSending(true);setError('');setNotice('');setSendProgress('')
     let sent=0,failed=0,skipped=0,processed=0
     let firstFailure=''
@@ -382,6 +405,7 @@ export default function EmailWorkspace({
         setSendProgress('Sending batch '+(index+1)+' of '+batches.length+'…')
         const {data,error}=await supabase.functions.invoke('send-zoho-email',{body:{
           organization_id:organizationId,
+          provider:zohoStatus.provider,
           application_id:applicationId,
           participant_ids:participantIds,
           subject:subject.trim(),
@@ -392,7 +416,7 @@ export default function EmailWorkspace({
           batch_count:batches.length,
         }})
         if(error){
-          throw new Error('Batch '+(index+1)+' of '+batches.length+' could not be confirmed after '+processed+' recipient'+(processed===1?'':'s')+' were processed. Sending stopped to avoid duplicate emails. '+friendlyErrorMessage(error,'Zoho Mail request failed.'))
+          throw new Error('Batch '+(index+1)+' of '+batches.length+' could not be confirmed after '+processed+' recipient'+(processed===1?'':'s')+' were processed. Sending stopped to avoid duplicate emails. '+friendlyErrorMessage(error,'Email provider request failed.'))
         }
         if(data?.error){
           if(data?.error_code==='ZOHO_USAGE_BLOCK'){
@@ -409,17 +433,25 @@ export default function EmailWorkspace({
         skipped+=batchSkipped
         processed+=batchRequested
         if(!firstFailure&&data?.first_failure_error)firstFailure=String(data.first_failure_error)
+        if(Array.isArray(data?.results)){
+          const acceptedIds=new Set(data.results.filter((r:DeliveryRecipient)=>r.status==='sent').map((r:DeliveryRecipient)=>r.participant_id))
+          setSelectedRecipientIds(current=>current.filter(id=>!participants.some(p=>p.id===id&&acceptedIds.has(p.participant_id))))
+        }
+        if(data?.stopped){
+          setZohoStatus(current=>({...current,usage_blocked:true}))
+          throw new Error('Sending stopped. '+(firstFailure||'The provider reported a delivery error.')+' Review the delivery report before retrying; a timed-out request may have been accepted.')
+        }
         if(batchSent===0&&batchFailed===batchRequested&&batchRequested>0){
-          throw new Error('Zoho rejected every recipient in batch '+(index+1)+'.'+(firstFailure?' '+firstFailure:''))
+          throw new Error(providerLabel+' rejected every recipient in batch '+(index+1)+'.'+(firstFailure?' '+firstFailure:''))
         }
       }
 
       const summary=sent+' sent'+(failed?', '+failed+' failed':'')+(skipped?', '+skipped+' skipped':'')
       if(failed>0)setError(summary+'.'+(firstFailure?' First failure: '+firstFailure:''))
-      else setNotice(summary+' through '+(zohoStatus.provider==='zeptomail'?'ZeptoMail':'Zoho Mail')+'.')
+      else setNotice(summary+' through '+providerLabel+'.')
     }catch(e){
       const partial=(sent||failed||skipped)?' Current confirmed totals: '+sent+' sent, '+failed+' failed, '+skipped+' skipped.':''
-      setError(friendlyErrorMessage(e,'Could not send through Zoho Mail.')+partial)
+      setError(friendlyErrorMessage(e,'Could not send through the selected provider.')+partial)
     }finally{
       setSendProgress('')
       setSending(false)
@@ -431,8 +463,8 @@ export default function EmailWorkspace({
 
   return <section className="email-workspace">
     <div className="page-heading compact email-page-heading">
-      <div><p className="eyebrow">Communications</p><h1>Email Center</h1><p className="subtitle">Compose participant emails, reuse programme templates and deliver through your organisation's configured Zoho provider.</p></div>
-      <div className={'email-provider-pill '+(zohoStatus.configured&&!zohoStatus.usage_blocked?'is-connected':'')}><span className="email-provider-dot"></span><div><strong>{zohoStatus.provider==='zeptomail'?'Zoho ZeptoMail':'Zoho Mail'}</strong><small>{zohoStatus.usage_blocked?'Outgoing mail blocked':zohoStatus.configured?(zohoStatus.from_address||'Configured'):'Not connected'}</small></div></div>
+      <div><p className="eyebrow">Communications</p><h1>Email Center</h1><p className="subtitle">Compose participant emails, reuse programme templates and deliver through your selected email provider.</p></div>
+      <div className={'email-provider-pill '+(zohoStatus.configured&&!zohoStatus.usage_blocked?'is-connected':'')}><span className="email-provider-dot"></span><div><strong>{providerLabel}</strong><small>{zohoStatus.usage_blocked?'Outgoing mail blocked':zohoStatus.configured?(zohoStatus.from_address||'Configured'):'Not connected'}</small></div></div>
     </div>
 
     {(error||notice)&&<div className={'email-inline-notice '+(error?'is-error':'is-success')}><div>{error?<X size={16}/>:<CheckCircle2 size={16}/>}</div><span>{error||notice}</span></div>}
@@ -447,9 +479,10 @@ export default function EmailWorkspace({
     {view==='compose'&&<div className="email-compose-layout">
       <div className="email-compose-main">
         <div className="card email-composer-card">
-          <div className="card-header"><div><p className="eyebrow">New email</p><h2>Compose message</h2><p>Personalize one message and ApplyFlow will eventually send it individually to every selected participant.</p></div><Mail size={20}/></div>
+          <div className="card-header"><div><p className="eyebrow">New email</p><h2>Compose message</h2><p>Personalize one message and ApplyFlow sends it individually to every selected participant.</p></div><Mail size={20}/></div>
           <div className="email-composer-form">
             <div className="email-composer-grid">
+              {providerSelector}
               <label>Programme<div className="participant-select-wrap"><select value={applicationId} onChange={e=>{setApplicationId(e.target.value);setSelectedRecipientIds([])}}>{applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select><ChevronDown size={16}/></div></label>
               <label>Audience<div className="participant-select-wrap"><select value={audience} onChange={e=>setAudience(e.target.value as typeof audience)}><option value="all">All participants</option><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select><ChevronDown size={16}/></div></label>
               <label>Assigned to<div className="participant-select-wrap"><select value={staffFilter} onChange={e=>{setStaffFilter(e.target.value);setSelectedRecipientIds([])}}><option value="all">All participants</option>{staffMembers.map(staff=><option key={staff.id} value={staff.id}>{staff.full_name||'Staff member'} — {staff.role==='reviewer'?'Programme Staff':'Admin'} ({staffAssignmentCounts.counts.get(staff.id)||0})</option>)}<option value="unassigned">Unassigned ({staffAssignmentCounts.unassigned})</option></select><ChevronDown size={16}/></div></label>
@@ -460,7 +493,7 @@ export default function EmailWorkspace({
             <div className="email-merge-fields"><div><strong>Merge fields</strong><span>Click to insert into the {bodyFocused?'email body':'subject'}.</span></div><div className="email-merge-chip-list">{mergeFields.map(field=><button type="button" key={field.tag} onClick={()=>insertMergeField(field.tag)}>{field.tag}<small>{field.label}</small></button>)}</div></div>
             <div className="email-template-save"><div><label>Template name<input value={templateName} onChange={e=>setTemplateName(e.target.value)} placeholder="Acceptance email"/></label></div><button type="button" className="secondary-button" disabled={saving||!canManage||!templateName.trim()||!subject.trim()||!body.trim()} onClick={saveTemplate}>{saving?'Saving…':'Save as template'}</button></div>
           </div>
-          <div className="email-send-bar"><div><strong>{validSelected.length} recipient{validSelected.length===1?'':'s'} selected</strong><span>{sending&&sendProgress?sendProgress:zohoStatus.usage_blocked?'Zoho Mail has blocked outgoing SMTP. Unblock the mailbox or configure ZeptoMail before retrying.':zohoStatus.configured?'Messages are sent individually in confirmed batches of 10 through '+(zohoStatus.from_address||(zohoStatus.provider==='zeptomail'?'ZeptoMail':'Zoho Mail'))+'.':'Email delivery unlocks after a server-side provider is configured.'}</span></div><button type="button" className="primary-button" onClick={sendSelectedEmail} disabled={sending||!zohoStatus.configured||zohoStatus.usage_blocked||!validSelected.length||!subject.trim()||!body.trim()} title={zohoStatus.usage_blocked?'Zoho Mail is temporarily blocked':zohoStatus.configured?'Send selected participant emails':'Configure an email provider before sending'}><Send size={16}/>{sending?(sendProgress||'Sending…'):'Send email'}</button></div>
+          <div className="email-send-bar"><div><strong>{validSelected.length} recipient{validSelected.length===1?'':'s'} selected</strong><span>{sending&&sendProgress?sendProgress:zohoStatus.usage_blocked?'Sending paused after a provider error. Review delivery reports and validate the connection before retrying.':zohoStatus.configured?'Messages are sent individually in confirmed batches of 10 through '+(zohoStatus.from_address||providerLabel)+'.':'Email delivery unlocks after a server-side provider is configured.'}</span></div><button type="button" className="primary-button" onClick={sendSelectedEmail} disabled={!canManage||sending||checkingZoho||!zohoStatus.configured||zohoStatus.usage_blocked||!validSelected.length||!subject.trim()||!body.trim()} title={zohoStatus.usage_blocked?'Sending paused after a provider error':zohoStatus.configured?'Send selected participant emails':'Configure an email provider before sending'}><Send size={16}/>{sending?(sendProgress||'Sending…'):'Send email'}</button></div>
         </div>
       </div>
 
@@ -527,7 +560,7 @@ export default function EmailWorkspace({
                     </div>
                   </details>
                 </td>
-                <td>{report.provider==='zeptomail'?'ZeptoMail':report.provider==='zoho'?'Zoho Mail':report.provider}<span className="table-sub">{report.transport||'—'}</span></td>
+                <td>{report.provider==='zeptomail'?'ZeptoMail':report.provider==='zoho'?'Zoho Mail':report.provider==='gmail'?'Gmail':report.provider}<span className="table-sub">{report.transport||'—'}</span></td>
                 <td>{report.requested}</td>
                 <td>{report.sent}</td>
                 <td>{report.failed}{report.skipped>0&&<span className="table-sub">{report.skipped} skipped</span>}</td>
@@ -543,12 +576,25 @@ export default function EmailWorkspace({
     {view==='connection'&&<div className="email-connection-layout">
       <div className="card email-connection-card">
         <div className="email-connection-logo"><Mail size={24}/></div>
-        <div className="email-connection-copy"><p className="eyebrow">Delivery provider</p><h2>{zohoStatus.provider==='zeptomail'?'Zoho ZeptoMail':'Zoho Mail'}</h2><p>{zohoStatus.provider==='zeptomail'?'ApplyFlow uses ZeptoMail’s transactional email API. The Send Mail token stays only in Supabase Edge Function Secrets.':'Zoho Mail SMTP is available for normal mailbox delivery, but automated participant email should use ZeptoMail to avoid provider usage blocks.'}</p><div className={'email-connection-status '+(zohoStatus.configured&&!zohoStatus.usage_blocked?'is-connected':'')}><span></span><strong>{zohoStatus.usage_blocked?'Outgoing mail blocked':zohoStatus.configured?(zohoStatus.validated?'Connected & validated':'Configured'):'Not configured'}</strong>{zohoStatus.from_address&&<small>{zohoStatus.from_address}</small>}</div>{!zohoStatus.configured&&zohoStatus.missing.length>0&&<p className="email-missing-config">Missing server secrets: {zohoStatus.missing.join(', ')}</p>}{zohoStatus.validation_error&&<p className="email-missing-config">{zohoStatus.validation_error}</p>}{zohoStatus.validation_note&&<p className="field-help">{zohoStatus.validation_note}</p>}</div>
-        <button className="primary-button" onClick={()=>refreshZohoStatus(true)} disabled={checkingZoho||!zohoStatus.configured||zohoStatus.provider==='zeptomail'}><Link2 size={16}/>{checkingZoho?'Checking…':zohoStatus.provider==='zeptomail'?'ZeptoMail configured':'Validate Zoho Mail'}</button>
+        <div className="email-connection-copy">
+          <p className="eyebrow">Delivery provider</p><h2>{providerLabel}</h2>
+          {providerSelector}
+          <p>{zohoStatus.provider==='gmail'?'Send from your Gmail account using its secure SMTP connection. Google sending limits still apply.':zohoStatus.provider==='zeptomail'?'Send transactional messages through ZeptoMail. Its account limits and credits still apply.':'Send through your Zoho Mail SMTP account. Mailbox sending limits still apply.'}</p>
+          <div className={'email-connection-status '+(zohoStatus.configured&&!zohoStatus.usage_blocked?'is-connected':'')}><span></span><strong>{checkingZoho?'Checking…':zohoStatus.usage_blocked?'Sending paused':zohoStatus.configured?(zohoStatus.validated?'Connected & validated':'Configured'):'Not configured'}</strong>{zohoStatus.from_address&&<small>{zohoStatus.from_address}</small>}</div>
+          {!zohoStatus.configured&&zohoStatus.missing.length>0&&<p className="email-missing-config">Missing server secrets: {zohoStatus.missing.join(', ')}</p>}
+          {zohoStatus.validation_error&&<p className="email-missing-config">{zohoStatus.validation_error}</p>}
+          {zohoStatus.validation_note&&<p className="field-help">{zohoStatus.validation_note}</p>}
+        </div>
+        <button className="primary-button" onClick={()=>refreshZohoStatus(true)} disabled={sending||checkingZoho||!canManage}><Link2 size={16}/>{checkingZoho?'Checking…':zohoStatus.provider==='zeptomail'?'Refresh configuration':'Validate '+providerLabel}</button>
       </div>
       <div className="card email-security-card">
-        <div className="card-header"><div><p className="eyebrow">Secure setup</p><h2>What happens next</h2></div><ShieldCheck size={20}/></div>
-        <div className="email-setup-list"><div><span>1</span><div><strong>Create a ZeptoMail Mail Agent</strong><p>Use Zoho’s transactional email product for automated participant messages.</p></div></div><div><span>2</span><div><strong>Verify your sender domain</strong><p>Complete ZeptoMail’s DKIM/CNAME verification for the address ApplyFlow sends from.</p></div></div><div><span>3</span><div><strong>Store the Send Mail token server-side</strong><p>Add ZEPTOMAIL_SEND_TOKEN and ZEPTOMAIL_FROM_ADDRESS to Supabase Edge Function Secrets. Never put the token in React.</p></div></div><div><span>4</span><div><strong>Send participant email</strong><p>ApplyFlow will automatically prefer ZeptoMail API over the legacy Zoho Mail SMTP transport.</p></div></div></div>
+        <div className="card-header"><div><p className="eyebrow">Secure setup</p><h2>Choose your sending account</h2></div><ShieldCheck size={20}/></div>
+        <div className="email-setup-list">
+          <div><span>1</span><div><strong>Select a provider</strong><p>Choose Gmail, ZeptoMail or Zoho Mail. Existing default preserves your previous ZeptoMail / Zoho setup.</p></div></div>
+          <div><span>2</span><div><strong>Check the connection</strong><p>Validate checks SMTP authentication and the sender address without sending an email. ZeptoMail acceptance is checked when you send.</p></div></div>
+          <div><span>3</span><div><strong>Keep credentials private</strong><p>Gmail uses GMAIL_SMTP_USERNAME and GMAIL_SMTP_PASSWORD in Supabase Edge Function Secrets. Existing Zoho credentials remain separate.</p></div></div>
+          <div><span>4</span><div><strong>Review each send</strong><p>Delivery reports show the provider and recipient outcomes. “Sent” means accepted by the provider, not confirmed in the recipient’s inbox. Providers never switch automatically during a send.</p></div></div>
+        </div>
       </div>
     </div>}
   </section>

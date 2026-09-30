@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { closeZohoSmtp, getZohoSmtpConfig, openZohoSmtp, validateZohoSmtpSender } from "./smtp.ts";
-import { getZeptoMailConfig } from "./zeptomail.ts";
+import { closeZohoSmtp, openZohoSmtp, validateZohoSmtpSender } from "./smtp.ts";
+import { resolveEmailProvider } from "./providers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     if (!organizationId) return json({ error: "organization_id is required." }, 400);
     await authorize(req, organizationId);
 
-    const { config: zeptoConfig, missing: zeptoMissing } = getZeptoMailConfig();
+    const { provider, transport, zeptoConfig, smtpConfig: config, missing } = resolveEmailProvider(body.provider);
     if (zeptoConfig) {
       return json({
         provider:"zeptomail",
@@ -72,39 +72,40 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { config, missing } = getZohoSmtpConfig();
     const configured = Boolean(config);
     let validated = false;
     let validationError = "";
     let smtpHost: string | null = null;
 
     if (config && body?.validate === true) {
+      let session = null;
       try {
-        const session = await openZohoSmtp(config);
+        session = await openZohoSmtp(config);
         smtpHost = session.host;
         await validateZohoSmtpSender(session, config);
         validated = true;
-        await closeZohoSmtp(session);
       } catch (error) {
-        validationError = error instanceof Error ? error.message : "Could not validate Zoho Mail.";
+        validationError = error instanceof Error ? error.message : "Could not validate the selected SMTP provider.";
+      } finally {
+        await closeZohoSmtp(session);
       }
     }
 
     return json({
-      provider: "zoho",
-      transport: "smtp",
+      provider,
+      transport,
       configured,
       validated,
       validation_error: validationError || null,
       validation_note:null,
       from_address: config?.fromAddress || null,
       smtp_host: smtpHost,
-      missing: configured ? [] : [...zeptoMissing, ...missing],
+      missing: configured ? [] : missing,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Could not check Zoho Mail status.";
+    const message = error instanceof Error ? error.message : "Could not check email connection status.";
     if (message === "AUTH_REQUIRED") return json({ error: "Authentication required." }, 401);
-    if (message === "FORBIDDEN") return json({ error: "Only an Owner or Admin can manage Zoho Mail." }, 403);
-    return json({ error: message }, 500);
+    if (message === "FORBIDDEN") return json({ error: "Only an Owner or Admin can manage email connections." }, 403);
+    return json({ error: message === "INVALID_PROVIDER" ? "Unknown email provider." : message }, message === "INVALID_PROVIDER" ? 400 : 500);
   }
 });

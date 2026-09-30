@@ -38,8 +38,8 @@ function timeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T
 async function writeAll(conn: Deno.TlsConn, data: Uint8Array) {
   let offset = 0;
   while (offset < data.length) {
-    const written = await timeout(conn.write(data.subarray(offset)), 12000, "Zoho SMTP write timed out.");
-    if (!written) throw new Error("Zoho SMTP connection closed while writing.");
+    const written = await timeout(conn.write(data.subarray(offset)), 12000, "SMTP write timed out.");
+    if (!written) throw new Error("SMTP connection closed while writing.");
     offset += written;
   }
 }
@@ -53,21 +53,21 @@ async function readResponse(conn: Deno.TlsConn) {
   const buffer = new Uint8Array(4096);
 
   for (let attempt = 0; attempt < 32; attempt += 1) {
-    const count = await timeout(conn.read(buffer), 12000, "Zoho SMTP response timed out.");
-    if (count === null) throw new Error("Zoho SMTP connection closed unexpectedly.");
+    const count = await timeout(conn.read(buffer), 12000, "SMTP response timed out.");
+    if (count === null) throw new Error("SMTP connection closed unexpectedly.");
     text += decoder.decode(buffer.subarray(0, count), { stream: true });
 
     const lines = text.replace(/\r\n/g, "\n").split("\n").filter(Boolean);
     const last = lines[lines.length - 1] || "";
     const match = last.match(/^(\d{3}) /);
-    if (match) {
+    if (match && text.endsWith("\r\n")) {
       return { code: Number(match[1]), text: lines.join("\n") };
     }
 
-    if (text.length > 65536) throw new Error("Zoho SMTP response was unexpectedly large.");
+    if (text.length > 65536) throw new Error("SMTP response was unexpectedly large.");
   }
 
-  throw new Error("Zoho SMTP response could not be completed.");
+  throw new Error("SMTP response could not be completed.");
 }
 
 function compactResponse(text: string) {
@@ -76,7 +76,7 @@ function compactResponse(text: string) {
 
 function expectCode(response: { code: number; text: string }, allowed: number[]) {
   if (!allowed.includes(response.code)) {
-    throw new SmtpProtocolError(response.code, "Zoho SMTP returned " + response.code + ": " + compactResponse(response.text));
+    throw new SmtpProtocolError(response.code, "SMTP returned " + response.code + ": " + compactResponse(response.text));
   }
 }
 
@@ -179,7 +179,7 @@ export async function openZohoSmtp(config: ZohoSmtpConfig): Promise<ZohoSmtpSess
   }
 
   throw new Error(
-    "Could not authenticate with Zoho SMTP. Check the Zoho App Password and that SMTP access is enabled. " +
+    "Could not authenticate with SMTP. Check the provider App Password and that SMTP access is enabled. " +
     failures.join(" | "),
   );
 }
@@ -189,7 +189,7 @@ export async function validateZohoSmtpSender(
   config: ZohoSmtpConfig,
 ) {
   if (!isEmail(config.fromAddress)) {
-    throw new Error("Configured Zoho sender address is invalid.");
+    throw new Error("Configured sender address is invalid.");
   }
   try {
     await writeLine(session.conn, "MAIL FROM:<" + config.fromAddress + ">");

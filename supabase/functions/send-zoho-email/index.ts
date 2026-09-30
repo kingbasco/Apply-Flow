@@ -1,13 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
   closeZohoSmtp,
-  getZohoSmtpConfig,
   openZohoSmtp,
   sendZohoSmtpMessage,
   validateZohoSmtpSender,
   type ZohoSmtpSession,
 } from "./smtp.ts";
-import { getZeptoMailConfig, sendZeptoMailMessage } from "./zeptomail.ts";
+import { sendZeptoMailMessage } from "./zeptomail.ts";
+
+import { resolveEmailProvider } from "./providers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -131,32 +132,29 @@ Deno.serve(async (req) => {
       .in("id", participantIds);
     if (participantError) throw participantError;
 
-    const { config: zeptoConfig, missing: zeptoMissing } = getZeptoMailConfig();
-    const { config: smtpConfig, missing: smtpMissing } = getZohoSmtpConfig();
+    const { provider, transport, zeptoConfig, smtpConfig, missing } = resolveEmailProvider(requestBody.provider);
     if (!zeptoConfig && !smtpConfig) {
       await persistDeliveryLog({
         status:"failed",
         recipientCount:participantIds.length,
         metadata:{
-          provider:"none",
-          transport:"none",
+          provider,
+          transport,
           requested:participantIds.length,
           matched:(participants||[]).length,
           sent_count:0,
           skipped_count:0,
           failed_count:participantIds.length,
-          first_failure_error:"No participant email provider is configured on the server.",
+          first_failure_error:"The selected email provider is not configured on the server.",
           failure_code:"PROVIDER_NOT_CONFIGURED",
           results:[],
         },
       });
       return json({
-        error: "No participant email provider is configured on the server.",
-        missing: [...zeptoMissing, ...smtpMissing],
+        error: "The selected email provider is not configured on the server.",
+        missing,
       }, 503);
     }
-    const provider = zeptoConfig ? "zeptomail" : "zoho";
-    const transport = zeptoConfig ? "api" : "smtp";
 
     if (!zeptoConfig && smtpConfig) {
       try {
@@ -201,6 +199,7 @@ Deno.serve(async (req) => {
 
     const results: { participant_id:string; email:string|null; status:"sent"|"skipped"|"failed"; error?:string; request_id?:string|null }[] = [];
 
+    let stopped = false;
     for (const row of participants || []) {
       const email = row.applicants?.email ? String(row.applicants.email).trim() : "";
       if (!email || !email.includes("@")) {
@@ -240,57 +239,27 @@ Deno.serve(async (req) => {
         const message=error instanceof Error?error.message:"Send failed.";
         await closeZohoSmtp(smtpSession);
         smtpSession=null;
-        if(message.includes("550 5.4.6")&&message.toLowerCase().includes("unusual sending activity")){
-          const blockedMessage="Zoho Mail has temporarily blocked outgoing mail because it detected unusual sending activity. Do not retry bulk sends from this mailbox. Unblock the mailbox in Zoho or configure ZeptoMail for ApplyFlow automated participant email.";
-          console.error(JSON.stringify({
-            event:"zoho_usage_block",
-            delivery_id:deliveryId||null,
-            batch_number:batchNumber,
-            error:message,
-          }));
-          const blockedResults=(participants||[]).map((participant:any)=>{
-            const participantEmail=participant.applicants?.email?String(participant.applicants.email).trim():"";
-            return participantEmail&&participantEmail.includes("@")
-              ? {participant_id:participant.participant_id,email:participantEmail,status:"failed",error:blockedMessage}
-              : {participant_id:participant.participant_id,email:participantEmail||null,status:"skipped",error:"No valid email address."};
-          });
-          await persistDeliveryLog({
-            status:"failed",
-            recipientCount:participantIds.length,
-            metadata:{
-              provider:"zoho",
-              transport:"smtp",
-              from_address:smtpConfig?.fromAddress||null,
-              requested:participantIds.length,
-              matched:(participants||[]).length,
-              sent_count:0,
-              skipped_count:blockedResults.filter((item:any)=>item.status==="skipped").length,
-              failed_count:blockedResults.filter((item:any)=>item.status==="failed").length,
-              first_failure_error:blockedMessage,
-              failure_code:"ZOHO_USAGE_BLOCK",
-              results:blockedResults,
-            },
-          });
-          return json({
-            error:blockedMessage,
-            error_code:"ZOHO_USAGE_BLOCK",
-            provider:"zoho",
-            transport:"smtp",
-            stage:"message_send",
-          });
-        }
         results.push({
           participant_id: row.participant_id,
           email,
           status: "failed",
           error: message,
         });
+        // Stop on any provider/transport failure; never retry an uncertain SMTP transaction.
+        stopped = true;
+        const remaining = (participants || []).slice(results.length);
+        for (const participant of remaining) {
+          results.push({ participant_id: participant.participant_id, email: participant.applicants?.email || null,
+            status: "skipped", error: "Not attempted: sending stopped after a provider error." });
+        }
+        break;
       }
     }
 
     const summary = {
       provider,
       transport,
+      stopped,
       from_address: zeptoConfig?.fromAddress || smtpConfig?.fromAddress || null,
       delivery_id: deliveryId || null,
       batch_number: batchNumber,
@@ -307,6 +276,7 @@ Deno.serve(async (req) => {
       status:summary.failed_count>0||summary.sent_count===0?"failed":"sent",
       recipientCount:summary.requested,
       metadata:{
+        stopped:summary.stopped,
         provider:summary.provider,
         transport:summary.transport,
         from_address:summary.from_address,
@@ -335,7 +305,7 @@ Deno.serve(async (req) => {
     return json(summary);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not send participant email.";
-    return json({ error: message }, 500);
+    return json({ error: message === "INVALID_PROVIDER" ? "Unknown email provider." : message }, message === "INVALID_PROVIDER" ? 400 : 500);
   } finally {
     await closeZohoSmtp(smtpSession);
   }
