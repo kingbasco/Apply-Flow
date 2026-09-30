@@ -184,6 +184,29 @@ export async function openZohoSmtp(config: ZohoSmtpConfig): Promise<ZohoSmtpSess
   );
 }
 
+export async function validateZohoSmtpSender(
+  session: ZohoSmtpSession,
+  config: ZohoSmtpConfig,
+) {
+  if (!isEmail(config.fromAddress)) {
+    throw new Error("Configured Zoho sender address is invalid.");
+  }
+  try {
+    await writeLine(session.conn, "MAIL FROM:<" + config.fromAddress + ">");
+    expectCode(await readResponse(session.conn), [250]);
+    await writeLine(session.conn, "RSET");
+    expectCode(await readResponse(session.conn), [250]);
+  } catch (error) {
+    try {
+      await writeLine(session.conn, "RSET");
+      await readResponse(session.conn);
+    } catch {
+      // Caller will reconnect if the session is no longer healthy.
+    }
+    throw error;
+  }
+}
+
 export async function closeZohoSmtp(session: ZohoSmtpSession | null) {
   if (!session) return;
   try {

@@ -4,6 +4,7 @@ import {
   getZohoSmtpConfig,
   openZohoSmtp,
   sendZohoSmtpMessage,
+  validateZohoSmtpSender,
   type ZohoSmtpSession,
 } from "./smtp.ts";
 
@@ -98,6 +99,28 @@ Deno.serve(async (req) => {
     const { config, missing } = getZohoSmtpConfig();
     if (!config) return json({ error: "Zoho Mail is not configured on the server.", missing }, 503);
 
+    try {
+      smtpSession = await openZohoSmtp(config);
+      await validateZohoSmtpSender(smtpSession, config);
+    } catch (error) {
+      const transportError = error instanceof Error ? error.message : "Zoho SMTP validation failed.";
+      console.error(JSON.stringify({
+        event: "zoho_smtp_preflight_failed",
+        delivery_id: deliveryId || null,
+        batch_number: batchNumber,
+        batch_count: batchCount,
+        error: transportError,
+      }));
+      await closeZohoSmtp(smtpSession);
+      smtpSession = null;
+      return json({
+        error: transportError,
+        provider: "zoho",
+        transport: "smtp",
+        stage: "sender_preflight",
+      }, 502);
+    }
+
     const results: { participant_id:string; email:string|null; status:"sent"|"skipped"|"failed"; error?:string }[] = [];
 
     for (const row of participants || []) {
@@ -118,7 +141,10 @@ Deno.serve(async (req) => {
       const content = merge(bodyTemplate, values);
 
       try {
-        if (!smtpSession) smtpSession = await openZohoSmtp(config);
+        if (!smtpSession) {
+          smtpSession = await openZohoSmtp(config);
+          await validateZohoSmtpSender(smtpSession, config);
+        }
         await sendZohoSmtpMessage(smtpSession, config, email, subject, content);
         results.push({ participant_id: row.participant_id, email, status: "sent" });
       } catch (error) {
@@ -145,6 +171,7 @@ Deno.serve(async (req) => {
       sent_count: results.filter((r) => r.status === "sent").length,
       skipped_count: results.filter((r) => r.status === "skipped").length,
       failed_count: results.filter((r) => r.status === "failed").length,
+      first_failure_error: results.find((r) => r.status === "failed")?.error || null,
       results,
     };
     console.info(JSON.stringify({
@@ -157,6 +184,7 @@ Deno.serve(async (req) => {
       sent_count: summary.sent_count,
       skipped_count: summary.skipped_count,
       failed_count: summary.failed_count,
+      first_failure_error: summary.first_failure_error,
     }));
     return json(summary);
   } catch (error) {

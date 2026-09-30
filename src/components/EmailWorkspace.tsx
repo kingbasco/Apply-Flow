@@ -262,6 +262,7 @@ export default function EmailWorkspace({
     if(!canManage||!zohoStatus.configured||!applicationId||!validSelected.length||!subject.trim()||!body.trim())return
     setSending(true);setError('');setNotice('');setSendProgress('')
     let sent=0,failed=0,skipped=0,processed=0
+    let firstFailure=''
     const deliveryId=crypto.randomUUID()
     const batches=Array.from({length:Math.ceil(validSelected.length/10)},(_,index)=>validSelected.slice(index*10,(index+1)*10))
     try{
@@ -285,14 +286,22 @@ export default function EmailWorkspace({
         if(data?.error){
           throw new Error('Batch '+(index+1)+' of '+batches.length+' failed after '+processed+' recipient'+(processed===1?'':'s')+' were processed. '+String(data.error))
         }
-        sent+=Number(data?.sent_count||0)
-        failed+=Number(data?.failed_count||0)
-        skipped+=Number(data?.skipped_count||0)
-        processed+=Number(data?.requested||participantIds.length)
+        const batchSent=Number(data?.sent_count||0)
+        const batchFailed=Number(data?.failed_count||0)
+        const batchSkipped=Number(data?.skipped_count||0)
+        const batchRequested=Number(data?.requested||participantIds.length)
+        sent+=batchSent
+        failed+=batchFailed
+        skipped+=batchSkipped
+        processed+=batchRequested
+        if(!firstFailure&&data?.first_failure_error)firstFailure=String(data.first_failure_error)
+        if(batchSent===0&&batchFailed===batchRequested&&batchRequested>0){
+          throw new Error('Zoho rejected every recipient in batch '+(index+1)+'.'+(firstFailure?' '+firstFailure:''))
+        }
       }
 
       const summary=sent+' sent'+(failed?', '+failed+' failed':'')+(skipped?', '+skipped+' skipped':'')
-      if(failed>0)setError(summary+'.')
+      if(failed>0)setError(summary+'.'+(firstFailure?' First failure: '+firstFailure:''))
       else setNotice(summary+' through Zoho Mail.')
     }catch(e){
       const partial=(sent||failed||skipped)?' Current confirmed totals: '+sent+' sent, '+failed+' failed, '+skipped+' skipped.':''

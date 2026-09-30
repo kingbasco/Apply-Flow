@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { closeZohoSmtp, getZohoSmtpConfig, openZohoSmtp } from "./smtp.ts";
+import { closeZohoSmtp, getZohoSmtpConfig, openZohoSmtp, validateZohoSmtpSender } from "./smtp.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -66,6 +66,7 @@ Deno.serve(async (req) => {
       try {
         const session = await openZohoSmtp(config);
         smtpHost = session.host;
+        await validateZohoSmtpSender(session, config);
         validated = true;
         await closeZohoSmtp(session);
       } catch (error) {
