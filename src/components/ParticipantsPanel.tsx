@@ -75,6 +75,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [bulkStaffId,setBulkStaffId]=useState('')
   const [applicationFilter,setApplicationFilter]=useState(applications[0]?.id||'')
   const [statusFilter,setStatusFilter]=useState<'all'|'active'|'completed'|'withdrawn'>('all')
+  const [staffFilter,setStaffFilter]=useState('all')
   const [participantPage,setParticipantPage]=useState(1)
   const [participantPageSize,setParticipantPageSize]=useState(50)
   const [loading,setLoading]=useState(true)
@@ -181,18 +182,37 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
 
   useEffect(()=>{load()},[organizationId])
 
+  const staffById=useMemo(()=>new Map(programmeStaff.map(staff=>[staff.id,staff])),[programmeStaff])
+  const staffByParticipant=useMemo(()=>{
+    const map=new Map<string,{id:string;full_name:string|null}[]>()
+    for(const assignment of participantStaff){
+      const staff=staffById.get(assignment.staff_id)
+      if(!staff)continue
+      map.set(assignment.participant_id,[...(map.get(assignment.participant_id)||[]),staff])
+    }
+    for(const assigned of map.values())assigned.sort((a,b)=>(a.full_name||'').localeCompare(b.full_name||''))
+    return map
+  },[participantStaff,staffById])
+
   const filtered=useMemo(()=>participants.filter(p=>{
-    const text=[p.participant_id,p.full_name,p.email,appName(p.application_id)].filter(Boolean).join(' ').toLowerCase()
+    const assignedStaff=staffByParticipant.get(p.id)||[]
+    const assignedNames=assignedStaff.map(staff=>staff.full_name||'Staff member')
+    const text=[p.participant_id,p.full_name,p.email,appName(p.application_id),...assignedNames].filter(Boolean).join(' ').toLowerCase()
+    const matchesStaff=staffFilter==='all'
+      ||(staffFilter==='assigned'&&assignedStaff.length>0)
+      ||(staffFilter==='unassigned'&&assignedStaff.length===0)
+      ||assignedStaff.some(staff=>staff.id===staffFilter)
     return (!query.trim()||text.includes(query.trim().toLowerCase()))
       && (applicationFilter==='all'||p.application_id===applicationFilter)
       && (statusFilter==='all'||p.status===statusFilter)
-  }),[participants,query,applicationFilter,statusFilter,applications])
+      && matchesStaff
+  }),[participants,query,applicationFilter,statusFilter,staffFilter,applications,staffByParticipant])
 
   const participantPageCount=Math.max(1,Math.ceil(filtered.length/participantPageSize))
   const currentParticipantPage=Math.min(participantPage,participantPageCount)
   const pagedParticipants=useMemo(()=>filtered.slice((currentParticipantPage-1)*participantPageSize,currentParticipantPage*participantPageSize),[filtered,currentParticipantPage,participantPageSize])
 
-  useEffect(()=>{setParticipantPage(1)},[query,applicationFilter,statusFilter])
+  useEffect(()=>{setParticipantPage(1)},[query,applicationFilter,statusFilter,staffFilter])
   useEffect(()=>{if(participantPage>participantPageCount)setParticipantPage(participantPageCount)},[participantPage,participantPageCount])
 
   const scopedParticipants=useMemo(()=>participants.filter(p=>!applicationFilter||p.application_id===applicationFilter),[participants,applicationFilter])
@@ -761,22 +781,24 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
         </div>
         <div className="participant-directory-filters">
           <label className="participant-select-field"><span>Filter by status</span><div className="participant-select-wrap"><select aria-label="Filter participants by status" value={statusFilter} onChange={e=>setStatusFilter(e.target.value as any)}><option value="all">All statuses</option><option value="active">Active / Enrolled</option><option value="completed">Completed</option><option value="withdrawn">Withdrawn</option></select><ChevronDown size={16}/></div></label>
+          {isAdmin&&<label className="participant-select-field participant-staff-filter"><span>Filter by assigned staff</span><div className="participant-select-wrap"><select aria-label="Filter participants by assigned staff" value={staffFilter} onChange={e=>setStaffFilter(e.target.value)}><option value="all">All staff assignments</option><option value="assigned">Assigned to anyone</option><option value="unassigned">Unassigned</option>{programmeStaff.map(staff=><option key={staff.id} value={staff.id}>{staff.full_name||'Staff member'}</option>)}</select><ChevronDown size={16}/></div></label>}
           <span className="participant-filter-count">{filtered.length} participant{filtered.length===1?'':'s'}</span>
         </div>
         {isAdmin&&<div className="participant-bulk-bar">
           <div className="participant-bulk-summary"><strong>{selectedParticipantIds.length} selected</strong><span>Select participants below, then assign them to staff or choose exactly which participant/form fields to export.</span></div>
           <div className="participant-bulk-actions"><button type="button" className="secondary-button" disabled={exporting||!selectedParticipantIds.length} onClick={openParticipantExport}><Download size={16}/>Export selected</button><div className="participant-select-wrap"><select aria-label="Choose staff member" value={bulkStaffId} onChange={e=>setBulkStaffId(e.target.value)}><option value="">Choose staff member</option>{programmeStaff.map(staff=><option key={staff.id} value={staff.id}>{staff.full_name||'Staff member'}</option>)}</select><ChevronDown size={16}/></div><button type="button" className="primary-button" disabled={saving||!bulkStaffId||!selectedParticipantIds.length} onClick={bulkAssignProgrammeStaff}>Assign selected</button><button type="button" className="secondary-button" disabled={saving||!bulkStaffId||!selectedParticipantIds.length} onClick={bulkUnassignProgrammeStaff}>Unassign selected</button>{selectedParticipantIds.length>0&&<button type="button" className="text-button" onClick={()=>setSelectedParticipantIds([])}>Clear</button>}</div>
         </div>}
-        <div className="table-wrap"><table><thead><tr>{isAdmin&&<th className="participant-select-cell"><input type="checkbox" aria-label="Select all participants on this page" checked={pagedParticipants.length>0&&pagedParticipants.every(p=>selectedParticipantIds.includes(p.id))} onChange={e=>toggleAllVisibleParticipants(e.target.checked)}/></th>}<th>Participant ID</th><th>Participant</th><th>Programme</th><th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
-          {filtered.length?pagedParticipants.map(p=><tr key={p.id} className="clickable-row" onClick={()=>openParticipant(p)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openParticipant(p)}}} tabIndex={0} role="button" aria-label={'Open participant '+(p.full_name||p.participant_id)}>
+        <div className="table-wrap"><table><thead><tr>{isAdmin&&<th className="participant-select-cell"><input type="checkbox" aria-label="Select all participants on this page" checked={pagedParticipants.length>0&&pagedParticipants.every(p=>selectedParticipantIds.includes(p.id))} onChange={e=>toggleAllVisibleParticipants(e.target.checked)}/></th>}<th>Participant ID</th><th>Participant</th><th>Programme</th>{isAdmin&&<th>Assigned to</th>}<th>Attendance</th><th>Status</th><th>Joined</th></tr></thead><tbody>
+          {filtered.length?pagedParticipants.map(p=>{const assignedStaff=staffByParticipant.get(p.id)||[];return <tr key={p.id} className="clickable-row" onClick={()=>openParticipant(p)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openParticipant(p)}}} tabIndex={0} role="button" aria-label={'Open participant '+(p.full_name||p.participant_id)}>
             {isAdmin&&<td className="participant-select-cell" onClick={e=>e.stopPropagation()}><input type="checkbox" aria-label={'Select '+(p.full_name||p.participant_id)} checked={selectedParticipantIds.includes(p.id)} onChange={e=>toggleParticipantSelection(p.id,e.target.checked)}/></td>}
             <td><strong>{p.participant_id}</strong></td>
             <td><strong>{p.full_name||'Unnamed participant'}</strong><span className="table-sub">{p.email||'No email'}</span></td>
             <td>{appName(p.application_id)}</td>
+            {isAdmin&&<td className="participant-assigned-cell">{assignedStaff.length?<div className="participant-assignee-list">{assignedStaff.map(staff=><span key={staff.id} className="participant-assignee-chip"><Users size={12}/>{staff.full_name||'Staff member'}</span>)}</div>:<span className="participant-unassigned-label">Unassigned</span>}</td>}
             <td>{p.attendance_count||0} present</td>
             <td><span className={'status '+(p.status==='active'?'green':p.status==='completed'?'blue':'neutral')}>{p.status==='active'?'Active / Enrolled':p.status}</span></td>
             <td>{new Date(p.joined_at).toLocaleDateString()}</td>
-          </tr>):<tr><td colSpan={isAdmin?7:6}><div className="table-empty">{participants.length?'No participants match these filters.':'No approved participants yet. Approved applicants appear here automatically.'}</div></td></tr>}
+          </tr>}):<tr><td colSpan={isAdmin?8:6}><div className="table-empty">{participants.length?'No participants match these filters.':'No approved participants yet. Approved applicants appear here automatically.'}</div></td></tr>}
         </tbody></table></div>
         <TablePagination
           total={filtered.length}

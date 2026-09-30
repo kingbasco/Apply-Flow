@@ -1184,6 +1184,13 @@
 .participant-directory-filters{display:flex;align-items:flex-end;gap:12px;padding:0 18px 16px}
 .participant-directory-filters .participant-select-field{width:220px}
 .participant-filter-count{font-size:11px;color:#7b8491;padding:0 0 11px}
+.participant-assigned-cell{min-width:170px;white-space:normal}
+.participant-assignee-list{display:flex;flex-wrap:wrap;gap:6px}
+.participant-assignee-chip{display:inline-flex;align-items:center;gap:5px;max-width:180px;padding:5px 8px;border:1px solid #e1e4f1;border-radius:999px;background:#f5f6ff;color:#535fc2;font-size:9px;font-weight:700;line-height:1.2;white-space:normal}
+.participant-assignee-chip svg{flex:0 0 auto}
+.participant-unassigned-label{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;background:#f3f4f6;color:#7b8491;font-size:9px;font-weight:700}
+.dark-theme .participant-assignee-chip{background:#202535;border-color:#3a4260;color:#bdc4ff}
+.dark-theme .participant-unassigned-label{background:#242a34;color:#aab2bf}
 .participant-profile-backdrop{padding:20px}
 .participant-profile-modal{width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #e5e7ec;border-radius:18px;box-shadow:0 24px 70px rgba(16,24,40,.20)}
 .participant-profile-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:22px 24px;border-bottom:1px solid #eceef2}
