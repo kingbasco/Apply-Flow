@@ -1220,6 +1220,9 @@
 .participant-contact-grid>div{padding:12px;border-radius:10px;background:#f8f9fb}
 .participant-contact-grid span{display:block;color:#858d99;font-size:10px;margin-bottom:4px}
 .participant-contact-grid strong{display:block;font-size:12px;overflow-wrap:anywhere}
+.participant-whatsapp-link{display:inline-flex;align-items:center;gap:5px;margin-top:7px;color:#5861bd;font-size:9px;font-weight:700;text-decoration:none}
+.participant-whatsapp-link:hover{text-decoration:underline}
+.dark-theme .participant-whatsapp-link{color:#a8b0ff}
 .participant-profile-footer{display:flex;justify-content:flex-end;padding:14px 24px;border-top:1px solid #eceef2;background:#fafbfc}
 @media(max-width:760px){
  .participant-application-picker{grid-template-columns:auto minmax(0,1fr)}

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { BadgeCheck, CalendarCheck2, Gift, Upload, Download, Plus, Search, X, Users, CheckCircle2, ChevronDown, Mail, Hash, ClipboardList, Link2, Pencil, Trash2 } from 'lucide-react'
+import { BadgeCheck, CalendarCheck2, Gift, Upload, Download, Plus, Search, X, Users, CheckCircle2, ChevronDown, Mail, Phone, Hash, ClipboardList, Link2, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
 import TablePagination from './TablePagination'
 
 type Application = { id:string; name:string }
 type Participant = {
-  id:string; participant_id:string; full_name:string|null; email:string|null; submission_id:string|null
+  id:string; participant_id:string; full_name:string|null; email:string|null; whatsapp_phone:string|null; submission_id:string|null
   application_id:string; status:'active'|'completed'|'withdrawn'; joined_at:string
   attendance_count?:number
 }
@@ -93,6 +93,12 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [selectedExportFieldKeys,setSelectedExportFieldKeys]=useState<string[]>([])
 
   const appName=(id:string)=>applications.find(a=>a.id===id)?.name||'Programme'
+  const whatsappUrl=(value:string|null|undefined)=>{
+    let digits=String(value||'').replace(/\D/g,'')
+    if(!digits)return ''
+    if(digits.startsWith('0'))digits='234'+digits.slice(1)
+    return digits.length>=7?'https://wa.me/'+digits:''
+  }
 
   useEffect(()=>{
     if(!notice&&!error)return
@@ -146,7 +152,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     setLoading(true);setError('')
     try{
       const [p,s,b,recipients,a,staff,staffAssignments]=await Promise.all([
-        supabase.from('participants').select('id,participant_id,submission_id,application_id,status,joined_at,applicants(full_name,email)').eq('organization_id',organizationId).order('participant_id'),
+        supabase.from('participants').select('id,participant_id,submission_id,application_id,status,joined_at,applicants(full_name,email,whatsapp_phone)').eq('organization_id',organizationId).order('participant_id'),
         supabase.from('attendance_sessions').select('id,application_id,title,session_date,check_in_slug,check_in_open,check_in_opened_at').eq('organization_id',organizationId).order('session_date',{ascending:false}),
         supabase.from('benefit_distributions').select('id,application_id,name,description,distribution_date,status').eq('organization_id',organizationId).order('created_at',{ascending:false}),
         supabase.from('benefit_recipients').select('distribution_id,participant_id'),
@@ -159,7 +165,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       // create an invalid IN () query in PostgREST.
       const participantRows=(p.data||[]).map((row:any)=>({
         id:row.id,participant_id:row.participant_id,submission_id:row.submission_id||null,application_id:row.application_id,status:row.status,joined_at:row.joined_at,
-        full_name:row.applicants?.full_name||null,email:row.applicants?.email||null
+        full_name:row.applicants?.full_name||null,email:row.applicants?.email||null,whatsapp_phone:row.applicants?.whatsapp_phone||null
       })) as Participant[]
       const sessionRows=(s.data||[]) as Session[]
       const benefitRows=(b.data||[]) as Benefit[]
@@ -975,7 +981,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           </section>
           <section className="participant-profile-section participant-contact-section">
             <div className="participant-section-heading"><div><p className="eyebrow">Contact details</p><h3>Participant information</h3></div><Mail size={18}/></div>
-            <div className="participant-contact-grid"><div><span>Name</span><strong>{selectedParticipant.full_name||'Unnamed participant'}</strong></div><div><span>Email</span><strong>{selectedParticipant.email||'No email available'}</strong></div></div>
+            <div className="participant-contact-grid"><div><span>Name</span><strong>{selectedParticipant.full_name||'Unnamed participant'}</strong></div><div><span>Email</span><strong>{selectedParticipant.email||'No email available'}</strong></div><div><span>WhatsApp phone number</span><strong>{selectedParticipant.whatsapp_phone||'No WhatsApp number available'}</strong>{selectedParticipant.whatsapp_phone&&whatsappUrl(selectedParticipant.whatsapp_phone)&&<a className="participant-whatsapp-link" href={whatsappUrl(selectedParticipant.whatsapp_phone)} target="_blank" rel="noopener noreferrer"><Phone size={12}/>Open WhatsApp</a>}</div></div>
           </section>
         </div>
         <div className="participant-profile-footer"><button className="secondary-button" onClick={()=>setSelectedParticipant(null)}>Close profile</button></div>
