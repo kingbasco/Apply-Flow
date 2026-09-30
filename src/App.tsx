@@ -843,12 +843,26 @@ function App() {
     }
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, next) => {
+      // Supabase may emit INITIAL_SESSION, SIGNED_IN and TOKEN_REFRESHED more than
+      // once during a browser session, including when a background tab becomes
+      // active again. Those events must not remount the whole workspace: doing so
+      // resets the active module's local state, filters, pagination, modals and scroll.
+      //
+      // Workspace hydration is handled explicitly by restoreSession() on a real page
+      // start and by AuthScreen.onSignedIn after an intentional login.
       setSession(next)
       if (event === 'PASSWORD_RECOVERY') {
         setPasswordRecovery(true)
         return
       }
-      if (next && !invitePending) loadWorkspace(next)
+      if (event === 'SIGNED_OUT') {
+        setProfile(null)
+        setOrganization(null)
+        setApplications([])
+        setScreeningCount(0)
+        setLoading(false)
+        setRouteRestored(false)
+      }
     })
 
     restoreSession()
