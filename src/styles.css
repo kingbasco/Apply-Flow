@@ -2990,6 +2990,15 @@ html.dark-theme .afx-landing .afx-floating-card-two{
 .assignment-submissions-section>.card-header,.assignment-leaderboard>.card-header,.assignment-review>.card-header{padding:20px 0 14px;border-bottom:0}
 .assignment-submissions-section .table-wrap,.assignment-leaderboard .table-wrap{border:1px solid #e7e9ef;border-radius:12px;overflow:auto}
 .assignment-submissions-section table,.assignment-leaderboard table{min-width:560px}
+.assignment-leaderboard-table{table-layout:fixed}
+.assignment-leaderboard-table .leaderboard-rank-col{width:9%}
+.assignment-leaderboard-table .leaderboard-participant-col{width:35%}
+.assignment-leaderboard-table .leaderboard-graded-col{width:17%}
+.assignment-leaderboard-table .leaderboard-average-col{width:18%}
+.assignment-leaderboard-table .leaderboard-completion-col{width:21%}
+.assignment-leaderboard-table th,.assignment-leaderboard-table td{padding-left:16px;padding-right:16px}
+.assignment-leaderboard>.table-pagination{margin-top:0;border:1px solid #e7e9ef;border-top:0;border-radius:0 0 12px 12px}
+.assignment-leaderboard>.table-wrap:has(+.table-pagination){border-radius:12px 12px 0 0}
 .assignment-review{padding-bottom:26px}
 .assignment-answer-list{display:grid;gap:10px;margin-bottom:20px}
 .assignment-answer-row{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;padding:14px;border:1px solid #e8eaf0;border-radius:12px;background:#fafbfc}
@@ -3032,6 +3041,11 @@ html.dark-theme .assignment-submissions-section,.dark-theme .assignment-leaderbo
   .assignment-submissions-section,.assignment-leaderboard,.assignment-review{padding:0 16px 18px;border-top-width:8px}
   .assignment-submissions-section>.card-header,.assignment-leaderboard>.card-header,.assignment-review>.card-header{padding:18px 0 12px}
   .assignment-submissions-section .table-wrap,.assignment-leaderboard .table-wrap{margin:0}
+  .assignment-leaderboard-table .leaderboard-rank-col{width:11%}
+  .assignment-leaderboard-table .leaderboard-participant-col{width:37%}
+  .assignment-leaderboard-table .leaderboard-graded-col{width:17%}
+  .assignment-leaderboard-table .leaderboard-average-col{width:17%}
+  .assignment-leaderboard-table .leaderboard-completion-col{width:18%}
   .assignments-layout>.assignment-column:first-child .modal-form{padding:18px 16px}
   .assignments-layout>.assignment-column:first-child .table-wrap{overflow-x:auto}
 }

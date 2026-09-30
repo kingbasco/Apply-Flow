@@ -61,6 +61,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [gradeForm,setGradeForm]=useState({score:'',feedback:''})
   const [leaderboard,setLeaderboard]=useState<LeaderboardRow[]>([])
   const [leaderboardLoading,setLeaderboardLoading]=useState(false)
+  const [leaderboardPage,setLeaderboardPage]=useState(1)
+  const [leaderboardPageSize,setLeaderboardPageSize]=useState(50)
   const [selectedParticipant,setSelectedParticipant]=useState<Participant|null>(null)
   const participantProfileScrollRef=useRef<HTMLDivElement>(null)
   const [participantAttendance,setParticipantAttendance]=useState<ParticipantAttendance[]>([])
@@ -221,6 +223,15 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   useEffect(()=>{setParticipantPage(1)},[query,applicationFilter,statusFilter,staffFilter])
   useEffect(()=>{if(participantPage>participantPageCount)setParticipantPage(participantPageCount)},[participantPage,participantPageCount])
 
+  const leaderboardPageCount=Math.max(1,Math.ceil(leaderboard.length/leaderboardPageSize))
+  const currentLeaderboardPage=Math.min(leaderboardPage,leaderboardPageCount)
+  const pagedLeaderboard=useMemo(
+    ()=>leaderboard.slice((currentLeaderboardPage-1)*leaderboardPageSize,currentLeaderboardPage*leaderboardPageSize),
+    [leaderboard,currentLeaderboardPage,leaderboardPageSize]
+  )
+
+  useEffect(()=>{if(leaderboardPage>leaderboardPageCount)setLeaderboardPage(leaderboardPageCount)},[leaderboardPage,leaderboardPageCount])
+
   const scopedParticipants=useMemo(()=>participants.filter(p=>!applicationFilter||p.application_id===applicationFilter),[participants,applicationFilter])
   const scopedSessions=useMemo(()=>sessions.filter(s=>!applicationFilter||s.application_id===applicationFilter),[sessions,applicationFilter])
   const scopedBenefits=useMemo(()=>benefits.filter(b=>!applicationFilter||b.application_id===applicationFilter),[benefits,applicationFilter])
@@ -233,6 +244,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   }),[scopedParticipants])
 
   async function loadLeaderboard(applicationId:string){
+    setLeaderboardPage(1)
     if(!applicationId||applicationId==='all'){setLeaderboard([]);return}
     setLeaderboardLoading(true)
     const {data,error}=await supabase.rpc('get_assignment_leaderboard',{p_application_id:applicationId})
@@ -890,7 +902,20 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
             </div>
             <div className="assignment-leaderboard">
               <div className="card-header"><div><p className="eyebrow">Programme performance</p><h3>Programme leaderboard</h3><p>Full programme standings ranked by average percentage across graded assignments. Completion is shown separately.</p></div></div>
-              {leaderboardLoading?<div className="loading-card">Loading leaderboard…</div>:<div className="table-wrap"><table><thead><tr><th>Rank</th><th>Participant</th><th>Graded</th><th>Average</th><th>Completion</th></tr></thead><tbody>{leaderboard.length?leaderboard.map(row=><tr key={row.participant_record_id}><td><strong>{row.rank?('#'+row.rank):'—'}</strong></td><td><strong>{row.full_name||row.participant_id}</strong><span className="table-sub">{row.participant_id}</span></td><td>{row.graded_assignments}/{row.total_assignments}</td><td>{row.average_percentage===null?'—':Number(row.average_percentage).toFixed(1)+'%'}</td><td>{Number(row.completion_percentage).toFixed(0)}%</td></tr>):<tr><td colSpan={5}><div className="table-empty">No participant performance data yet.</div></td></tr>}</tbody></table></div>}
+              {leaderboardLoading?<div className="loading-card">Loading leaderboard…</div>:<>
+                <div className="table-wrap"><table className="assignment-leaderboard-table">
+                  <colgroup><col className="leaderboard-rank-col"/><col className="leaderboard-participant-col"/><col className="leaderboard-graded-col"/><col className="leaderboard-average-col"/><col className="leaderboard-completion-col"/></colgroup>
+                  <thead><tr><th>Rank</th><th>Participant</th><th>Graded</th><th>Average</th><th>Completion</th></tr></thead>
+                  <tbody>{leaderboard.length?pagedLeaderboard.map(row=><tr key={row.participant_record_id}><td><strong>{row.rank?('#'+row.rank):'—'}</strong></td><td><strong>{row.full_name||row.participant_id}</strong><span className="table-sub">{row.participant_id}</span></td><td>{row.graded_assignments}/{row.total_assignments}</td><td>{row.average_percentage===null?'—':Number(row.average_percentage).toFixed(1)+'%'}</td><td>{Number(row.completion_percentage).toFixed(0)}%</td></tr>):<tr><td colSpan={5}><div className="table-empty">No participant performance data yet.</div></td></tr>}</tbody>
+                </table></div>
+                <TablePagination
+                  total={leaderboard.length}
+                  page={currentLeaderboardPage}
+                  pageSize={leaderboardPageSize}
+                  onPageChange={setLeaderboardPage}
+                  onPageSizeChange={size=>{setLeaderboardPageSize(size);setLeaderboardPage(1)}}
+                />
+              </>}
             </div>
             {selectedSubmission&&<div className="assignment-review">
               <div className="card-header"><div><p className="eyebrow">Review submission</p><h3>{selectedSubmission.participants?.applicants?.full_name||selectedSubmission.participants?.participant_id||'Participant'}</h3><p>{selectedSubmission.participants?.participant_id} · {new Date(selectedSubmission.submitted_at).toLocaleString()}</p></div><button className="icon-button" onClick={()=>setSelectedSubmission(null)} aria-label="Close review"><X size={17}/></button></div>
