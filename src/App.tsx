@@ -47,39 +47,6 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-  async function signInWithGoogle() {
-    setBusy(true); setError(''); setMessage('')
-    try {
-      if (mode === 'signup') {
-        if (!orgName.trim()) {
-          setError('Enter your organisation name first, then continue with Google.')
-          setBusy(false)
-          return
-        }
-        localStorage.setItem('applyflow-google-signup', JSON.stringify({
-          full_name: name.trim(),
-          username: username.trim().toLowerCase(),
-          birth_month: birthMonth ? Number(birthMonth) : null,
-          birth_day: birthDay ? Number(birthDay) : null,
-          organization_name: orgName.trim(),
-        }))
-      } else {
-        localStorage.removeItem('applyflow-google-signup')
-      }
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin + '/login',
-        },
-      })
-      if (error) throw error
-    } catch (err) {
-      localStorage.removeItem('applyflow-google-signup')
-      setError(friendlyErrorMessage(err,'Could not continue with Google.'))
-      setBusy(false)
-    }
-  }
-
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError(''); setMessage('')
     try {
@@ -148,11 +115,6 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => Promise<void> | void }) 
         <button className="primary-button auth-submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'forgot' ? 'Send reset link' : mode === 'signin' ? 'Sign in' : 'Create workspace'}</button>
       </form>
       {mode === 'forgot' ? <button className="auth-switch" onClick={()=>{setMode('signin');setError('');setMessage('')}}>← Back to sign in</button> : <div className="auth-secondary-actions">
-        <div className="auth-divider"><span>OR</span></div>
-        <button type="button" className="google-auth-button" onClick={signInWithGoogle} disabled={busy}>
-          <span className="google-mark" aria-hidden="true">G</span>
-          <span>{mode === 'signin' ? 'Continue with Google' : 'Sign up with Google'}</span>
-        </button>
         <button className="auth-switch" onClick={()=>{setMode(mode==='signin'?'signup':'signin');setError('');setMessage('')}}>{mode==='signin' ? 'Need an account? Create a workspace' : 'Already have an account? Sign in'}</button>
       </div>}
     </div>
@@ -756,26 +718,19 @@ function App() {
     }
     if (!p) {
       const metadata = currentSession.user.user_metadata || {}
-      let googleSignup: { full_name?: string; username?: string; birth_month?: number | null; birth_day?: number | null; organization_name?: string } | null = null
-      try {
-        const raw = localStorage.getItem('applyflow-google-signup')
-        if (raw) googleSignup = JSON.parse(raw)
-      } catch {}
-      const fullName = String(googleSignup?.full_name || metadata.full_name || currentSession.user.email?.split('@')[0] || 'Workspace owner').trim()
-      const usernameBase = String(googleSignup?.username || metadata.username || currentSession.user.email?.split('@')[0] || 'user').trim().toLowerCase().replace(/[^a-z0-9_]/g,'').slice(0,30)
+      const fullName = String(metadata.full_name || currentSession.user.email?.split('@')[0] || 'Workspace owner').trim()
+      const usernameBase = String(metadata.username || currentSession.user.email?.split('@')[0] || 'user').trim().toLowerCase().replace(/[^a-z0-9_]/g,'').slice(0,30)
       const username = usernameBase.length >= 3 ? usernameBase : `user_${currentSession.user.id.slice(0,8)}`
-      const organizationName = String(googleSignup?.organization_name || metadata.organization_name || 'ApplyFlow Workspace').trim() || 'ApplyFlow Workspace'
+      const organizationName = String(metadata.organization_name || 'ApplyFlow Workspace').trim() || 'ApplyFlow Workspace'
       const slugBase = organizationName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'applyflow'
       const slug = slugBase + '-' + currentSession.user.id.slice(0, 8)
       const { data: org, error: orgError } = await supabase.from('organizations').insert({ name: organizationName, slug, created_by: currentSession.user.id }).select('id,name,slug,avatar_url').single()
       if (orgError) { setError(friendlyErrorMessage(orgError)); setLoading(false); return }
-      const { data: createdProfile, error: profileError } = await supabase.from('profiles').insert({ id: currentSession.user.id, full_name: fullName, username, birth_month: googleSignup?.birth_month ?? (metadata.birth_month as number | undefined) ?? null, birth_day: googleSignup?.birth_day ?? (metadata.birth_day as number | undefined) ?? null, avatar_url: null, organization_id: org.id, role: 'owner' }).select('id,full_name,username,birth_month,birth_day,avatar_url,organization_id,role').single()
+      const { data: createdProfile, error: profileError } = await supabase.from('profiles').insert({ id: currentSession.user.id, full_name: fullName, username, birth_month: (metadata.birth_month as number | undefined) ?? null, birth_day: (metadata.birth_day as number | undefined) ?? null, avatar_url: null, organization_id: org.id, role: 'owner' }).select('id,full_name,username,birth_month,birth_day,avatar_url,organization_id,role').single()
       if (profileError) { setError(friendlyErrorMessage(profileError)); setLoading(false); return }
       p = createdProfile
-      localStorage.removeItem('applyflow-google-signup')
     }
     setProfile(p)
-    localStorage.removeItem('applyflow-google-signup')
     if (p.organization_id) {
       const [{ data: org, error: oError }, { data: apps, error: aError }] = await Promise.all([
         supabase.from('organizations').select('id,name,slug,avatar_url').eq('id', p.organization_id).single(),

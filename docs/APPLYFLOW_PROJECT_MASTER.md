@@ -1484,6 +1484,7 @@ Major additions/hardening:
 - Full security advisor cleanup.
 - Full storage policy audit.
 - MFA.
+- Google OAuth sign-in/sign-up is temporarily disabled. Restore only after the callback, redirect, workspace bootstrap, existing-account, new-account, logout and cross-browser flows have been repaired and verified end-to-end.
 - Monitoring/alerting.
 - Backup/recovery drill.
 - Data retention/deletion policy.
@@ -1547,7 +1548,8 @@ Recommended order:
 7. Expand authenticated automated testing.
 8. Mobile/accessibility pass.
 9. Monitoring and incident readiness.
-10. Certificates/completion only after core operations are stable.
+10. Repair and re-verify Google OAuth before re-enabling Google sign-in/sign-up.
+11. Certificates/completion only after core operations are stable.
 
 ---
 

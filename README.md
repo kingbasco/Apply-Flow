@@ -757,6 +757,7 @@ The automated browser supervisor is a smoke test, not a full authenticated click
 - Backup/recovery plan.
 - Monitoring and alerting.
 - MFA product decision and implementation if required.
+- Google OAuth sign-in/sign-up is temporarily disabled; restore only after end-to-end callback, redirect, account bootstrap, session and cross-browser QA.
 
 ---
 
@@ -793,6 +794,7 @@ The automated browser supervisor is a smoke test, not a full authenticated click
 - Full document verification.
 - Certificates/completion workflows.
 - MFA if adopted as a product requirement.
+- Repair, test and re-enable Google OAuth sign-in/sign-up.
 
 ---
 
