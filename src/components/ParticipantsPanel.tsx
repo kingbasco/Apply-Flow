@@ -25,7 +25,8 @@ type AssignmentQuestion = { id:string; assignment_id:string; type:'short_text'|'
 type AssignmentSubmission = { id:string; assignment_id:string; participant_id:string; status:'submitted'|'graded'; submitted_at:string; score:number|null; feedback:string|null; graded_at:string|null; participants?:{participant_id:string;applicants?:{full_name:string|null;email:string|null}|null}|null }
 type AssignmentAnswer = { id:string; question_id:string; value:any; assignment_questions?:{label:string;type:string;position:number}|null }
 type AssignmentDocument = { id:string; question_id:string; storage_bucket:string; storage_path:string; original_name:string; mime_type:string|null; file_size:number|null }
-type LeaderboardRow = { participant_record_id:string; participant_id:string; full_name:string|null; graded_assignments:number; submitted_assignments:number; total_assignments:number; average_percentage:number|null; completion_percentage:number; assignment_points:number; attendance_points:number; total_points:number; rank:number|null }
+type LeaderboardRow = { participant_record_id:string; participant_id:string; full_name:string|null; graded_assignments:number; submitted_assignments:number; total_assignments:number; average_percentage:number|null; completion_percentage:number; assignment_points:number; attendance_points:number; bonus_points:number; total_points:number; rank:number|null }
+type PointAward = { id:string; points:number; category:string; reason:string; note:string|null; awarded_by:string; awarded_by_name:string; created_at:string; revoked_at:string|null; revoked_by?:string|null; revoked_reason?:string|null }
 type ParticipantAttendance = {
   id:string; status:'present'|'absent'; marked_at:string
   attendance_sessions?:{title:string;session_date:string;application_id:string}|{title:string;session_date:string;application_id:string}[]
@@ -67,6 +68,10 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const participantProfileScrollRef=useRef<HTMLDivElement>(null)
   const [participantAttendance,setParticipantAttendance]=useState<ParticipantAttendance[]>([])
   const [participantAttendanceLoading,setParticipantAttendanceLoading]=useState(false)
+  const [pointAwards,setPointAwards]=useState<PointAward[]>([])
+  const [pointAwardsLoading,setPointAwardsLoading]=useState(false)
+  const [pointAwardSaving,setPointAwardSaving]=useState(false)
+  const [pointAwardForm,setPointAwardForm]=useState({points:'',category:'class_activity',reason:'Most active in class',note:''})
   const [selectedSession,setSelectedSession]=useState<Session|null>(null)
   const [checkInSlugDraft,setCheckInSlugDraft]=useState('')
   const [editingCheckInSlug,setEditingCheckInSlug]=useState(false)
@@ -456,7 +461,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   }
 
   async function openParticipant(participant:Participant){
-    setSelectedParticipant({...participant,trade:undefined});setParticipantAttendance([]);setParticipantAttendanceLoading(true);setError('');loadLeaderboard(participant.application_id)
+    setSelectedParticipant({...participant,trade:undefined});setParticipantAttendance([]);setPointAwards([]);setParticipantAttendanceLoading(true);setPointAwardsLoading(isAdmin);setError('');loadLeaderboard(participant.application_id)
     try{
       const attendancePromise=supabase.from('attendance_records')
         .select('id,status,marked_at,attendance_sessions!inner(title,session_date,application_id)')
@@ -472,17 +477,76 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           .limit(1)
         : Promise.resolve({data:[],error:null})
 
-      const [attendanceResult,tradeResult]=await Promise.all([attendancePromise,tradePromise])
+      const awardsPromise=isAdmin
+        ? supabase.from('participant_point_awards')
+          .select('id,points,category,reason,note,awarded_by,awarded_by_name,created_at,revoked_at,revoked_by,revoked_reason')
+          .eq('participant_id',participant.id)
+          .order('created_at',{ascending:false})
+        : Promise.resolve({data:[],error:null})
+
+      const [attendanceResult,tradeResult,awardsResult]=await Promise.all([attendancePromise,tradePromise,awardsPromise])
       if(attendanceResult.error)throw attendanceResult.error
       if(tradeResult.error)throw tradeResult.error
+      if(awardsResult.error)throw awardsResult.error
 
       setParticipantAttendance((attendanceResult.data||[]) as ParticipantAttendance[])
+      setPointAwards((awardsResult.data||[]) as PointAward[])
       const tradeValue=answerText((tradeResult.data?.[0] as {value?:unknown}|undefined)?.value).trim()
       setSelectedParticipant(current=>current?.id===participant.id?{...current,trade:tradeValue||null}:current)
     }catch(e){
       setSelectedParticipant(current=>current?.id===participant.id?{...current,trade:null}:current)
       setError(friendlyErrorMessage(e,'Could not load participant profile details.'))
-    }finally{setParticipantAttendanceLoading(false)}
+    }finally{setParticipantAttendanceLoading(false);setPointAwardsLoading(false)}
+  }
+
+  const pointCategoryLabel=(value:string)=>({
+    class_activity:'Most active in class',
+    group_activity:'Most active in group',
+    participation:'Participation',
+    leadership:'Leadership',
+    helpfulness:'Helpfulness / support',
+    other:'Other'
+  } as Record<string,string>)[value]||'Bonus'
+
+  async function awardParticipantPoints(e:FormEvent){
+    e.preventDefault()
+    if(!isAdmin||!selectedParticipant||pointAwardSaving)return
+    const points=Number(pointAwardForm.points)
+    const reason=pointAwardForm.reason.trim()
+    if(!Number.isFinite(points)||points<=0){setError('Enter bonus points greater than 0.');return}
+    if(!reason){setError('Add a reason for this bonus award.');return}
+    setPointAwardSaving(true);setError('');setNotice('')
+    try{
+      const {data,error}=await supabase.rpc('award_participant_points',{
+        p_participant_id:selectedParticipant.id,
+        p_points:points,
+        p_category:pointAwardForm.category,
+        p_reason:reason,
+        p_note:pointAwardForm.note.trim()||null
+      })
+      if(error)throw error
+      const award=data as PointAward
+      setPointAwards(current=>[award,...current])
+      setPointAwardForm({points:'',category:'class_activity',reason:'Most active in class',note:''})
+      await loadLeaderboard(selectedParticipant.application_id)
+      setNotice(points+' bonus point'+(points===1?'':'s')+' awarded to '+(selectedParticipant.full_name||selectedParticipant.participant_id)+'.')
+    }catch(e){setError(friendlyErrorMessage(e,'Could not award bonus points.'))}
+    finally{setPointAwardSaving(false)}
+  }
+
+  async function revokePointAward(award:PointAward){
+    if(!isAdmin||award.revoked_at||pointAwardSaving)return
+    if(!window.confirm('Revoke this '+Number(award.points).toFixed(0)+' point award? The history will remain visible.'))return
+    setPointAwardSaving(true);setError('');setNotice('')
+    try{
+      const {data,error}=await supabase.rpc('revoke_participant_point_award',{p_award_id:award.id,p_reason:'Revoked from participant profile'})
+      if(error)throw error
+      const result=data as {revoked_at?:string;revoked_by?:string;revoked_reason?:string}
+      setPointAwards(current=>current.map(item=>item.id===award.id?{...item,revoked_at:result.revoked_at||new Date().toISOString(),revoked_by:result.revoked_by||null,revoked_reason:result.revoked_reason||null}:item))
+      if(selectedParticipant)await loadLeaderboard(selectedParticipant.application_id)
+      setNotice('Bonus point award revoked.')
+    }catch(e){setError(friendlyErrorMessage(e,'Could not revoke bonus points.'))}
+    finally{setPointAwardSaving(false)}
   }
 
   async function updateParticipantStatus(participantId:string,status:'active'|'completed'){
@@ -937,12 +1001,12 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
               <div className="table-wrap"><table><thead><tr><th>Participant</th><th>Submitted</th><th>Score</th><th>Status</th></tr></thead><tbody>{assignmentSubmissions.length?assignmentSubmissions.map(s=><tr key={s.id} className={selectedSubmission?.id===s.id?'clickable-row selected-row':'clickable-row'} onClick={()=>openAssignmentSubmission(s)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openAssignmentSubmission(s)}}} tabIndex={0} role="button" aria-label={'Open assignment submission for '+(s.participants?.applicants?.full_name||s.participants?.participant_id||'participant')}><td><strong>{s.participants?.applicants?.full_name||s.participants?.participant_id||'Participant'}</strong><span className="table-sub">{s.participants?.participant_id||''}</span></td><td>{new Date(s.submitted_at).toLocaleString()}</td><td>{s.score===null?'—':s.score+'/'+selectedAssignment.max_score}</td><td><span className={'status '+(s.status==='graded'?'green':'blue')}>{s.status}</span></td></tr>):<tr><td colSpan={4}><div className="table-empty">No submissions yet.</div></td></tr>}</tbody></table></div>
             </div>
             <div className="assignment-leaderboard">
-              <div className="card-header"><div><p className="eyebrow">Programme performance</p><h3>Programme leaderboard</h3><p>Running standings across the programme. Released assignment scores and attendance points combine into one total.</p></div></div>
+              <div className="card-header"><div><p className="eyebrow">Programme performance</p><h3>Programme leaderboard</h3><p>Running standings across the programme. Released assignment scores, attendance points and bonus awards combine into one total.</p></div></div>
               {leaderboardLoading?<div className="loading-card">Loading leaderboard…</div>:<>
                 <div className="table-wrap"><table className="assignment-leaderboard-table">
-                  <colgroup><col className="leaderboard-rank-col"/><col className="leaderboard-participant-col"/><col/><col/><col/></colgroup>
-                  <thead><tr><th>Rank</th><th>Participant</th><th>Assignment points</th><th>Attendance points</th><th>Total points</th></tr></thead>
-                  <tbody>{leaderboard.length?pagedLeaderboard.map(row=><tr key={row.participant_record_id}><td><strong>{row.rank?('#'+row.rank):'—'}</strong></td><td><strong>{row.full_name||row.participant_id}</strong><span className="table-sub">{row.participant_id}</span></td><td>{Number(row.assignment_points||0).toFixed(0)}</td><td>{Number(row.attendance_points||0).toFixed(0)}</td><td><strong>{Number(row.total_points||0).toFixed(0)}</strong><span className="table-sub">{row.graded_assignments}/{row.total_assignments} released assignments</span></td></tr>):<tr><td colSpan={5}><div className="table-empty">No participant performance data yet.</div></td></tr>}</tbody>
+                  <colgroup><col className="leaderboard-rank-col"/><col className="leaderboard-participant-col"/><col/><col/><col/><col/></colgroup>
+                  <thead><tr><th>Rank</th><th>Participant</th><th>Assignment points</th><th>Attendance points</th><th>Bonus points</th><th>Total points</th></tr></thead>
+                  <tbody>{leaderboard.length?pagedLeaderboard.map(row=><tr key={row.participant_record_id}><td><strong>{row.rank?('#'+row.rank):'—'}</strong></td><td><strong>{row.full_name||row.participant_id}</strong><span className="table-sub">{row.participant_id}</span></td><td>{Number(row.assignment_points||0).toFixed(0)}</td><td>{Number(row.attendance_points||0).toFixed(0)}</td><td>{Number(row.bonus_points||0).toFixed(0)}</td><td><strong>{Number(row.total_points||0).toFixed(0)}</strong><span className="table-sub">{row.graded_assignments}/{row.total_assignments} released assignments</span></td></tr>):<tr><td colSpan={6}><div className="table-empty">No participant performance data yet.</div></td></tr>}</tbody>
                 </table></div>
                 <TablePagination
                   total={leaderboard.length}
@@ -1034,8 +1098,23 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           </div>
           <section className="participant-profile-section">
             <div className="participant-section-heading"><div><p className="eyebrow">Assignments</p><h3>Performance</h3><p>Graded assignment performance for this participant.</p></div><ClipboardList size={19}/></div>
-            {leaderboardLoading?<div className="loading-card">Loading performance…</div>:(()=>{const performance=leaderboard.find(row=>row.participant_record_id===selectedParticipant.id);return performance?<div className="participant-profile-stats"><div><span>Total points</span><strong>{Number(performance.total_points||0).toFixed(0)}</strong><small>{Number(performance.assignment_points||0).toFixed(0)} assignment + {Number(performance.attendance_points||0).toFixed(0)} attendance</small></div><div><span>Average score</span><strong>{performance.average_percentage===null?'—':Number(performance.average_percentage).toFixed(1)+'%'}</strong><small>{performance.graded_assignments}/{performance.total_assignments} released assignments</small></div><div><span>Programme leaderboard</span><strong>{performance.rank?'#'+performance.rank:'Unranked'}</strong><small>running position across the full programme</small></div></div>:<div className="table-empty">No assignment performance yet.</div>})()}
+            {leaderboardLoading?<div className="loading-card">Loading performance…</div>:(()=>{const performance=leaderboard.find(row=>row.participant_record_id===selectedParticipant.id);return performance?<div className="participant-profile-stats"><div><span>Total points</span><strong>{Number(performance.total_points||0).toFixed(0)}</strong><small>{Number(performance.assignment_points||0).toFixed(0)} assignment + {Number(performance.attendance_points||0).toFixed(0)} attendance + {Number(performance.bonus_points||0).toFixed(0)} bonus</small></div><div><span>Average score</span><strong>{performance.average_percentage===null?'—':Number(performance.average_percentage).toFixed(1)+'%'}</strong><small>{performance.graded_assignments}/{performance.total_assignments} released assignments</small></div><div><span>Programme leaderboard</span><strong>{performance.rank?'#'+performance.rank:'Unranked'}</strong><small>running position across the full programme</small></div></div>:<div className="table-empty">No assignment performance yet.</div>})()}
           </section>
+          {isAdmin&&<section className="participant-profile-section">
+            <div className="participant-section-heading"><div><p className="eyebrow">Bonus points</p><h3>Award extra points</h3><p>Recognise activity, participation, leadership or other contributions. Bonus awards are added to the running leaderboard.</p></div><Gift size={19}/></div>
+            <form className="modal-form" onSubmit={awardParticipantPoints}>
+              <div className="assignment-form-grid">
+                <label>Points<input type="number" min="0.01" max="10000" step="0.01" value={pointAwardForm.points} onChange={e=>setPointAwardForm(x=>({...x,points:e.target.value}))} placeholder="5" required/></label>
+                <label>Category<div className="participant-select-wrap"><select value={pointAwardForm.category} onChange={e=>{const category=e.target.value;setPointAwardForm(x=>({...x,category,reason:pointCategoryLabel(category)}))}}><option value="class_activity">Most active in class</option><option value="group_activity">Most active in group</option><option value="participation">Participation</option><option value="leadership">Leadership</option><option value="helpfulness">Helpfulness / support</option><option value="other">Other</option></select><ChevronDown size={16}/></div></label>
+              </div>
+              <label>Reason<input value={pointAwardForm.reason} onChange={e=>setPointAwardForm(x=>({...x,reason:e.target.value}))} maxLength={200} placeholder="e.g. Most active participant during Week 3" required/></label>
+              <label>Note <span className="optional">Optional</span><textarea rows={3} value={pointAwardForm.note} onChange={e=>setPointAwardForm(x=>({...x,note:e.target.value}))} maxLength={1000} placeholder="Add context for the award."/></label>
+              <button className="primary-button" disabled={pointAwardSaving}>{pointAwardSaving?'Saving…':'Award bonus points'}</button>
+            </form>
+            <div className="table-wrap participant-profile-table" style={{marginTop:16}}><table><thead><tr><th>Date</th><th>Reason</th><th>Awarded by</th><th>Points</th><th>Status</th></tr></thead><tbody>
+              {pointAwardsLoading?<tr><td colSpan={5}><div className="loading-card">Loading bonus point history…</div></td></tr>:pointAwards.length?pointAwards.map(award=><tr key={award.id}><td>{new Date(award.created_at).toLocaleDateString()}</td><td><strong>{award.reason}</strong><span className="table-sub">{pointCategoryLabel(award.category)}{award.note?' · '+award.note:''}</span></td><td>{award.awarded_by_name}</td><td><strong>+{Number(award.points).toFixed(0)}</strong></td><td>{award.revoked_at?<span className="status neutral">Revoked</span>:<button type="button" className="text-button" disabled={pointAwardSaving} onClick={()=>revokePointAward(award)}>Revoke</button>}</td></tr>):<tr><td colSpan={5}><div className="table-empty">No bonus points awarded yet.</div></td></tr>}
+            </tbody></table></div>
+          </section>}
           <section className="participant-profile-section">
             <div className="participant-section-heading"><div><p className="eyebrow">Attendance</p><h3>Attendance history</h3><p>Attendance records for this participant in this application.</p></div><CalendarCheck2 size={19}/></div>
             {participantAttendanceLoading?<div className="loading-card">Loading attendance history…</div>:participantAttendance.length?<div className="table-wrap participant-profile-table"><table><thead><tr><th>Session</th><th>Date</th><th>Status</th><th>Recorded</th></tr></thead><tbody>{participantAttendance.map(r=><tr key={r.id}><td><strong>{Array.isArray(r.attendance_sessions)?r.attendance_sessions[0]?.title||'Session':r.attendance_sessions?.title||'Session'}</strong></td><td>{(Array.isArray(r.attendance_sessions)?r.attendance_sessions[0]?.session_date:r.attendance_sessions?.session_date)?new Date((Array.isArray(r.attendance_sessions)?r.attendance_sessions[0]?.session_date:r.attendance_sessions?.session_date) as string).toLocaleDateString():'—'}</td><td><span className={'status '+(r.status==='present'?'green':'neutral')}>{r.status}</span></td><td>{new Date(r.marked_at).toLocaleString()}</td></tr>)}</tbody></table></div>:<div className="table-empty">No attendance history yet.</div>}

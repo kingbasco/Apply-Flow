@@ -1,0 +1,161 @@
+create table if not exists public.participant_point_awards (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  application_id uuid not null references public.applications(id) on delete cascade,
+  participant_id uuid not null references public.participants(id) on delete cascade,
+  points numeric(10,2) not null check (points > 0 and points <= 10000),
+  category text not null check (category in ('class_activity','group_activity','participation','leadership','helpfulness','other')),
+  reason text not null check (char_length(trim(reason)) between 2 and 200),
+  note text check (note is null or char_length(note) <= 1000),
+  awarded_by uuid not null references auth.users(id) on delete restrict,
+  awarded_by_name text not null,
+  created_at timestamptz not null default now(),
+  revoked_at timestamptz,
+  revoked_by uuid references auth.users(id) on delete restrict,
+  revoked_reason text check (revoked_reason is null or char_length(revoked_reason) <= 500),
+  constraint participant_point_awards_revocation_consistency
+    check ((revoked_at is null and revoked_by is null) or (revoked_at is not null and revoked_by is not null))
+);
+create index if not exists participant_point_awards_participant_idx on public.participant_point_awards(participant_id,created_at desc);
+create index if not exists participant_point_awards_application_active_idx on public.participant_point_awards(application_id,participant_id) where revoked_at is null;
+create index if not exists participant_point_awards_organization_idx on public.participant_point_awards(organization_id);
+alter table public.participant_point_awards enable row level security;
+drop policy if exists participant_point_awards_admin_select on public.participant_point_awards;
+create policy participant_point_awards_admin_select on public.participant_point_awards for select to authenticated
+using (private.has_active_user_session() and private.is_org_admin(organization_id));
+revoke all on table public.participant_point_awards from anon,authenticated;
+grant select on table public.participant_point_awards to authenticated;
+
+create or replace function public.award_participant_points(p_participant_id uuid,p_points numeric,p_category text,p_reason text,p_note text default null)
+returns jsonb language plpgsql security definer set search_path to ''
+as $function$
+declare v_participant public.participants; v_award public.participant_point_awards; v_awarder_name text;
+v_category text:=lower(trim(coalesce(p_category,''))); v_reason text:=trim(coalesce(p_reason,'')); v_note text:=nullif(trim(coalesce(p_note,'')),'');
+begin
+  if auth.uid() is null or not private.has_active_user_session() then raise exception 'You must be signed in to award points.'; end if;
+  select * into v_participant from public.participants where id=p_participant_id;
+  if v_participant.id is null then raise exception 'Participant not found.'; end if;
+  if not private.is_org_admin(v_participant.organization_id) then raise exception 'Only Owner or Admin can award participant points.'; end if;
+  if p_points is null or p_points<=0 or p_points>10000 then raise exception 'Points must be greater than 0 and no more than 10000.'; end if;
+  if v_category not in ('class_activity','group_activity','participation','leadership','helpfulness','other') then raise exception 'Choose a valid point category.'; end if;
+  if char_length(v_reason)<2 or char_length(v_reason)>200 then raise exception 'Reason must be between 2 and 200 characters.'; end if;
+  if v_note is not null and char_length(v_note)>1000 then raise exception 'Note must be 1000 characters or fewer.'; end if;
+  select coalesce(nullif(trim(full_name),''),nullif(trim(username),''),'Administrator') into v_awarder_name from public.profiles where id=auth.uid();
+  insert into public.participant_point_awards(organization_id,application_id,participant_id,points,category,reason,note,awarded_by,awarded_by_name)
+  values(v_participant.organization_id,v_participant.application_id,v_participant.id,p_points,v_category,v_reason,v_note,auth.uid(),coalesce(v_awarder_name,'Administrator'))
+  returning * into v_award;
+  return jsonb_build_object('id',v_award.id,'points',v_award.points,'category',v_award.category,'reason',v_award.reason,'note',v_award.note,'awarded_by',v_award.awarded_by,'awarded_by_name',v_award.awarded_by_name,'created_at',v_award.created_at,'revoked_at',v_award.revoked_at);
+end;$function$;
+revoke all on function public.award_participant_points(uuid,numeric,text,text,text) from public,anon;
+grant execute on function public.award_participant_points(uuid,numeric,text,text,text) to authenticated;
+
+create or replace function public.revoke_participant_point_award(p_award_id uuid,p_reason text default null)
+returns jsonb language plpgsql security definer set search_path to ''
+as $function$
+declare v_award public.participant_point_awards; v_reason text:=nullif(trim(coalesce(p_reason,'')),'');
+begin
+  if auth.uid() is null or not private.has_active_user_session() then raise exception 'You must be signed in to revoke points.'; end if;
+  select * into v_award from public.participant_point_awards where id=p_award_id;
+  if v_award.id is null then raise exception 'Point award not found.'; end if;
+  if not private.is_org_admin(v_award.organization_id) then raise exception 'Only Owner or Admin can revoke participant points.'; end if;
+  if v_award.revoked_at is not null then raise exception 'This point award has already been revoked.'; end if;
+  if v_reason is not null and char_length(v_reason)>500 then raise exception 'Revocation reason must be 500 characters or fewer.'; end if;
+  update public.participant_point_awards set revoked_at=now(),revoked_by=auth.uid(),revoked_reason=v_reason where id=v_award.id returning * into v_award;
+  return jsonb_build_object('id',v_award.id,'revoked_at',v_award.revoked_at,'revoked_by',v_award.revoked_by,'revoked_reason',v_award.revoked_reason);
+end;$function$;
+revoke all on function public.revoke_participant_point_award(uuid,text) from public,anon;
+grant execute on function public.revoke_participant_point_award(uuid,text) to authenticated;
+
+drop function if exists public.get_assignment_leaderboard(uuid);
+create function public.get_assignment_leaderboard(p_application_id uuid)
+returns table(participant_record_id uuid,participant_id text,full_name text,graded_assignments bigint,submitted_assignments bigint,total_assignments bigint,average_percentage numeric,completion_percentage numeric,assignment_points numeric,attendance_points numeric,bonus_points numeric,total_points numeric,rank bigint)
+language sql security definer set search_path to 'public'
+as $function$
+with me as (
+ select p.organization_id,o.attendance_points_per_session from public.profiles p
+ join public.applications a on a.organization_id=p.organization_id join public.organizations o on o.id=p.organization_id
+ where p.id=auth.uid() and a.id=p_application_id and p.role in ('owner','admin','reviewer') and private.has_active_user_session()
+), programme_assignments as (
+ select a.id,a.max_score from public.assignments a,me where a.application_id=p_application_id and a.status in ('published','closed') and a.results_released=true
+), assignment_total as (select count(*)::bigint total from programme_assignments),
+assignment_stats as (
+ select s.participant_id,count(*) filter(where s.status='graded' and s.score is not null)::bigint graded_assignments,count(*)::bigint submitted_assignments,
+ avg(case when s.status='graded' and s.score is not null and pa.max_score>0 then(s.score/pa.max_score)*100 end) average_percentage,
+ coalesce(sum(case when s.status='graded' and s.score is not null then s.score else 0 end),0)::numeric assignment_points
+ from public.assignment_submissions s join programme_assignments pa on pa.id=s.assignment_id group by s.participant_id
+), attendance_stats as (
+ select ar.participant_id,coalesce(sum(case when ar.status='present' then me.attendance_points_per_session else 0 end),0)::numeric attendance_points
+ from public.attendance_records ar join public.attendance_sessions ats on ats.id=ar.attendance_session_id join me on true
+ where ats.application_id=p_application_id group by ar.participant_id
+), bonus_stats as (
+ select pa.participant_id,coalesce(sum(pa.points),0)::numeric bonus_points from public.participant_point_awards pa
+ where pa.application_id=p_application_id and pa.revoked_at is null group by pa.participant_id
+), prepared as (
+ select p.id participant_record_id,p.participant_id,ap.full_name,coalesce(ast.graded_assignments,0)::bigint graded_assignments,
+ coalesce(ast.submitted_assignments,0)::bigint submitted_assignments,at.total total_assignments,round(ast.average_percentage,2) average_percentage,
+ round(case when at.total=0 then 0::numeric else(coalesce(ast.submitted_assignments,0)::numeric/at.total::numeric)*100 end,2) completion_percentage,
+ coalesce(ast.assignment_points,0)::numeric assignment_points,coalesce(att.attendance_points,0)::numeric attendance_points,coalesce(bs.bonus_points,0)::numeric bonus_points,
+ (coalesce(ast.assignment_points,0)+coalesce(att.attendance_points,0)+coalesce(bs.bonus_points,0))::numeric total_points
+ from public.participants p join me on true left join public.applicants ap on ap.id=p.applicant_id cross join assignment_total at
+ left join assignment_stats ast on ast.participant_id=p.id left join attendance_stats att on att.participant_id=p.id left join bonus_stats bs on bs.participant_id=p.id
+ where p.application_id=p_application_id
+)
+select participant_record_id,participant_id,full_name,graded_assignments,submitted_assignments,total_assignments,average_percentage,completion_percentage,
+round(assignment_points,2),round(attendance_points,2),round(bonus_points,2),round(total_points,2),dense_rank() over(order by total_points desc)::bigint rank
+from prepared order by rank,participant_id;$function$;
+revoke all on function public.get_assignment_leaderboard(uuid) from public;
+revoke all on function public.get_assignment_leaderboard(uuid) from anon;
+grant execute on function public.get_assignment_leaderboard(uuid) to authenticated;
+
+create or replace function public.get_public_assignment_result(p_slug text,p_participant_code text,p_email text)
+returns jsonb language plpgsql security definer set search_path to ''
+as $function$
+declare v_assignment public.assignments;v_participant public.participants;v_applicant public.applicants;v_submission public.assignment_submissions;v_rows jsonb;v_attendance_points numeric:=5;
+v_email text:=lower(trim(coalesce(p_email,'')));v_identity text:=lower(trim(coalesce(p_slug,'')))||'|'||upper(trim(coalesce(p_participant_code,'')));
+begin
+ if not private.record_public_attempt('assignment_result_global',null,250,600) or not private.record_public_attempt('assignment_result_identity',v_identity,10,600) then return jsonb_build_object('error','Too many attempts. Please wait a few minutes and try again.'); end if;
+ begin
+  if length(v_email)>320 or v_email !~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$' then raise exception 'Participant ID or email is not valid for this programme.'; end if;
+  select * into v_assignment from public.assignments where public_slug=p_slug;
+  if v_assignment.id is null then raise exception 'Results portal is not available.'; end if;
+  if not v_assignment.results_released then raise exception 'Results have not been released yet.'; end if;
+  select attendance_points_per_session into v_attendance_points from public.organizations where id=v_assignment.organization_id;
+  select p.* into v_participant from public.participants p join public.applicants a on a.id=p.applicant_id
+   where p.application_id=v_assignment.application_id and upper(p.participant_id)=upper(trim(p_participant_code)) and lower(trim(coalesce(a.email,'')))=v_email limit 1;
+  if v_participant.id is null then raise exception 'Participant ID or email is not valid for this programme.'; end if;
+  select * into v_applicant from public.applicants where id=v_participant.applicant_id;
+  select * into v_submission from public.assignment_submissions where assignment_id=v_assignment.id and participant_id=v_participant.id;
+  if v_submission.id is null then raise exception 'No submission was found for this participant.'; end if;
+  if v_submission.status<>'graded' or v_submission.score is null then raise exception 'Your result has not been graded yet.'; end if;
+  with programme_assignments as (
+   select a.id,a.max_score from public.assignments a where a.application_id=v_assignment.application_id and a.results_released=true and a.status in ('published','closed')
+  ), assignment_stats as (
+   select s.participant_id,coalesce(sum(case when s.status='graded' and s.score is not null then s.score else 0 end),0)::numeric assignment_points
+   from public.assignment_submissions s join programme_assignments pa on pa.id=s.assignment_id group by s.participant_id
+  ), attendance_stats as (
+   select ar.participant_id,coalesce(sum(case when ar.status='present' then v_attendance_points else 0 end),0)::numeric attendance_points
+   from public.attendance_records ar join public.attendance_sessions ats on ats.id=ar.attendance_session_id
+   where ats.application_id=v_assignment.application_id group by ar.participant_id
+  ), bonus_stats as (
+   select pa.participant_id,coalesce(sum(pa.points),0)::numeric bonus_points from public.participant_point_awards pa
+   where pa.application_id=v_assignment.application_id and pa.revoked_at is null group by pa.participant_id
+  ), prepared as (
+   select p.id participant_record_id,p.participant_id,coalesce(ap.full_name,p.participant_id) display_name,
+    coalesce(ast.assignment_points,0)::numeric assignment_points,coalesce(att.attendance_points,0)::numeric attendance_points,coalesce(bs.bonus_points,0)::numeric bonus_points,
+    (coalesce(ast.assignment_points,0)+coalesce(att.attendance_points,0)+coalesce(bs.bonus_points,0))::numeric total_points
+   from public.participants p left join public.applicants ap on ap.id=p.applicant_id left join assignment_stats ast on ast.participant_id=p.id
+   left join attendance_stats att on att.participant_id=p.id left join bonus_stats bs on bs.participant_id=p.id where p.application_id=v_assignment.application_id
+  ), ranked as (select prepared.*,dense_rank() over(order by total_points desc)::bigint rnk from prepared)
+  select coalesce(jsonb_agg(jsonb_build_object('rank',r.rnk,'participant_id',r.participant_id,'display_name',r.display_name,
+   'assignment_points',round(r.assignment_points,2),'attendance_points',round(r.attendance_points,2),'bonus_points',round(r.bonus_points,2),
+   'points',round(r.total_points,2),'is_you',r.participant_record_id=v_participant.id) order by r.rnk,r.participant_id),'[]'::jsonb)
+  into v_rows from ranked r;
+  return jsonb_build_object('title',v_assignment.title,'participant_name',coalesce(v_applicant.full_name,'Participant'),'participant_code',v_participant.participant_id,
+   'score',v_submission.score,'max_score',v_assignment.max_score,'percentage',round((v_submission.score/nullif(v_assignment.max_score,0))*100,2),
+   'pass_mark',v_assignment.pass_mark,'passed',v_submission.score>=v_assignment.pass_mark,'feedback',v_submission.feedback,'submitted_at',v_submission.submitted_at,
+   'graded_at',v_submission.graded_at,'leaderboard_scope','programme','leaderboard',v_rows);
+ exception when raise_exception then return jsonb_build_object('error',sqlerrm); when others then return jsonb_build_object('error','Could not load this result. Please try again.'); end;
+end;$function$;
+revoke all on function public.get_public_assignment_result(text,text,text) from public;
+revoke all on function public.get_public_assignment_result(text,text,text) from authenticated;
+grant execute on function public.get_public_assignment_result(text,text,text) to anon,authenticated;
