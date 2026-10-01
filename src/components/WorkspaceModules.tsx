@@ -980,9 +980,18 @@ export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSa
  const [currentPassword,setCurrentPassword]=useState(''); const [newPassword,setNewPassword]=useState(''); const [confirmPassword,setConfirmPassword]=useState(''); const [emailPassword,setEmailPassword]=useState('')
  const [saving,setSaving]=useState(false); const [organizationImageSaving,setOrganizationImageSaving]=useState(false); const [profileSaving,setProfileSaving]=useState(false); const [passwordSaving,setPasswordSaving]=useState(false); const [emailSaving,setEmailSaving]=useState(false); const [signingOut,setSigningOut]=useState(false)
  const [notice,setNotice]=useState(''); const [error,setError]=useState(''); const [emailNotice,setEmailNotice]=useState('')
+ const [attendancePoints,setAttendancePoints]=useState('5'); const [scoringSaving,setScoringSaving]=useState(false)
  useEffect(()=>{setName(organization?.name||'');setSlug(organization?.slug||'')},[organization])
  useEffect(()=>{setProfileName(profile?.full_name||'');setUsername(profile?.username||'');setBirthMonth(profile?.birth_month?String(profile.birth_month):'');setBirthDay(profile?.birth_day?String(profile.birth_day):'');setAvatarUrl(profile?.avatar_url||'')},[profile])
  useEffect(()=>{(async()=>{const {data}=await supabase.auth.getUser();setEmail(data.user?.email||'')})()},[])
+ useEffect(()=>{
+   if(!organization){setAttendancePoints('5');return}
+   ;(async()=>{
+     const {data,error}=await supabase.from('organizations').select('attendance_points_per_session').eq('id',organization.id).single()
+     if(error){setError(friendlyErrorMessage(error,'Could not load leaderboard scoring settings.'));return}
+     setAttendancePoints(String(data?.attendance_points_per_session??5))
+   })()
+ },[organization?.id])
  function flash(message:string){setNotice(message);setError('')}
  async function saveWorkspace(){
    if(!organization||!name.trim())return
@@ -991,6 +1000,19 @@ export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSa
    const {error}=await supabase.from('organizations').update({name:nextName,slug:nextSlug,updated_at:new Date().toISOString()}).eq('id',organization.id)
    if(error)setError(friendlyErrorMessage(error));else{flash('Workspace settings saved.');onSaved(nextName);onOrganizationSaved({name:nextName,slug:nextSlug,avatar_url:organization.avatar_url})}
    setSaving(false)
+ }
+ async function saveLeaderboardScoring(){
+   if(!organization)return
+   const value=Number(attendancePoints)
+   if(!Number.isFinite(value)||value<0){setError('Attendance points must be 0 or greater.');return}
+   setScoringSaving(true);setError('');setNotice('')
+   try{
+     const {error}=await supabase.from('organizations').update({attendance_points_per_session:value,updated_at:new Date().toISOString()}).eq('id',organization.id)
+     if(error)throw error
+     setAttendancePoints(String(value))
+     flash('Leaderboard scoring settings saved.')
+   }catch(e){setError(friendlyErrorMessage(e,'Could not save leaderboard scoring settings.'))}
+   finally{setScoringSaving(false)}
  }
  async function uploadOrganizationImage(file:File){
    if(!organization)return
@@ -1124,9 +1146,18 @@ export function SettingsWorkspace({organization,profile,onSaved,onOrganizationSa
     </div>
    </div>
   </div>
-  {profile?.role!=='reviewer'&&<div className="card detail-card settings-workspace-card">
+  {profile?.role!=='reviewer'&&<>
+   <div className="card detail-card settings-workspace-card">
+    <div className="card-header"><div><p className="eyebrow">Leaderboard</p><h2>Leaderboard scoring</h2><p>Control how many points a participant earns each time they are marked present.</p></div><Settings size={20}/></div>
+    <div className="detail-form">
+      <label>Attendance points per session<input type="number" min="0" step="0.01" value={attendancePoints} onChange={e=>setAttendancePoints(e.target.value)} placeholder="5"/><small className="field-help">Example: if this is 5, a participant with 4 attended sessions earns 20 attendance points. Changing this value recalculates the running leaderboard automatically.</small></label>
+      <div className="detail-form-footer"><button className="primary-button" onClick={saveLeaderboardScoring} disabled={scoringSaving||!organization}><Save size={16}/>{scoringSaving?'Saving…':'Save scoring settings'}</button></div>
+    </div>
+   </div>
+   <div className="card detail-card settings-workspace-card">
    <div className="card-header"><div><p className="eyebrow">Workspace</p><h2>Organisation</h2><p>Basic organisation settings for this ApplyFlow workspace.</p></div><Settings size={20}/></div>
    <div className="detail-form"><div className="settings-avatar-row"><div className="settings-avatar-large">{organization?.avatar_url?<img src={organization.avatar_url} alt="Organisation logo" />:<span>{(name||'O').charAt(0).toUpperCase()}</span>}</div><div><label className="settings-upload-label"><input type="file" accept="image/jpeg,image/png,image/webp" disabled={organizationImageSaving||!organization} onChange={e=>{const file=e.target.files?.[0];if(file)uploadOrganizationImage(file);e.currentTarget.value=''}}/><span>{organizationImageSaving?'Uploading…':organization?.avatar_url?'Change organisation logo':'Upload organisation logo'}</span></label><small className="field-help">JPG, PNG or WebP · maximum 5 MB</small><small className="field-help">This logo appears in your workspace switcher.</small></div></div><label>Organisation name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Workspace slug<input value={slug} onChange={e=>setSlug(e.target.value)}/></label><div className="detail-form-footer"><button className="primary-button" onClick={saveWorkspace} disabled={saving}><Save size={16}/>{saving?'Saving…':'Save workspace settings'}</button></div></div>
-  </div>}
+  </div>
+  </>}
  </section>
 }
