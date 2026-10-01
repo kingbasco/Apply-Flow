@@ -21,3 +21,14 @@ verify_jwt = true
 
 [functions.username-login]
 verify_jwt = false
+
+[functions.whatsapp-status]
+verify_jwt = true
+[functions.sync-whatsapp-templates]
+verify_jwt = true
+[functions.whatsapp-consent]
+verify_jwt = true
+[functions.send-whatsapp-campaign]
+verify_jwt = true
+[functions.whatsapp-webhook]
+verify_jwt = false
