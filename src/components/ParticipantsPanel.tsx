@@ -41,6 +41,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [tab,setTab]=useState<'participants'|'attendance'|'assignments'|'benefits'>('participants')
   const isAdmin=role==='owner'||role==='admin'
   const isProgrammeStaff=role==='reviewer'
+  const canManagePoints=isAdmin||isProgrammeStaff
   const [participants,setParticipants]=useState<Participant[]>([])
   const [programmeStaff,setProgrammeStaff]=useState<{id:string;full_name:string|null}[]>([])
   const [participantStaff,setParticipantStaff]=useState<{participant_id:string;staff_id:string}[]>([])
@@ -461,7 +462,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   }
 
   async function openParticipant(participant:Participant){
-    setSelectedParticipant({...participant,trade:undefined});setParticipantAttendance([]);setPointAwards([]);setParticipantAttendanceLoading(true);setPointAwardsLoading(isAdmin);setError('');loadLeaderboard(participant.application_id)
+    setSelectedParticipant({...participant,trade:undefined});setParticipantAttendance([]);setPointAwards([]);setParticipantAttendanceLoading(true);setPointAwardsLoading(canManagePoints);setError('');loadLeaderboard(participant.application_id)
     try{
       const attendancePromise=supabase.from('attendance_records')
         .select('id,status,marked_at,attendance_sessions!inner(title,session_date,application_id)')
@@ -477,7 +478,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           .limit(1)
         : Promise.resolve({data:[],error:null})
 
-      const awardsPromise=isAdmin
+      const awardsPromise=canManagePoints
         ? supabase.from('participant_point_awards')
           .select('id,points,category,reason,note,awarded_by,awarded_by_name,created_at,revoked_at,revoked_by,revoked_reason')
           .eq('participant_id',participant.id)
@@ -510,7 +511,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
 
   async function awardParticipantPoints(e:FormEvent){
     e.preventDefault()
-    if(!isAdmin||!selectedParticipant||pointAwardSaving)return
+    if(!canManagePoints||!selectedParticipant||pointAwardSaving)return
     const points=Number(pointAwardForm.points)
     const reason=pointAwardForm.reason.trim()
     if(!Number.isFinite(points)||points<=0){setError('Enter bonus points greater than 0.');return}
@@ -535,7 +536,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   }
 
   async function revokePointAward(award:PointAward){
-    if(!isAdmin||award.revoked_at||pointAwardSaving)return
+    if(!canManagePoints||award.revoked_at||pointAwardSaving)return
     if(!window.confirm('Revoke this '+Number(award.points).toFixed(0)+' point award? The history will remain visible.'))return
     setPointAwardSaving(true);setError('');setNotice('')
     try{
@@ -1100,7 +1101,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
             <div className="participant-section-heading"><div><p className="eyebrow">Assignments</p><h3>Performance</h3><p>Graded assignment performance for this participant.</p></div><ClipboardList size={19}/></div>
             {leaderboardLoading?<div className="loading-card">Loading performance…</div>:(()=>{const performance=leaderboard.find(row=>row.participant_record_id===selectedParticipant.id);return performance?<div className="participant-profile-stats"><div><span>Total points</span><strong>{Number(performance.total_points||0).toFixed(0)}</strong><small>{Number(performance.assignment_points||0).toFixed(0)} assignment + {Number(performance.attendance_points||0).toFixed(0)} attendance + {Number(performance.bonus_points||0).toFixed(0)} bonus</small></div><div><span>Average score</span><strong>{performance.average_percentage===null?'—':Number(performance.average_percentage).toFixed(1)+'%'}</strong><small>{performance.graded_assignments}/{performance.total_assignments} released assignments</small></div><div><span>Programme leaderboard</span><strong>{performance.rank?'#'+performance.rank:'Unranked'}</strong><small>running position across the full programme</small></div></div>:<div className="table-empty">No assignment performance yet.</div>})()}
           </section>
-          {isAdmin&&<section className="participant-profile-section">
+          {canManagePoints&&<section className="participant-profile-section">
             <div className="participant-section-heading"><div><p className="eyebrow">Bonus points</p><h3>Award extra points</h3><p>Recognise activity, participation, leadership or other contributions. Bonus awards are added to the running leaderboard.</p></div><Gift size={19}/></div>
             <form className="modal-form" onSubmit={awardParticipantPoints}>
               <div className="assignment-form-grid">
