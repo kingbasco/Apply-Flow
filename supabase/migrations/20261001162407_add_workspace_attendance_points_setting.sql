@@ -202,4 +202,3 @@ $function$;
 revoke all on function public.get_public_assignment_result(text,text,text) from public;
 revoke all on function public.get_public_assignment_result(text,text,text) from authenticated;
 grant execute on function public.get_public_assignment_result(text,text,text) to anon,authenticated;
-$function$;
