@@ -13,6 +13,7 @@ import CommunicationsWorkspace from './components/CommunicationsWorkspace'
 import { FormsWorkspace, ScreeningWorkspace, ReviewsWorkspace, TeamWorkspace, SettingsWorkspace, ScreeningReviewModal } from './components/WorkspaceModules'
 import type { ScreeningRow } from './components/WorkspaceModules'
 import { GoogleFormImport } from './components/GoogleFormImport'
+import TablePagination from './components/TablePagination'
 
 type AppStatus = 'draft' | 'published' | 'screening' | 'closed' | 'completed'
 type Application = {
@@ -21,6 +22,7 @@ type Application = {
 }
 type Profile = { id: string; full_name: string | null; username: string | null; birth_month: number | null; birth_day: number | null; avatar_url: string | null; organization_id: string | null; role: 'owner'|'admin'|'reviewer' }
 type Organization = { id: string; name: string; slug: string; avatar_url: string | null }
+type WorkspaceLeaderboardRow = { participant_record_id:string; participant_id:string; full_name:string|null; graded_assignments:number; submitted_assignments:number; total_assignments:number; average_percentage:number|null; completion_percentage:number; assignment_points:number; attendance_points:number; bonus_points:number; total_points:number; rank:number|null }
 
 const nav = [
   { label: 'Dashboard', icon: LayoutDashboard }, { label: 'Applications', icon: FolderKanban },
@@ -681,6 +683,14 @@ function App() {
   const [newTarget, setNewTarget] = useState('')
   const [newParticipantPrefix, setNewParticipantPrefix] = useState('APP')
   const [importOpen, setImportOpen] = useState(false)
+  const [leaderboardOpen,setLeaderboardOpen]=useState(false)
+  const [leaderboardApplicationId,setLeaderboardApplicationId]=useState('')
+  const [leaderboardRows,setLeaderboardRows]=useState<WorkspaceLeaderboardRow[]>([])
+  const [leaderboardLoading,setLeaderboardLoading]=useState(false)
+  const [leaderboardError,setLeaderboardError]=useState('')
+  const [leaderboardQuery,setLeaderboardQuery]=useState('')
+  const [leaderboardPage,setLeaderboardPage]=useState(1)
+  const [leaderboardPageSize,setLeaderboardPageSize]=useState(50)
 
   useEffect(()=>{
     const frame=window.requestAnimationFrame(()=>{
@@ -837,6 +847,14 @@ function App() {
   const profileName = profile?.full_name || session?.user.email?.split('@')[0] || 'there'
   const firstName = profileName.split(' ')[0]
   const canManageProgrammes = profile?.role==='owner' || profile?.role==='admin'
+  const filteredLeaderboardRows=useMemo(()=>{
+    const q=leaderboardQuery.trim().toLowerCase()
+    if(!q)return leaderboardRows
+    return leaderboardRows.filter(row=>(row.full_name||'').toLowerCase().includes(q)||row.participant_id.toLowerCase().includes(q))
+  },[leaderboardRows,leaderboardQuery])
+  const leaderboardPageCount=Math.max(1,Math.ceil(filteredLeaderboardRows.length/leaderboardPageSize))
+  const currentLeaderboardPage=Math.min(leaderboardPage,leaderboardPageCount)
+  const pagedWorkspaceLeaderboard=filteredLeaderboardRows.slice((currentLeaderboardPage-1)*leaderboardPageSize,currentLeaderboardPage*leaderboardPageSize)
 
   if (window.location.pathname === '/join') return <TeamInviteLinkSignup token={new URLSearchParams(window.location.search).get('token')||''} />
   if (window.location.pathname.startsWith('/attendance/')) return <PublicAttendanceCheckIn slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
@@ -918,6 +936,33 @@ function App() {
     }catch(e){
       setDeleteError(String((e as any)?.message || (e as any)?.details || (e as any)?.hint || e || 'Could not delete this application. Please try again.'))
     }finally{setDeletingApplicationId('')}
+  }
+
+  async function loadWorkspaceLeaderboard(applicationId:string){
+    if(!applicationId){setLeaderboardRows([]);return}
+    setLeaderboardLoading(true);setLeaderboardError('')
+    try{
+      const {data,error}=await supabase.rpc('get_assignment_leaderboard',{p_application_id:applicationId})
+      if(error)throw error
+      setLeaderboardRows((data||[]) as WorkspaceLeaderboardRow[])
+    }catch(e){setLeaderboardRows([]);setLeaderboardError(friendlyErrorMessage(e,'Could not load the programme leaderboard.'))}
+    finally{setLeaderboardLoading(false)}
+  }
+
+  function openWorkspaceLeaderboard(){
+    const preferred=selectedApplication?.id||leaderboardApplicationId||applications[0]?.id||''
+    setLeaderboardApplicationId(preferred)
+    setLeaderboardQuery('')
+    setLeaderboardPage(1)
+    setLeaderboardOpen(true)
+    if(preferred)void loadWorkspaceLeaderboard(preferred)
+  }
+
+  function changeLeaderboardProgramme(applicationId:string){
+    setLeaderboardApplicationId(applicationId)
+    setLeaderboardPage(1)
+    setLeaderboardQuery('')
+    void loadWorkspaceLeaderboard(applicationId)
   }
 
   async function signOut() { await supabase.auth.signOut(); setSession(null); setProfile(null); setOrganization(null); setApplications([]) }
@@ -1038,7 +1083,7 @@ function App() {
       <nav className="nav-group bottom"><p className="nav-label">{profile?.role==='reviewer'?'Account':'Manage'}</p>{(profile?.role==='reviewer'?bottomNav.filter(item=>item.label==='Settings'):bottomNav).map(({label,icon:Icon})=><button key={label} className={active===label?'nav-item active':'nav-item'} onClick={()=>{closeApplication();setActive(label);setSidebarOpen(false)}}><Icon size={18}/><span>{label}</span></button>)}</nav>
       <div className="sidebar-footer"><div className="help-card"><Sparkles size={17}/><div><strong>AI screening</strong><span>Advisory screening · human decision</span></div></div><div className="profile-row"><div className="profile-avatar">{profile?.avatar_url?<img src={profile.avatar_url} alt="" />:profileName.slice(0,2).toUpperCase()}</div><div><strong>{profileName}</strong><span>{profile?.username ? '@'+profile.username : profile?.role==='reviewer'?'Programme Staff':profile?.role || 'Owner'}</span></div><button className="icon-button" onClick={signOut} aria-label="Sign out"><LogOut size={15}/></button></div></div>
     </aside>
-    <main ref={mainScrollRef} className="main"><header className="topbar"><button className="mobile-menu" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Menu size={20}/></button><div className="breadcrumbs"><span>Workspace</span><span>/</span><strong>{active}</strong></div><div className="top-actions"><NotificationCenter userId={session?.user?.id||""} onNavigate={(target)=>setActive(target as typeof active)} /><ThemeToggle/><div className="top-avatar">{profile?.avatar_url?<img src={profile.avatar_url} alt="" />:profileName.slice(0,2).toUpperCase()}</div></div></header>
+    <main ref={mainScrollRef} className="main"><header className="topbar"><button className="mobile-menu" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Menu size={20}/></button><div className="breadcrumbs"><span>Workspace</span><span>/</span><strong>{active}</strong></div><div className="top-actions"><button type="button" className="top-leaderboard-button" onClick={openWorkspaceLeaderboard} aria-label="Open programme leaderboard"><TrendingUp size={15}/><span>Leaderboard</span></button><NotificationCenter userId={session?.user?.id||""} onNavigate={(target)=>setActive(target as typeof active)} /><ThemeToggle/><div className="top-avatar">{profile?.avatar_url?<img src={profile.avatar_url} alt="" />:profileName.slice(0,2).toUpperCase()}</div></div></header>
       <div className="content">
         {selectedApplication ? <ApplicationDetails application={selectedApplication} settings={applicationSettings} tab={detailTab} setTab={setDetailTab} loading={detailLoading} saving={detailSaving} error={detailError} onBack={closeApplication} onSave={saveApplicationDetails} /> : loading ? <div className="loading-card card">Loading your workspace…</div> : error ? <div className="form-error page-error">{error}</div> : active==='Dashboard' ? <>
           <section className="page-heading"><div><p className="eyebrow">Your workspace</p><h1>Good evening, {firstName}.</h1><p className="subtitle">Here’s what is happening across your programmes.</p></div>{canManageProgrammes&&<button className="primary-button" onClick={()=>openCreate()}><Plus size={17}/> New application</button>}</section>
@@ -1047,6 +1092,27 @@ function App() {
         </> : selectedApplication ? <ApplicationDetails application={selectedApplication} settings={applicationSettings} tab={detailTab} setTab={setDetailTab} loading={detailLoading} saving={detailSaving} error={detailError} onBack={closeApplication} onSave={saveApplicationDetails}/> : active==='Analytics' ? <AnalyticsPanel applications={applications}/> : active==='Applications' ? <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>Applications</h1><p className="subtitle">Manage your application programmes.</p></div>{canManageProgrammes&&<div className="detail-actions"><button className="secondary-button" onClick={openGoogleFormImport}><Download size={16}/> Import Google Form</button><button className="primary-button" onClick={()=>openCreate()}><Plus size={17}/> New application</button></div>}</div><div className="card table-card"><div className="toolbar"><div className="search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applications…"/></div><label className="toolbar-select" aria-label="Filter applications by status"><select value={applicationStatusFilter} onChange={e=>setApplicationStatusFilter(e.target.value as 'all'|AppStatus)}><option value="all">All status</option><option value="draft">Draft</option><option value="published">Published</option><option value="screening">Screening</option><option value="closed">Closed</option><option value="completed">Completed</option></select><ChevronDown size={15}/></label></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th><th>Action</th></tr></thead><tbody>{filtered.map(item=><tr key={item.id} onClick={()=>openApplication(item)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openApplication(item)}}} tabIndex={0} role="button" aria-label={'Open '+item.name} className="clickable-row"><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td><td>{canManageProgrammes&&<button type="button" className="icon-button" title="Delete application" aria-label={'Delete '+item.name} disabled={deletingApplicationId===item.id} onClick={e=>{e.stopPropagation();requestDeleteApplication(item)}}><Trash2 size={16}/></button>}</td></tr>)}</tbody></table></div></div></section> : active==='Forms' ? <FormsWorkspace applications={applications} onOpen={a=>openWorkspaceModule(a,'Form')} onCreate={canManageProgrammes?()=>openCreate('form'):undefined}/> : active==='Screening' ? <ScreeningWorkspace applications={applications} role={profile?.role} onOpen={a=>openWorkspaceModule(a,'Screening')}/> : active==='Reviews' ? <ReviewsWorkspace applications={applications} organizationId={organization!.id} role={profile?.role} onOpen={a=>openWorkspaceModule(a,'Reviews')}/> : active==='Participants' ? <ParticipantsPanel organizationId={organization!.id} applications={applications} role={profile?.role}/> : (active==='Email'||active==='Communications') ? <CommunicationsWorkspace organizationId={organization!.id} applications={applications} role={profile?.role}/> : active==='Team' ? <TeamWorkspace organizationId={organization!.id} role={profile?.role}/> : active==='Settings' ? <SettingsWorkspace organization={organization} profile={profile} onSaved={name=>setOrganization(x=>x?{...x,name}:x)} onOrganizationSaved={next=>setOrganization(x=>x?{...x,...next}:x)} onProfileSaved={next=>setProfile(p=>p?{...p,...next}:p)}/> : <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>{active}</h1><p className="subtitle">This module is ready for implementation.</p></div></div><div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>No records yet</h2><p>Create a programme to start using this workspace.</p></div></section>}
       </div>
     </main>
+    {leaderboardOpen&&<div className="modal-backdrop workspace-leaderboard-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setLeaderboardOpen(false)}}>
+      <div className="card workspace-leaderboard-modal" role="dialog" aria-modal="true" aria-labelledby="workspace-leaderboard-title">
+        <div className="workspace-leaderboard-header">
+          <div><p className="eyebrow">Programme performance</p><h2 id="workspace-leaderboard-title">Leaderboard</h2><p>Running standings across assignments, attendance and bonus points.</p></div>
+          <button type="button" className="icon-button" onClick={()=>setLeaderboardOpen(false)} aria-label="Close leaderboard"><X size={18}/></button>
+        </div>
+        <div className="workspace-leaderboard-toolbar">
+          <label className="workspace-leaderboard-programme"><span>Programme</span><div className="toolbar-select"><select value={leaderboardApplicationId} onChange={e=>changeLeaderboardProgramme(e.target.value)}><option value="">Select programme</option>{applications.map(application=><option key={application.id} value={application.id}>{application.name}</option>)}</select><ChevronDown size={15}/></div></label>
+          <div className="search workspace-leaderboard-search"><Search size={16}/><input value={leaderboardQuery} onChange={e=>{setLeaderboardQuery(e.target.value);setLeaderboardPage(1)}} placeholder="Search name or Participant ID…"/></div>
+          <div className="workspace-leaderboard-count"><strong>{filteredLeaderboardRows.length}</strong><span>participant{filteredLeaderboardRows.length===1?'':'s'}</span></div>
+        </div>
+        {leaderboardError&&<div className="form-error workspace-leaderboard-error">{leaderboardError}</div>}
+        <div className="workspace-leaderboard-body">
+          {!leaderboardApplicationId?<div className="table-empty">Select a programme to view its leaderboard.</div>:leaderboardLoading?<div className="loading-card">Loading leaderboard…</div>:filteredLeaderboardRows.length?<div className="table-wrap workspace-leaderboard-table"><table>
+            <thead><tr><th>Rank</th><th>Participant</th><th>Assignment points</th><th>Attendance points</th><th>Bonus points</th><th>Total points</th></tr></thead>
+            <tbody>{pagedWorkspaceLeaderboard.map(row=><tr key={row.participant_record_id}><td><strong>{row.rank?'#'+row.rank:'—'}</strong></td><td><strong>{row.full_name||row.participant_id}</strong><span className="table-sub">{row.participant_id}</span></td><td>{Number(row.assignment_points||0).toFixed(0)}</td><td>{Number(row.attendance_points||0).toFixed(0)}</td><td>{Number(row.bonus_points||0).toFixed(0)}</td><td><strong>{Number(row.total_points||0).toFixed(0)}</strong><span className="table-sub">{row.graded_assignments}/{row.total_assignments} released assignments</span></td></tr>)}</tbody>
+          </table></div>:<div className="table-empty">No participants match this leaderboard view.</div>}
+        </div>
+        {leaderboardApplicationId&&!leaderboardLoading&&filteredLeaderboardRows.length>0&&<TablePagination total={filteredLeaderboardRows.length} page={currentLeaderboardPage} pageSize={leaderboardPageSize} onPageChange={setLeaderboardPage} onPageSizeChange={size=>{setLeaderboardPageSize(size);setLeaderboardPage(1)}}/>}
+      </div>
+    </div>}
     {canManageProgrammes && importOpen && <GoogleFormImport applications={applications} organizationId={organization!.id} onClose={()=>setImportOpen(false)} />}
     {canManageProgrammes && deleteCandidate && <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setDeleteCandidate(null)}}>
       <div className="modal card" role="dialog" aria-modal="true" aria-labelledby="delete-application-title">
