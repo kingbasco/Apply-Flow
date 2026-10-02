@@ -662,6 +662,27 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     }catch(e){setError(friendlyErrorMessage(e,'Could not update self check-in.'))}finally{setSaving(false)}
   }
 
+  async function deleteAttendanceSession(){
+    if(!isAdmin||!selectedSession||saving)return
+    const session=selectedSession
+    const confirmed=window.confirm(
+      'Delete "'+session.title+'"? This permanently removes this attendance session and all attendance records linked to it. Any attendance points from this session will also be removed from the leaderboard.'
+    )
+    if(!confirmed)return
+    setSaving(true);setError('');setNotice('')
+    try{
+      const {error}=await supabase.from('attendance_sessions').delete().eq('id',session.id)
+      if(error)throw error
+      setSessions(current=>current.filter(item=>item.id!==session.id))
+      setSelectedSession(null)
+      setSessionAttendance([])
+      await load()
+      if(selectedAssignment)await loadLeaderboard(selectedAssignment.application_id)
+      setNotice('Attendance session deleted.')
+    }catch(e){setError(friendlyErrorMessage(e,'Could not delete the attendance session.'))}
+    finally{setSaving(false)}
+  }
+
   async function importAttendance(){
     if(!selectedSession)return
     const codes=[...new Set(ids.split(/[\s,;]+/).map(x=>x.trim().toUpperCase()).filter(Boolean))]
@@ -963,7 +984,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       </div>
       <div className="attendance-column">
         <div className="card table-card attendance-record-card">
-          <div className="card-header"><div><p className="eyebrow">Selected session</p><h2>{selectedSession?selectedSession.title:'Session attendance'}</h2><p>{selectedSession?appName(selectedSession.application_id):'Select a session from the list.'}</p></div><CalendarCheck2 size={20}/></div>
+          <div className="card-header"><div><p className="eyebrow">Selected session</p><h2>{selectedSession?selectedSession.title:'Session attendance'}</h2><p>{selectedSession?appName(selectedSession.application_id):'Select a session from the list.'}</p></div>{selectedSession&&isAdmin?<div className="assignment-header-actions"><button type="button" className="icon-button danger-icon-button" aria-label="Delete attendance session" title="Delete attendance session" onClick={deleteAttendanceSession} disabled={saving}><Trash2 size={17}/></button></div>:<CalendarCheck2 size={20}/>}</div>
           {!selectedSession?<div className="table-empty">Select an attendance session to see participants.</div>:attendanceLoading?<div className="loading-card">Loading attendance…</div>:<>{isAdmin&&<div className="attendance-checkin-card">
               <div className="attendance-checkin-summary">
                 <div className="attendance-checkin-state"><span className={'attendance-checkin-dot '+(selectedSession.check_in_open?'is-open':'')}></span><div><p className="eyebrow">Participant self check-in</p><h3>{selectedSession.check_in_open?'Check-in is open':'Check-in is closed'}</h3><p>{selectedSession.check_in_open?'Participants can use this link and their Participant ID to mark themselves present.':'Open check-in when you are ready for participants to record their attendance.'}</p></div></div>
