@@ -460,6 +460,72 @@ function ApplyFlowMark({ light = false }: { light?: boolean }) {
   </span>
 }
 
+function ParticipantIdLookup(){
+  const [email,setEmail]=useState('')
+  const [matches,setMatches]=useState<Array<{programme_name:string;participant_id:string}>>([])
+  const [busy,setBusy]=useState(false)
+  const [error,setError]=useState('')
+  const [copiedId,setCopiedId]=useState('')
+
+  async function checkParticipantId(e:React.FormEvent){
+    e.preventDefault()
+    if(busy)return
+    setBusy(true);setError('');setMatches([]);setCopiedId('')
+    try{
+      const {data,error:rpcError}=await supabase.rpc('lookup_participant_id_by_email',{p_email:email.trim()})
+      if(rpcError)throw rpcError
+      if(data?.error){setError(String(data.error));return}
+      const rows=Array.isArray(data?.matches)?data.matches:[]
+      if(!rows.length){setError('No active participant record was found for this email address.');return}
+      setMatches(rows)
+    }catch(e){setError(friendlyErrorMessage(e,'Could not check your Participant ID. Please try again.'))}
+    finally{setBusy(false)}
+  }
+
+  async function copyParticipantId(id:string){
+    try{
+      await navigator.clipboard.writeText(id)
+      setCopiedId(id)
+      window.setTimeout(()=>setCopiedId(current=>current===id?'':current),1800)
+    }catch{}
+  }
+
+  return <div className="participant-id-lookup-page">
+    <main className="participant-id-lookup-shell">
+      <div className="participant-id-lookup-brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Participant ID Lookup</span></div></div>
+      <section className="card participant-id-lookup-card">
+        {!matches.length?<>
+          <div className="participant-id-lookup-icon"><BadgeCheck size={25}/></div>
+          <p className="eyebrow">Participant access</p>
+          <h1>Check your Participant ID</h1>
+          <p className="participant-id-lookup-intro">Enter the same email address you used when you registered for the programme.</p>
+          <form className="participant-id-lookup-form" onSubmit={checkParticipantId}>
+            <label>Registration email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" required autoComplete="email" autoFocus/></label>
+            {error&&<div className="form-error">{error}</div>}
+            <button className="primary-button" disabled={busy}>{busy?'Checking…':'Check Participant ID'} <ArrowRight size={16}/></button>
+          </form>
+          <p className="participant-id-lookup-note"><ShieldCheck size={14}/> Only active enrolled participant records are returned.</p>
+        </>:<>
+          <div className="participant-id-lookup-success"><CheckCircle2 size={23}/></div>
+          <p className="eyebrow">Participant ID found</p>
+          <h1>Your Participant ID</h1>
+          <p className="participant-id-lookup-intro">Keep this ID safe. You may need it for attendance, assignments and results.</p>
+          <div className="participant-id-result-list">
+            {matches.map(match=><article key={match.programme_name+'-'+match.participant_id} className="participant-id-result">
+              <span>Programme</span>
+              <strong className="participant-id-programme">{match.programme_name}</strong>
+              <span>Participant ID</span>
+              <div className="participant-id-value-row"><strong>{match.participant_id}</strong><button type="button" className="secondary-button" onClick={()=>copyParticipantId(match.participant_id)}>{copiedId===match.participant_id?<><Check size={14}/> Copied</>:'Copy ID'}</button></div>
+            </article>)}
+          </div>
+          <button type="button" className="secondary-button participant-id-check-again" onClick={()=>{setMatches([]);setError('');setCopiedId('')}}>Check another email</button>
+        </>}
+      </section>
+      <p className="participant-id-lookup-footer">If your email is not recognised, confirm that you are using the same email address submitted during registration.</p>
+    </main>
+  </div>
+}
+
 function LandingPage() {
   const [scrolled,setScrolled]=useState(false)
   const [activeStage,setActiveStage]=useState(1)
@@ -884,6 +950,7 @@ function App() {
   if (window.location.pathname.startsWith('/results/')) return <PublicAssignmentResults slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
   if (window.location.pathname.startsWith('/a/')) return <PublicAssignment slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
   if (window.location.pathname.startsWith('/apply/')) return <PublicApplication slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
+  if (window.location.pathname === '/participant-id') return <ParticipantIdLookup />
   if (invitePending && session) return <InviteSetupScreen email={session.user.email || ''} onComplete={async () => {
     // Invitation links create a temporary authenticated session. Once profile
     // setup is complete, sign out so the member proves their new credentials.

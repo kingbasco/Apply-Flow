@@ -4662,3 +4662,46 @@ html.dark-theme .leaderboard-podium-row.podium-3 td{background:rgba(180,112,69,.
   .leaderboard-rank-badge{padding:4px 6px}
   .leaderboard-rank-badge small{display:none}
 }
+
+
+/* Public Participant ID lookup */
+.participant-id-lookup-page{min-height:100vh;background:#f6f7fa;display:grid;place-items:center;padding:32px 18px}
+.participant-id-lookup-shell{width:min(560px,100%)}
+.participant-id-lookup-brand{display:flex;align-items:center;gap:10px;margin:0 0 18px 4px}
+.participant-id-lookup-brand strong{display:block;font-family:Manrope,sans-serif;font-size:14px;color:#222a37}
+.participant-id-lookup-brand span{display:block;margin-top:2px;color:#949baa;font-size:9px}
+.participant-id-lookup-card{padding:34px}
+.participant-id-lookup-icon,.participant-id-lookup-success{width:48px;height:48px;border-radius:13px;display:grid;place-items:center;margin-bottom:20px}
+.participant-id-lookup-icon{background:#eff0ff;color:#5961c6}
+.participant-id-lookup-success{background:#eaf8f0;color:#2d8256}
+.participant-id-lookup-card h1{font-family:Manrope,sans-serif;font-size:28px;letter-spacing:-.045em;color:#161d2a;margin:6px 0 8px}
+.participant-id-lookup-intro{margin:0;color:#7f8794;font-size:12px;line-height:1.65;max-width:440px}
+.participant-id-lookup-form{display:grid;gap:14px;margin-top:26px}
+.participant-id-lookup-form label{display:grid;gap:7px;color:#4c5564;font-size:10px;font-weight:700}
+.participant-id-lookup-form input{width:100%;border:1px solid #dfe3e9;border-radius:9px;padding:12px;background:#fff;color:#242c38;font-size:12px;outline:none}
+.participant-id-lookup-form input:focus{border-color:#7b82d5;box-shadow:0 0 0 3px rgba(91,99,198,.09)}
+.participant-id-lookup-form .primary-button{min-height:42px}
+.participant-id-lookup-note{display:flex;align-items:center;gap:7px;margin:18px 0 0;color:#939ba7;font-size:9px}
+.participant-id-result-list{display:grid;gap:12px;margin-top:24px}
+.participant-id-result{display:grid;gap:5px;padding:16px;border:1px solid #e5e8ed;border-radius:11px;background:#fafbfc}
+.participant-id-result>span{color:#9aa1ac;text-transform:uppercase;letter-spacing:.07em;font-size:8px;font-weight:700}
+.participant-id-programme{color:#3d4654;font-size:11px;margin-bottom:8px}
+.participant-id-value-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.participant-id-value-row>strong{font-family:Manrope,sans-serif;font-size:20px;letter-spacing:.01em;color:#171d2b}
+.participant-id-check-again{width:100%;margin-top:16px}
+.participant-id-lookup-footer{margin:14px 8px 0;text-align:center;color:#9aa1ad;font-size:9px;line-height:1.6}
+html.dark-theme .participant-id-lookup-page{background:#101319}
+html.dark-theme .participant-id-lookup-brand strong{color:#e6eaf0}
+html.dark-theme .participant-id-lookup-card{background:#171b23;border-color:#303642}
+html.dark-theme .participant-id-lookup-card h1{color:#edf0f4}
+html.dark-theme .participant-id-lookup-form input{background:#13171e;border-color:#363d49;color:#e5e9ef}
+html.dark-theme .participant-id-result{background:#141820;border-color:#303642}
+html.dark-theme .participant-id-programme{color:#c9d0da}
+html.dark-theme .participant-id-value-row>strong{color:#f0f2f5}
+@media(max-width:560px){
+  .participant-id-lookup-page{padding:22px 14px;place-items:start center}
+  .participant-id-lookup-card{padding:24px 18px}
+  .participant-id-lookup-card h1{font-size:24px}
+  .participant-id-value-row{align-items:stretch;flex-direction:column}
+  .participant-id-value-row .secondary-button{width:100%}
+}
