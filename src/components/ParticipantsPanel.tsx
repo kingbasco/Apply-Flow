@@ -107,6 +107,21 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     if(digits.startsWith('0'))digits='234'+digits.slice(1)
     return digits.length>=7?'https://wa.me/'+digits:''
   }
+  const participantIdWhatsappUrl=(participant:Participant)=>{
+    const base=whatsappUrl(participant.whatsapp_phone)
+    if(!base)return ''
+    const participantName=(participant.full_name||'Participant').trim()||'Participant'
+    const message=[
+      'Hello '+participantName+',',
+      '',
+      'Your Participant ID for '+appName(participant.application_id)+' is: *'+participant.participant_id+'*',
+      '',
+      'Please keep this ID safe. You will need it for programme activities, attendance, assignments and results.',
+      '',
+      'Thank you.'
+    ].join('\\n')
+    return base+'?text='+encodeURIComponent(message)
+  }
 
   useEffect(()=>{
     if(!notice&&!error)return
@@ -1125,7 +1140,10 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
             <div className="participant-contact-grid"><div><span>Name</span><strong>{selectedParticipant.full_name||'Unnamed participant'}</strong></div><div><span>Email</span><strong>{selectedParticipant.email||'No email available'}</strong></div><div><span>WhatsApp phone number</span><strong>{selectedParticipant.whatsapp_phone||'No WhatsApp number available'}</strong>{selectedParticipant.whatsapp_phone&&whatsappUrl(selectedParticipant.whatsapp_phone)&&<a className="participant-whatsapp-link" href={whatsappUrl(selectedParticipant.whatsapp_phone)} target="_blank" rel="noopener noreferrer"><Phone size={12}/>Open WhatsApp</a>}</div><div><span>Trade</span><strong>{selectedParticipant.trade===undefined?'Loading trade…':selectedParticipant.trade||'No trade provided'}</strong></div></div>
           </section>
         </div>
-        <div className="participant-profile-footer"><button className="secondary-button" onClick={()=>setSelectedParticipant(null)}>Close profile</button></div>
+        <div className="participant-profile-footer">
+          <button className="secondary-button" onClick={()=>setSelectedParticipant(null)}>Close profile</button>
+          {participantIdWhatsappUrl(selectedParticipant)?<a className="primary-button" href={participantIdWhatsappUrl(selectedParticipant)} target="_blank" rel="noopener noreferrer"><Phone size={15}/> Send ID via WhatsApp</a>:<button type="button" className="primary-button" disabled title="Add a WhatsApp phone number to this participant first"><Phone size={15}/> No WhatsApp number</button>}
+        </div>
       </div>
     </div>,document.body)}
   </section>
