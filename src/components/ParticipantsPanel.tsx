@@ -41,7 +41,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [tab,setTab]=useState<'participants'|'attendance'|'assignments'|'benefits'>('participants')
   const isAdmin=role==='owner'||role==='admin'
   const isProgrammeStaff=role==='reviewer'
-  const canManagePoints=isAdmin||isProgrammeStaff
+  const canManagePoints=isAdmin
   const [participants,setParticipants]=useState<Participant[]>([])
   const [programmeStaff,setProgrammeStaff]=useState<{id:string;full_name:string|null}[]>([])
   const [participantStaff,setParticipantStaff]=useState<{participant_id:string;staff_id:string}[]>([])
