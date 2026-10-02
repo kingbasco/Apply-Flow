@@ -111,15 +111,17 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     const base=whatsappUrl(participant.whatsapp_phone)
     if(!base)return ''
     const participantName=(participant.full_name||'Participant').trim()||'Participant'
+    const registeredEmail=(participant.email||'').trim()
     const message=[
       'Hello '+participantName+',',
       '',
       'Your Participant ID for '+appName(participant.application_id)+' is: *'+participant.participant_id+'*',
+      registeredEmail?'Registered email: *'+registeredEmail+'*':'',
       '',
-      'Please keep this ID safe. You will need it for programme activities, attendance, assignments and results.',
+      'Please keep these details safe. You will need them for programme activities, attendance, assignments and results.',
       '',
       'Thank you.'
-    ].join('\\n')
+    ].filter((line,index,lines)=>line!==''||index===1||index===lines.length-2).join('\\n')
     return base+'?text='+encodeURIComponent(message)
   }
 
