@@ -4635,3 +4635,30 @@ html.dark-theme .workspace-leaderboard-card>.table-pagination{border-color:#3036
   .workspace-leaderboard-page .page-heading{align-items:flex-start}
   .workspace-leaderboard-page .workspace-leaderboard-count{justify-content:flex-start;min-width:0}
 }
+
+
+/* Leaderboard podium badges */
+.leaderboard-rank-badge{display:inline-flex;align-items:center;gap:5px;min-height:28px;padding:4px 8px 4px 6px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+.leaderboard-rank-badge strong{font-size:10px;line-height:1}
+.leaderboard-rank-badge small{font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.leaderboard-medal-mark{width:16px;height:16px;display:grid;place-items:center;border-radius:50%;font-size:8px;line-height:1}
+.leaderboard-rank-badge.gold{background:#fff8df;border-color:#ead58f;color:#795b07}
+.leaderboard-rank-badge.gold .leaderboard-medal-mark{background:#e7bd45;color:#fff7cf}
+.leaderboard-rank-badge.silver{background:#f4f6f8;border-color:#d8dde3;color:#596270}
+.leaderboard-rank-badge.silver .leaderboard-medal-mark{background:#aeb7c1;color:#f8fafc}
+.leaderboard-rank-badge.bronze{background:#fff1e8;border-color:#e5bea7;color:#81502f}
+.leaderboard-rank-badge.bronze .leaderboard-medal-mark{background:#bd7a50;color:#fff3eb}
+.leaderboard-podium-row.podium-1 td{background:rgba(229,183,62,.055)}
+.leaderboard-podium-row.podium-2 td{background:rgba(148,158,170,.055)}
+.leaderboard-podium-row.podium-3 td{background:rgba(180,112,69,.055)}
+.participant-profile-rank{margin-top:6px;min-height:28px;display:flex;align-items:center}
+html.dark-theme .leaderboard-rank-badge.gold{background:#302a18;border-color:#66572b;color:#f1d878}
+html.dark-theme .leaderboard-rank-badge.silver{background:#242a31;border-color:#4b5561;color:#d7dde5}
+html.dark-theme .leaderboard-rank-badge.bronze{background:#30241d;border-color:#674937;color:#e2aa86}
+html.dark-theme .leaderboard-podium-row.podium-1 td{background:rgba(229,183,62,.07)!important}
+html.dark-theme .leaderboard-podium-row.podium-2 td{background:rgba(148,158,170,.06)!important}
+html.dark-theme .leaderboard-podium-row.podium-3 td{background:rgba(180,112,69,.07)!important}
+@media(max-width:560px){
+  .leaderboard-rank-badge{padding:4px 6px}
+  .leaderboard-rank-badge small{display:none}
+}
