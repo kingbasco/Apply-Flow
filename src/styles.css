@@ -4620,3 +4620,18 @@ html.dark-theme .workspace-leaderboard-modal>.table-pagination{border-color:#303
   .workspace-leaderboard-count{justify-content:flex-start;min-width:0}
   .workspace-leaderboard-error{margin-left:16px;margin-right:16px}
 }
+
+
+/* Leaderboard navigation page */
+.workspace-leaderboard-page{display:flex;flex-direction:column}
+.workspace-leaderboard-card{overflow:hidden}
+.workspace-leaderboard-page .page-heading{align-items:center}
+.workspace-leaderboard-page .workspace-leaderboard-count{min-width:160px;justify-content:flex-end}
+.workspace-leaderboard-card .workspace-leaderboard-toolbar{border-bottom:1px solid #eef0f3}
+.workspace-leaderboard-card .workspace-leaderboard-body{min-height:360px}
+.workspace-leaderboard-card>.table-pagination{border-top:1px solid #eef0f3}
+html.dark-theme .workspace-leaderboard-card>.table-pagination{border-color:#303642}
+@media(max-width:760px){
+  .workspace-leaderboard-page .page-heading{align-items:flex-start}
+  .workspace-leaderboard-page .workspace-leaderboard-count{justify-content:flex-start;min-width:0}
+}
