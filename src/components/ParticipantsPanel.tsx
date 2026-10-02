@@ -116,12 +116,12 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       'Hello '+participantName+',',
       '',
       'Your Participant ID for '+appName(participant.application_id)+' is: *'+participant.participant_id+'*',
-      registeredEmail?'Registered email: *'+registeredEmail+'*':'',
+      registeredEmail?'Registered email: *'+registeredEmail+'*':null,
       '',
       'Please keep these details safe. You will need them for programme activities, attendance, assignments and results.',
       '',
       'Thank you.'
-    ].filter((line,index,lines)=>line!==''||index===1||index===lines.length-2).join('\\n')
+    ].filter((line):line is string=>line!==null).join('\n')
     return base+'?text='+encodeURIComponent(message)
   }
 
