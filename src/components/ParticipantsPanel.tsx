@@ -793,8 +793,9 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           if(removeError)throw new Error('Private file cleanup failed. Assignment data was not deleted. '+removeError.message)
         }
       }
-      const {error}=await supabase.from('assignments').delete().eq('id',selectedAssignment.id)
+      const {data:deleteResult,error}=await supabase.rpc('delete_assignment',{p_assignment_id:selectedAssignment.id})
       if(error)throw error
+      if(!deleteResult?.deleted)throw new Error('Assignment deletion was not confirmed by the server.')
       setAssignments(x=>x.filter(a=>a.id!==selectedAssignment.id));setSelectedAssignment(null);setAssignmentSubmissions([]);setLeaderboard([]);setNotice('Assignment deleted.')
     }catch(e){setError(friendlyErrorMessage(e,'Could not delete assignment.'))}finally{setSaving(false)}
   }
