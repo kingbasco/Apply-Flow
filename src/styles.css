@@ -3002,6 +3002,13 @@ html.dark-theme .afx-landing .afx-floating-card-two{
 .assignment-review{padding-bottom:26px}
 .assignment-answer-list{display:grid;gap:10px;margin-bottom:20px}
 .assignment-document-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.assignment-attachment-summary{display:grid;gap:12px;margin:16px 0;padding:16px;border:1px solid var(--border,#e5e7eb);border-radius:14px;background:var(--surface,#fff)}
+.assignment-attachment-summary h4{margin:2px 0 0;font-size:16px}
+.assignment-attachment-summary small{color:#7b8494}
+.assignment-document-list-all{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-top:0}
+.assignment-document-list-all .text-button{justify-content:flex-start;text-align:left;min-width:0}
+.assignment-document-list-all .text-button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html.dark-theme .assignment-attachment-summary{background:#1b202a;border-color:#303642}
 .assignment-document-list .text-button{display:inline-flex;align-items:center;gap:5px}
 .assignment-attachments-panel{margin:0 0 18px;padding:16px;border:1px solid #e4e7ec;border-radius:14px;background:#fff}
 .assignment-attachments-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px}
