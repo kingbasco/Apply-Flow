@@ -769,7 +769,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     }catch(e){setError(friendlyErrorMessage(e,'Could not create assignment.'))}finally{setSaving(false)}
   }
   async function openAssignment(assignment:Assignment){
-    setSelectedAssignment(assignment);setSelectedSubmission(null);setEditingAssignment(false);setEditAssignmentForm({title:assignment.title,description:assignment.description||'',instructions:assignment.instructions||'',deadline:assignment.deadline?new Date(assignment.deadline).toISOString().slice(0,16):'',max_score:String(assignment.max_score),pass_mark:String(assignment.pass_mark)});setError('')
+    setSelectedAssignment(assignment);setSelectedSubmission(null);setAssignmentSubmissionPage(1);setEditingAssignment(false);setEditAssignmentForm({title:assignment.title,description:assignment.description||'',instructions:assignment.instructions||'',deadline:assignment.deadline?new Date(assignment.deadline).toISOString().slice(0,16):'',max_score:String(assignment.max_score),pass_mark:String(assignment.pass_mark)});setError('')
     const [questions,submissions]=await Promise.all([
       supabase.from('assignment_questions').select('id,assignment_id,type,label,description,required,position,config').eq('assignment_id',assignment.id).order('position'),
       supabase.from('assignment_submissions').select('id,assignment_id,participant_id,status,submitted_at,score,feedback,graded_at,participants(participant_id,applicants(full_name,email))').eq('assignment_id',assignment.id).order('submitted_at',{ascending:false})
@@ -777,7 +777,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     if(questions.error){setError(questions.error.message);return}
     if(submissions.error){setError(submissions.error.message);return}
     setAssignmentQuestions(x=>({...x,[assignment.id]:(questions.data||[]) as AssignmentQuestion[]}))
-    setAssignmentSubmissions((submissions.data||[]) as unknown as AssignmentSubmission[]);loadLeaderboard(assignment.application_id)
+    setAssignmentSubmissions((submissions.data||[]) as unknown as AssignmentSubmission[])
   }
   async function updateAssignment(e:FormEvent){
     e.preventDefault();if(!selectedAssignment||!editAssignmentForm.title.trim())return
@@ -951,6 +951,14 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     const rate=total?Math.round((submitted/total)*100):0
     return {total,submitted,graded,awaitingGrade,notSubmitted,rate}
   },[assignmentRoster])
+
+  const assignmentSubmissionPageCount=assignmentSubmissionPageSize===0?1:Math.max(1,Math.ceil(assignmentRoster.length/assignmentSubmissionPageSize))
+  const currentAssignmentSubmissionPage=Math.min(assignmentSubmissionPage,assignmentSubmissionPageCount)
+  const pagedAssignmentRoster=useMemo(
+    ()=>assignmentSubmissionPageSize===0?assignmentRoster:assignmentRoster.slice((currentAssignmentSubmissionPage-1)*assignmentSubmissionPageSize,currentAssignmentSubmissionPage*assignmentSubmissionPageSize),
+    [assignmentRoster,currentAssignmentSubmissionPage,assignmentSubmissionPageSize]
+  )
+  useEffect(()=>{if(assignmentSubmissionPage>assignmentSubmissionPageCount)setAssignmentSubmissionPage(assignmentSubmissionPageCount)},[assignmentSubmissionPage,assignmentSubmissionPageCount])
 
   if(loading)return <div className="loading-card card">Loading participants…</div>
 
@@ -1130,7 +1138,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
                 <div className="attendance-rate-track" aria-label={'Submission rate '+assignmentSummary.rate+' percent'}><span style={{width:assignmentSummary.rate+'%'}}/></div>
               </div>
               <div className="attendance-roster-heading"><div><p className="eyebrow">Assignment roster</p><h3>Participant submission status</h3></div><span>{assignmentSummary.submitted} of {assignmentSummary.total} submitted</span></div>
-              <div className="table-wrap"><table><thead><tr><th>Participant</th><th>Submitted</th><th>Score</th><th>Status</th></tr></thead><tbody>{assignmentRoster.length?assignmentRoster.map(({participant,submission,status})=>submission?<tr key={participant.id} className={selectedSubmission?.id===submission.id?'clickable-row selected-row':'clickable-row'} onClick={()=>openAssignmentSubmission(submission)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openAssignmentSubmission(submission)}}} tabIndex={0} role="button" aria-label={'Open assignment submission for '+(participant.full_name||participant.participant_id)}><td><strong>{participant.full_name||participant.participant_id}</strong><span className="table-sub">{participant.participant_id}</span></td><td>{new Date(submission.submitted_at).toLocaleString()}</td><td>{submission.score===null?'—':submission.score+'/'+selectedAssignment.max_score}</td><td><span className={'status '+(status==='graded'?'green':'blue')}>{status==='graded'?'Graded':'Submitted'}</span></td></tr>:<tr key={participant.id}><td><strong>{participant.full_name||participant.participant_id}</strong><span className="table-sub">{participant.participant_id}</span></td><td>—</td><td>—</td><td><span className="status amber">Not submitted</span></td></tr>):<tr><td colSpan={4}><div className="table-empty">No participants are available for this assignment’s programme.</div></td></tr>}</tbody></table></div>
+              <div className="table-wrap"><table><thead><tr><th>Participant</th><th>Submitted</th><th>Score</th><th>Status</th></tr></thead><tbody>{assignmentRoster.length?pagedAssignmentRoster.map(({participant,submission,status})=>submission?<tr key={participant.id} className="clickable-row" onClick={()=>openAssignmentSubmission(submission)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openAssignmentSubmission(submission)}}} tabIndex={0} role="button" aria-label={'Open assignment submission for '+(participant.full_name||participant.participant_id)}><td><strong>{participant.full_name||participant.participant_id}</strong><span className="table-sub">{participant.participant_id}</span></td><td>{new Date(submission.submitted_at).toLocaleString()}</td><td>{submission.score===null?'—':submission.score+'/'+selectedAssignment.max_score}</td><td><span className={'status '+(status==='graded'?'green':'blue')}>{status==='graded'?'Graded':'Submitted'}</span></td></tr>:<tr key={participant.id}><td><strong>{participant.full_name||participant.participant_id}</strong><span className="table-sub">{participant.participant_id}</span></td><td>—</td><td>—</td><td><span className="status amber">Not submitted</span></td></tr>):<tr><td colSpan={4}><div className="table-empty">No participants are available for this assignment’s programme.</div></td></tr>}</tbody></table></div>
+              <TablePagination total={assignmentRoster.length} page={currentAssignmentSubmissionPage} pageSize={assignmentSubmissionPageSize} pageSizes={[20,50,100,200,0]} onPageChange={setAssignmentSubmissionPage} onPageSizeChange={size=>{setAssignmentSubmissionPageSize(size);setAssignmentSubmissionPage(1)}}/>
             </div>
             <div className="assignment-leaderboard">
               <div className="card-header"><div><p className="eyebrow">Programme performance</p><h3>Programme leaderboard</h3><p>Running standings across the programme. Released assignment scores, attendance points and bonus awards combine into one total.</p></div></div>
