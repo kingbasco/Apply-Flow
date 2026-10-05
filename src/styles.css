@@ -3987,8 +3987,46 @@ html.dark-theme .attendance-link-input input{color:#e7ebf1!important}
 html.dark-theme .attendance-link-input span{color:#858e9d!important}
 html.dark-theme .attendance-checkin-summary p:last-child{color:#929baa!important}
 
+.attendance-analytics-panel{margin:0 18px 18px;padding:18px;border:1px solid #e4e7ec;border-radius:14px;background:#fff}
+.attendance-analytics-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:14px}
+.attendance-analytics-heading h3{margin:3px 0 4px;font-size:17px}
+.attendance-analytics-heading p:last-child{margin:0;color:#7d8694;font-size:12px;line-height:1.5}
+.attendance-rate-badge{flex:0 0 auto;display:grid;justify-items:end;gap:1px}
+.attendance-rate-badge strong{font-size:26px;line-height:1;color:#26324a}
+.attendance-rate-badge span{font-size:10px;color:#8b94a2;text-transform:uppercase;letter-spacing:.06em}
+.attendance-analytics-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.attendance-metric{padding:13px 14px;border:1px solid #e7eaf0;border-radius:12px;background:#fafbfc;display:grid;gap:2px}
+.attendance-metric span{font-size:10px;color:#7c8593;text-transform:uppercase;letter-spacing:.05em}
+.attendance-metric strong{font-size:22px;line-height:1.15;color:#27303d}
+.attendance-metric small{font-size:10px;color:#9199a5;line-height:1.35}
+.attendance-metric.is-present{background:#f5fbf7;border-color:#d7ecdf}
+.attendance-metric.is-absent{background:#fafafa}
+.attendance-metric.is-pending{background:#fffaf0;border-color:#f1e4c7}
+.attendance-rate-track{height:7px;margin-top:14px;border-radius:999px;background:#edf0f4;overflow:hidden}
+.attendance-rate-track>span{display:block;height:100%;border-radius:999px;background:#39a76b;transition:width .25s ease}
+.attendance-roster-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;padding:0 18px 10px}
+.attendance-roster-heading h3{margin:3px 0 0;font-size:15px}
+.attendance-roster-heading>span{font-size:11px;color:#717a88;font-weight:600}
+html.dark-theme .attendance-analytics-panel{background:#171b23;border-color:#303642}
+html.dark-theme .attendance-analytics-heading p:last-child,
+html.dark-theme .attendance-rate-badge span,
+html.dark-theme .attendance-metric span,
+html.dark-theme .attendance-metric small,
+html.dark-theme .attendance-roster-heading>span{color:#929baa}
+html.dark-theme .attendance-rate-badge strong,
+html.dark-theme .attendance-metric strong{color:#e7ebf1}
+html.dark-theme .attendance-metric{background:#12161d;border-color:#303642}
+html.dark-theme .attendance-metric.is-present{background:#132019;border-color:#294536}
+html.dark-theme .attendance-metric.is-pending{background:#211d14;border-color:#4a4028}
+html.dark-theme .attendance-rate-track{background:#2a3039}
+
+@media(max-width:980px){.attendance-analytics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){
  .attendance-checkin-card{margin:0 12px 16px!important}
+ .attendance-analytics-panel{margin:0 12px 16px;padding:16px}
+ .attendance-analytics-heading{align-items:stretch;flex-direction:column}
+ .attendance-rate-badge{justify-items:start}
+ .attendance-roster-heading{padding:0 12px 10px;align-items:flex-start;flex-direction:column}
  .attendance-checkin-summary{align-items:stretch;flex-direction:column;padding:16px}
  .attendance-checkin-summary>button{width:100%}
  .attendance-link-panel{padding:14px}
@@ -3999,6 +4037,8 @@ html.dark-theme .attendance-checkin-summary p:last-child{color:#929baa!important
  .attendance-link-input{width:100%}
 }
 @media(max-width:480px){
+ .attendance-analytics-grid{grid-template-columns:1fr 1fr}
+ .attendance-metric{padding:12px}
  .attendance-link-url span{display:none}
  .attendance-link-input span{font-size:10px;max-width:46%;overflow:hidden;text-overflow:ellipsis}
 }
