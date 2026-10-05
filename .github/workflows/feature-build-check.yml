@@ -1,4 +1,5 @@
 name: Feature Build Check
+# Re-run after syntax fix
 on:
   push:
     branches: [feature/loan-interest-participants]
