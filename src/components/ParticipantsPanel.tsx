@@ -250,7 +250,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     setLoanInterestLoading(true);setError('')
     try{
       const candidateRows=participants.filter(p=>p.status!=='withdrawn'&&p.application_id===applicationFilter&&p.submission_id)
-      const submissionToParticipant=new Map(candidateRows.map(p=>[p.submission_id as string,p.id]))
+      const submissionToParticipant=new Map<string,string>(candidateRows.map(p=>[p.submission_id as string,p.id] as [string,string]))
       const submissionIds=[...submissionToParticipant.keys()]
       if(!submissionIds.length){setLoanInterestParticipantIds([]);return}
 
@@ -351,6 +351,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   useEffect(()=>{setParticipantPage(1)},[query,applicationFilter,statusFilter,staffFilter])
   useEffect(()=>{if(participantPage>participantPageCount)setParticipantPage(participantPageCount)},[participantPage,participantPageCount])
   useEffect(()=>{setLoanInterestPage(1)},[loanInterestQuery,applicationFilter])
+  useEffect(()=>{setSelectedParticipantIds([])},[applicationFilter])
   useEffect(()=>{if(loanInterestPage>loanInterestPageCount)setLoanInterestPage(loanInterestPageCount)},[loanInterestPage,loanInterestPageCount])
 
   const scopedParticipants=useMemo(()=>participants.filter(p=>p.status!=='withdrawn'&&(!applicationFilter||p.application_id===applicationFilter)),[participants,applicationFilter])
