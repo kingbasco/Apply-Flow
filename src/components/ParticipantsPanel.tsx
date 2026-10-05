@@ -68,11 +68,13 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [selectedSubmission,setSelectedSubmission]=useState<AssignmentSubmission|null>(null)
   const [submissionAnswers,setSubmissionAnswers]=useState<AssignmentAnswer[]>([])
   const [submissionDocuments,setSubmissionDocuments]=useState<AssignmentDocument[]>([])
+  const [submissionReviewLoading,setSubmissionReviewLoading]=useState(false)
+  const assignmentReviewScrollRef=useRef<HTMLDivElement>(null)
   const [gradeForm,setGradeForm]=useState({score:'',feedback:''})
   const [leaderboard,setLeaderboard]=useState<LeaderboardRow[]>([])
   const [leaderboardLoading,setLeaderboardLoading]=useState(false)
-  const [leaderboardPage,setLeaderboardPage]=useState(1)
-  const [leaderboardPageSize,setLeaderboardPageSize]=useState(50)
+  const [assignmentSubmissionPage,setAssignmentSubmissionPage]=useState(1)
+  const [assignmentSubmissionPageSize,setAssignmentSubmissionPageSize]=useState(20)
   const [selectedParticipant,setSelectedParticipant]=useState<Participant|null>(null)
   const participantProfileScrollRef=useRef<HTMLDivElement>(null)
   const [participantAttendance,setParticipantAttendance]=useState<ParticipantAttendance[]>([])
@@ -255,15 +257,6 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   useEffect(()=>{setParticipantPage(1)},[query,applicationFilter,statusFilter,staffFilter])
   useEffect(()=>{if(participantPage>participantPageCount)setParticipantPage(participantPageCount)},[participantPage,participantPageCount])
 
-  const leaderboardPageCount=Math.max(1,Math.ceil(leaderboard.length/leaderboardPageSize))
-  const currentLeaderboardPage=Math.min(leaderboardPage,leaderboardPageCount)
-  const pagedLeaderboard=useMemo(
-    ()=>leaderboard.slice((currentLeaderboardPage-1)*leaderboardPageSize,currentLeaderboardPage*leaderboardPageSize),
-    [leaderboard,currentLeaderboardPage,leaderboardPageSize]
-  )
-
-  useEffect(()=>{if(leaderboardPage>leaderboardPageCount)setLeaderboardPage(leaderboardPageCount)},[leaderboardPage,leaderboardPageCount])
-
   const scopedParticipants=useMemo(()=>participants.filter(p=>p.status!=='withdrawn'&&(!applicationFilter||p.application_id===applicationFilter)),[participants,applicationFilter])
   const scopedSessions=useMemo(()=>sessions.filter(s=>!applicationFilter||s.application_id===applicationFilter),[sessions,applicationFilter])
   const scopedBenefits=useMemo(()=>benefits.filter(b=>!applicationFilter||b.application_id===applicationFilter),[benefits,applicationFilter])
@@ -275,7 +268,6 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   }),[scopedParticipants])
 
   async function loadLeaderboard(applicationId:string){
-    setLeaderboardPage(1)
     if(!applicationId||applicationId==='all'){setLeaderboard([]);return}
     setLeaderboardLoading(true)
     const {data,error}=await supabase.rpc('get_assignment_leaderboard',{p_application_id:applicationId})
