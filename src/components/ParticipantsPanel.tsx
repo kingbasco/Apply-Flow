@@ -168,6 +168,23 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   },[selectedParticipant?.id])
 
   useEffect(()=>{
+    if(!selectedSubmission)return
+    const previousBodyOverflow=document.body.style.overflow
+    const previousHtmlOverflow=document.documentElement.style.overflow
+    document.body.style.overflow='hidden'
+    document.documentElement.style.overflow='hidden'
+    const frame=window.requestAnimationFrame(()=>assignmentReviewScrollRef.current?.scrollTo({top:0,left:0,behavior:'auto'}))
+    const onKeyDown=(event:KeyboardEvent)=>{if(event.key==='Escape')setSelectedSubmission(null)}
+    window.addEventListener('keydown',onKeyDown)
+    return()=>{
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('keydown',onKeyDown)
+      document.body.style.overflow=previousBodyOverflow
+      document.documentElement.style.overflow=previousHtmlOverflow
+    }
+  },[selectedSubmission?.id])
+
+  useEffect(()=>{
     setApplicationFilter(current=>applications.some(a=>a.id===current)?current:(applications[0]?.id||''))
   },[applications])
 
@@ -801,14 +818,16 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   }
 
   async function openAssignmentSubmission(submission:AssignmentSubmission){
-    setSelectedSubmission(submission);setGradeForm({score:submission.score===null?'':String(submission.score),feedback:submission.feedback||''});setError('')
-    const [answers,documents]=await Promise.all([
-      supabase.from('assignment_answers').select('id,question_id,value,assignment_questions(label,type,position)').eq('submission_id',submission.id),
-      supabase.from('assignment_documents').select('id,question_id,storage_bucket,storage_path,original_name,mime_type,file_size').eq('submission_id',submission.id)
-    ])
-    if(answers.error){setError(answers.error.message);return}
-    if(documents.error){setError(documents.error.message);return}
-    setSubmissionAnswers((answers.data||[]) as unknown as AssignmentAnswer[]);setSubmissionDocuments((documents.data||[]) as AssignmentDocument[])
+    setSelectedSubmission(submission);setSubmissionAnswers([]);setSubmissionDocuments([]);setSubmissionReviewLoading(true);setGradeForm({score:submission.score===null?'':String(submission.score),feedback:submission.feedback||''});setError('')
+    try{
+      const [answers,documents]=await Promise.all([
+        supabase.from('assignment_answers').select('id,question_id,value,assignment_questions(label,type,position)').eq('submission_id',submission.id),
+        supabase.from('assignment_documents').select('id,question_id,storage_bucket,storage_path,original_name,mime_type,file_size').eq('submission_id',submission.id)
+      ])
+      if(answers.error)throw answers.error
+      if(documents.error)throw documents.error
+      setSubmissionAnswers((answers.data||[]) as unknown as AssignmentAnswer[]);setSubmissionDocuments((documents.data||[]) as AssignmentDocument[])
+    }catch(e){setError(friendlyErrorMessage(e,'Could not load this submission.'))}finally{setSubmissionReviewLoading(false)}
   }
   async function gradeSubmission(e:FormEvent){
     e.preventDefault();if(!selectedSubmission||!selectedAssignment)return
@@ -819,7 +838,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       const {data,error}=await supabase.rpc('grade_assignment_submission',{p_submission_id:selectedSubmission.id,p_score:score,p_feedback:gradeForm.feedback})
       if(error)throw error
       const updated={...selectedSubmission,score,status:'graded' as const,feedback:gradeForm.feedback||null,graded_at:data.graded_at}
-      setSelectedSubmission(updated);setAssignmentSubmissions(x=>x.map(s=>s.id===updated.id?updated:s));await loadLeaderboard(selectedAssignment.application_id);setNotice('Grade saved.')
+      setSelectedSubmission(updated);setAssignmentSubmissions(x=>x.map(s=>s.id===updated.id?updated:s));setNotice('Grade saved.')
     }catch(e){setError(friendlyErrorMessage(e,'Could not save grade.'))}finally{setSaving(false)}
   }
   async function openAssignmentDocument(doc:AssignmentDocument){
