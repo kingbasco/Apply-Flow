@@ -249,47 +249,9 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     if(!isAdmin||!applicationFilter){setLoanInterestParticipantIds([]);return}
     setLoanInterestLoading(true);setError('')
     try{
-      const candidateRows=participants.filter(p=>p.status!=='withdrawn'&&p.application_id===applicationFilter&&p.submission_id)
-      const submissionToParticipant=new Map<string,string>(candidateRows.map(p=>[p.submission_id as string,p.id] as [string,string]))
-      const submissionIds=[...submissionToParticipant.keys()]
-      if(!submissionIds.length){setLoanInterestParticipantIds([]);return}
-
-      const versionBySubmission=new Map<string,string>()
-      for(let i=0;i<submissionIds.length;i+=200){
-        const {data,error}=await supabase.from('submissions').select('id,form_version_id').in('id',submissionIds.slice(i,i+200))
-        if(error)throw error
-        for(const row of data||[])if(row.form_version_id)versionBySubmission.set(row.id,row.form_version_id)
-      }
-
-      const versionIds=[...new Set(versionBySubmission.values())]
-      if(!versionIds.length){setLoanInterestParticipantIds([]);return}
-      const loanQuestionIds:string[]=[]
-      for(let i=0;i<versionIds.length;i+=100){
-        const {data,error}=await supabase.from('questions')
-          .select('id,label,form_version_id')
-          .in('form_version_id',versionIds.slice(i,i+100))
-          .ilike('label','%interested in getting a business loan%')
-        if(error)throw error
-        for(const row of data||[])if(cleanExportLabel(row.label).toLowerCase()==='are you interested in getting a business loan?')loanQuestionIds.push(row.id)
-      }
-
-      if(!loanQuestionIds.length){setLoanInterestParticipantIds([]);return}
-      const interested=new Set<string>()
-      for(let si=0;si<submissionIds.length;si+=200){
-        for(let qi=0;qi<loanQuestionIds.length;qi+=100){
-          const {data,error}=await supabase.from('answers')
-            .select('submission_id,question_id,value')
-            .in('submission_id',submissionIds.slice(si,si+200))
-            .in('question_id',loanQuestionIds.slice(qi,qi+100))
-          if(error)throw error
-          for(const answer of data||[]){
-            if(answerText(answer.value).trim().toLowerCase()!=='yes')continue
-            const participantId=submissionToParticipant.get(answer.submission_id)
-            if(participantId)interested.add(participantId)
-          }
-        }
-      }
-      setLoanInterestParticipantIds([...interested])
+      const {data,error}=await supabase.rpc('get_loan_interest_participant_ids',{p_application_id:applicationFilter})
+      if(error)throw error
+      setLoanInterestParticipantIds(((data||[]) as {participant_id:string}[]).map(row=>row.participant_id))
     }catch(e){
       setLoanInterestParticipantIds([])
       setError(friendlyErrorMessage(e,'Could not load participants interested in a business loan.'))
