@@ -894,7 +894,28 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     }catch(e){setError(friendlyErrorMessage(e,'Could not update assignment.'))}finally{setSaving(false)}
   }
 
-  const selectedAttendance=selectedSession?sessionAttendance:[]
+  const attendanceRoster=useMemo(()=>{
+    if(!selectedSession)return []
+    const recordsByParticipant=new Map(sessionAttendance.map(record=>[record.participant_id,record]))
+    const statusOrder:Record<'present'|'absent'|'not_marked',number>={present:0,absent:1,not_marked:2}
+    return participants
+      .filter(participant=>participant.application_id===selectedSession.application_id&&participant.status!=='withdrawn')
+      .map(participant=>{
+        const record=recordsByParticipant.get(participant.id)||null
+        const status=(record?.status||'not_marked') as 'present'|'absent'|'not_marked'
+        return {participant,record,status}
+      })
+      .sort((a,b)=>statusOrder[a.status]-statusOrder[b.status]||(a.participant.full_name||a.participant.participant_id).localeCompare(b.participant.full_name||b.participant.participant_id))
+  },[selectedSession,sessionAttendance,participants])
+
+  const attendanceSummary=useMemo(()=>{
+    const total=attendanceRoster.length
+    const present=attendanceRoster.filter(row=>row.status==='present').length
+    const absent=attendanceRoster.filter(row=>row.status==='absent').length
+    const notMarked=attendanceRoster.filter(row=>row.status==='not_marked').length
+    const rate=total?Math.round((present/total)*100):0
+    return {total,present,absent,notMarked,rate}
+  },[attendanceRoster])
 
   if(loading)return <div className="loading-card card">Loading participants…</div>
 
@@ -1010,8 +1031,22 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
                 </div>}
               </div>
             </div>}
-            <div className="table-wrap"><table><thead><tr><th>Participant</th><th>ID</th><th>Status</th><th></th></tr></thead><tbody>
-              {selectedAttendance.length?selectedAttendance.map(r=><tr key={r.participant_id}><td><strong>{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.full_name:r.participants?.applicants?.full_name||'Unnamed participant'}</strong><span className="table-sub">{Array.isArray(r.participants?.applicants)?r.participants?.applicants[0]?.email:r.participants?.applicants?.email||''}</span></td><td>{r.participants?.participant_id}</td><td><span className={'status '+(r.status==='present'?'green':'neutral')}>{r.status}</span></td><td>{isAdmin&&r.status==='present'?<button className="text-button" disabled={saving} onClick={()=>markAbsent(r.participant_id)}>Mark absent</button>:null}</td></tr>):<tr><td colSpan={4}><div className="table-empty">No attendance recorded for this session.</div></td></tr>}
+            <div className="attendance-analytics-panel">
+              <div className="attendance-analytics-heading">
+                <div><p className="eyebrow">Attendance analytics</p><h3>Session summary</h3><p>See who checked in, who was marked absent, and who has not recorded attendance yet.</p></div>
+                <div className="attendance-rate-badge"><strong>{attendanceSummary.rate}%</strong><span>attendance rate</span></div>
+              </div>
+              <div className="attendance-analytics-grid">
+                <div className="attendance-metric"><span>Participants</span><strong>{attendanceSummary.total}</strong><small>in this programme</small></div>
+                <div className="attendance-metric is-present"><span>Present</span><strong>{attendanceSummary.present}</strong><small>marked attendance</small></div>
+                <div className="attendance-metric is-absent"><span>Absent</span><strong>{attendanceSummary.absent}</strong><small>explicitly marked absent</small></div>
+                <div className="attendance-metric is-pending"><span>Not marked</span><strong>{attendanceSummary.notMarked}</strong><small>no record yet</small></div>
+              </div>
+              <div className="attendance-rate-track" aria-label={'Attendance rate '+attendanceSummary.rate+' percent'}><span style={{width:attendanceSummary.rate+'%'}}/></div>
+            </div>
+            <div className="attendance-roster-heading"><div><p className="eyebrow">Attendance roster</p><h3>Participant status</h3></div><span>{attendanceSummary.present} of {attendanceSummary.total} present</span></div>
+            <div className="table-wrap"><table><thead><tr><th>Participant</th><th>ID</th><th>Status</th><th>Recorded</th><th></th></tr></thead><tbody>
+              {attendanceRoster.length?attendanceRoster.map(({participant,record,status})=><tr key={participant.id}><td><strong>{participant.full_name||'Unnamed participant'}</strong><span className="table-sub">{participant.email||''}</span></td><td>{participant.participant_id}</td><td><span className={'status '+(status==='present'?'green':status==='absent'?'neutral':'amber')}>{status==='not_marked'?'Not marked':status}</span></td><td>{record?new Date(record.marked_at).toLocaleString():'—'}</td><td>{isAdmin&&status==='present'?<button className="text-button" disabled={saving} onClick={()=>markAbsent(participant.id)}>Mark absent</button>:null}</td></tr>):<tr><td colSpan={5}><div className="table-empty">No participants are available for this session’s programme.</div></td></tr>}
             </tbody></table></div>
             {isAdmin&&<div className="attendance-import-box">
               <div className="attendance-import-heading"><div><p className="eyebrow">Import attendance</p><h3>Participant IDs</h3><p>Paste participant IDs from Google Meet, one per line or separated by commas.</p></div><Upload size={19}/></div>
