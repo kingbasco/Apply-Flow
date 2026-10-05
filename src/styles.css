@@ -3031,6 +3031,19 @@ html.dark-theme .assignment-attachment-icon{background:#25243a}
 .assignment-answer-row{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;padding:14px;border:1px solid #e8eaf0;border-radius:12px;background:#fafbfc}
 .assignment-answer-row>span{font-weight:800;color:#697184}
 .assignment-answer-row p{margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.assignment-review-backdrop{z-index:120;padding:20px}
+.assignment-review-modal{width:min(920px,calc(100vw - 32px));max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #e4e7ec;border-radius:18px;box-shadow:0 28px 80px rgba(16,24,40,.24)}
+.assignment-review-modal-header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:20px 22px 16px;border-bottom:1px solid #eef0f3;flex:0 0 auto}
+.assignment-review-modal-header h2{margin:3px 0 4px;font-size:20px}
+.assignment-review-modal-header p:last-child{margin:0;color:#7c8594;font-size:11px}
+.assignment-review-modal-body{min-height:0;overflow:auto;overscroll-behavior:contain;padding:18px 20px 24px}
+.assignment-review-modal-body .assignment-attachments-panel{margin-top:0}
+.assignment-grade-modal-form{margin-top:18px}
+html.dark-theme .assignment-review-modal{background:#171b23;border-color:#303642;color:#e7ebf1}
+html.dark-theme .assignment-review-modal-header{border-bottom-color:#303642}
+html.dark-theme .assignment-review-modal-header p:last-child{color:#929baa}
+@media(max-width:620px){.assignment-review-backdrop{padding:8px}.assignment-review-modal{width:100%;max-height:calc(100vh - 16px);border-radius:14px}.assignment-review-modal-header{padding:16px}.assignment-review-modal-body{padding:14px 14px 20px}}
+
 .assignment-grade-form{padding:18px;border:1px solid #e7e9ef;border-radius:14px;background:#fff}
 .assignments-layout>.assignment-column:first-child .modal-form{padding:20px 22px}
 .assignments-layout>.assignment-column:first-child .table-wrap{border-top:1px solid #eef0f4}
