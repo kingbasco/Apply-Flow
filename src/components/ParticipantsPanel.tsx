@@ -917,6 +917,30 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     return {total,present,absent,notMarked,rate}
   },[attendanceRoster])
 
+  const assignmentRoster=useMemo(()=>{
+    if(!selectedAssignment)return []
+    const submissionsByParticipant=new Map(assignmentSubmissions.map(submission=>[submission.participant_id,submission]))
+    const statusOrder:Record<'submitted'|'graded'|'not_submitted',number>={submitted:0,graded:1,not_submitted:2}
+    return participants
+      .filter(participant=>participant.application_id===selectedAssignment.application_id&&participant.status!=='withdrawn')
+      .map(participant=>{
+        const submission=submissionsByParticipant.get(participant.id)||null
+        const status=(submission?.status||'not_submitted') as 'submitted'|'graded'|'not_submitted'
+        return {participant,submission,status}
+      })
+      .sort((a,b)=>statusOrder[a.status]-statusOrder[b.status]||(a.participant.full_name||a.participant.participant_id).localeCompare(b.participant.full_name||b.participant.participant_id))
+  },[selectedAssignment,assignmentSubmissions,participants])
+
+  const assignmentSummary=useMemo(()=>{
+    const total=assignmentRoster.length
+    const submitted=assignmentRoster.filter(row=>row.submission!==null).length
+    const graded=assignmentRoster.filter(row=>row.status==='graded').length
+    const awaitingGrade=assignmentRoster.filter(row=>row.status==='submitted').length
+    const notSubmitted=assignmentRoster.filter(row=>row.status==='not_submitted').length
+    const rate=total?Math.round((submitted/total)*100):0
+    return {total,submitted,graded,awaitingGrade,notSubmitted,rate}
+  },[assignmentRoster])
+
   if(loading)return <div className="loading-card card">Loading participants…</div>
 
   return <section>
@@ -1080,8 +1104,22 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
             <div className="assignment-question-list">{(assignmentQuestions[selectedAssignment.id]||[]).length?(assignmentQuestions[selectedAssignment.id]||[]).map((q,i)=><div key={q.id} className="assignment-question-item">{editingQuestionId===q.id?<form className="assignment-inline-question-edit" onSubmit={saveAssignmentQuestion}><label>Question<input value={editQuestionForm.label} onChange={e=>setEditQuestionForm(x=>({...x,label:e.target.value}))} required/></label><div className="assignment-form-grid"><label>Answer type<select value={editQuestionForm.type} onChange={e=>setEditQuestionForm(x=>({...x,type:e.target.value as AssignmentQuestion['type']}))}><option value="short_text">Short answer</option><option value="long_text">Long answer</option><option value="number">Number</option><option value="single_choice">Single choice</option><option value="multiple_choice">Multiple choice</option><option value="file">File upload</option><option value="url">Link / URL</option></select></label><label className="assignment-checkbox"><input type="checkbox" checked={editQuestionForm.required} onChange={e=>setEditQuestionForm(x=>({...x,required:e.target.checked}))}/> Required</label></div>{(editQuestionForm.type==='single_choice'||editQuestionForm.type==='multiple_choice')&&<div className="assignment-options-editor"><div className="assignment-options-heading"><strong>Answer options</strong><button type="button" className="text-button" onClick={()=>setEditQuestionForm(x=>({...x,options:[...x.options,'']}))}><Plus size={15}/> Add option</button></div><div className="assignment-option-list">{editQuestionForm.options.map((option,index)=><div className="assignment-option-row" key={index}><span>{index+1}</span><input value={option} onChange={e=>setEditQuestionForm(x=>({...x,options:x.options.map((item,j)=>j===index?e.target.value:item)}))} required/><button type="button" className="icon-button" disabled={editQuestionForm.options.length<=2} onClick={()=>setEditQuestionForm(x=>({...x,options:x.options.filter((_,j)=>j!==index)}))}><X size={15}/></button></div>)}</div></div>}<div className="assignment-edit-actions"><button type="button" className="secondary-button" onClick={()=>setEditingQuestionId(null)}>Cancel</button><button className="primary-button" disabled={saving}>{saving?'Saving…':'Save question'}</button></div></form>:<div className="assignment-question-row"><span>{i+1}</span><div><strong>{q.label}</strong><small>{q.type.replaceAll('_',' ')} · {q.required?'Required':'Optional'}</small></div>{isAdmin&&editingAssignment&&<div className="assignment-question-actions"><button type="button" className="icon-button" aria-label="Edit question" onClick={()=>startEditQuestion(q)}><Pencil size={15}/></button><button type="button" className="icon-button danger-icon-button" aria-label="Delete question" onClick={()=>deleteAssignmentQuestion(q)} disabled={saving}><Trash2 size={15}/></button></div>}</div>}</div>):<div className="table-empty">No questions yet.</div>}</div>
             {isAdmin&&<div className="assignment-actions">{selectedAssignment.status==='draft'?<button className="primary-button" onClick={()=>setAssignmentStatus('published')} disabled={saving||!(assignmentQuestions[selectedAssignment.id]||[]).length}>Publish assignment</button>:selectedAssignment.status==='published'?<button className="secondary-button" onClick={()=>setAssignmentStatus('closed')} disabled={saving}>Close assignment</button>:null}</div>}
             <div className="assignment-submissions-section">
-              <div className="card-header"><div><p className="eyebrow">Submissions</p><h3>Participant work</h3><p>{assignmentSubmissions.length} submission{assignmentSubmissions.length===1?'':'s'} received.</p></div></div>
-              <div className="table-wrap"><table><thead><tr><th>Participant</th><th>Submitted</th><th>Score</th><th>Status</th></tr></thead><tbody>{assignmentSubmissions.length?assignmentSubmissions.map(s=><tr key={s.id} className={selectedSubmission?.id===s.id?'clickable-row selected-row':'clickable-row'} onClick={()=>openAssignmentSubmission(s)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openAssignmentSubmission(s)}}} tabIndex={0} role="button" aria-label={'Open assignment submission for '+(s.participants?.applicants?.full_name||s.participants?.participant_id||'participant')}><td><strong>{s.participants?.applicants?.full_name||s.participants?.participant_id||'Participant'}</strong><span className="table-sub">{s.participants?.participant_id||''}</span></td><td>{new Date(s.submitted_at).toLocaleString()}</td><td>{s.score===null?'—':s.score+'/'+selectedAssignment.max_score}</td><td><span className={'status '+(s.status==='graded'?'green':'blue')}>{s.status}</span></td></tr>):<tr><td colSpan={4}><div className="table-empty">No submissions yet.</div></td></tr>}</tbody></table></div>
+              <div className="card-header"><div><p className="eyebrow">Submissions</p><h3>Participant work</h3><p>Track submission progress across everyone in this programme.</p></div></div>
+              <div className="attendance-analytics-panel assignment-analytics-panel">
+                <div className="attendance-analytics-heading">
+                  <div><p className="eyebrow">Assignment analytics</p><h3>Submission summary</h3><p>See who submitted, what still needs grading, and who has not submitted yet.</p></div>
+                  <div className="attendance-rate-badge"><strong>{assignmentSummary.rate}%</strong><span>submission rate</span></div>
+                </div>
+                <div className="attendance-analytics-grid">
+                  <div className="attendance-metric"><span>Participants</span><strong>{assignmentSummary.total}</strong><small>in this programme</small></div>
+                  <div className="attendance-metric is-present"><span>Submitted</span><strong>{assignmentSummary.submitted}</strong><small>{assignmentSummary.awaitingGrade} awaiting grade</small></div>
+                  <div className="attendance-metric"><span>Graded</span><strong>{assignmentSummary.graded}</strong><small>review completed</small></div>
+                  <div className="attendance-metric is-pending"><span>Not submitted</span><strong>{assignmentSummary.notSubmitted}</strong><small>no submission yet</small></div>
+                </div>
+                <div className="attendance-rate-track" aria-label={'Submission rate '+assignmentSummary.rate+' percent'}><span style={{width:assignmentSummary.rate+'%'}}/></div>
+              </div>
+              <div className="attendance-roster-heading"><div><p className="eyebrow">Assignment roster</p><h3>Participant submission status</h3></div><span>{assignmentSummary.submitted} of {assignmentSummary.total} submitted</span></div>
+              <div className="table-wrap"><table><thead><tr><th>Participant</th><th>Submitted</th><th>Score</th><th>Status</th></tr></thead><tbody>{assignmentRoster.length?assignmentRoster.map(({participant,submission,status})=>submission?<tr key={participant.id} className={selectedSubmission?.id===submission.id?'clickable-row selected-row':'clickable-row'} onClick={()=>openAssignmentSubmission(submission)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openAssignmentSubmission(submission)}}} tabIndex={0} role="button" aria-label={'Open assignment submission for '+(participant.full_name||participant.participant_id)}><td><strong>{participant.full_name||participant.participant_id}</strong><span className="table-sub">{participant.participant_id}</span></td><td>{new Date(submission.submitted_at).toLocaleString()}</td><td>{submission.score===null?'—':submission.score+'/'+selectedAssignment.max_score}</td><td><span className={'status '+(status==='graded'?'green':'blue')}>{status==='graded'?'Graded':'Submitted'}</span></td></tr>:<tr key={participant.id}><td><strong>{participant.full_name||participant.participant_id}</strong><span className="table-sub">{participant.participant_id}</span></td><td>—</td><td>—</td><td><span className="status amber">Not submitted</span></td></tr>):<tr><td colSpan={4}><div className="table-empty">No participants are available for this assignment’s programme.</div></td></tr>}</tbody></table></div>
             </div>
             <div className="assignment-leaderboard">
               <div className="card-header"><div><p className="eyebrow">Programme performance</p><h3>Programme leaderboard</h3><p>Running standings across the programme. Released assignment scores, attendance points and bonus awards combine into one total.</p></div></div>
