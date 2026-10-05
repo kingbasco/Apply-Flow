@@ -3003,6 +3003,24 @@ html.dark-theme .afx-landing .afx-floating-card-two{
 .assignment-answer-list{display:grid;gap:10px;margin-bottom:20px}
 .assignment-document-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .assignment-document-list .text-button{display:inline-flex;align-items:center;gap:5px}
+.assignment-attachments-panel{margin:0 0 18px;padding:16px;border:1px solid #e4e7ec;border-radius:14px;background:#fff}
+.assignment-attachments-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px}
+.assignment-attachments-heading h4{margin:3px 0 4px;font-size:16px}
+.assignment-attachments-heading p:last-child{margin:0;color:#7d8694;font-size:12px}
+.assignment-attachments-list{display:grid;gap:8px}
+.assignment-attachment-card{width:100%;display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:center;gap:10px;padding:11px 12px;border:1px solid #e7eaf0;border-radius:11px;background:#fafbfc;text-align:left;cursor:pointer}
+.assignment-attachment-card:hover{border-color:#cfd5df;background:#f6f8fb}
+.assignment-attachment-icon{width:36px;height:36px;display:grid;place-items:center;border-radius:9px;background:#efefff;color:#6259df}
+.assignment-attachment-copy{min-width:0;display:grid;gap:2px}
+.assignment-attachment-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:#2d3440}
+.assignment-attachment-copy small{font-size:11px;color:#858e9b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.assignment-attachment-action{font-size:11px;font-weight:700;color:#6259df}
+html.dark-theme .assignment-attachments-panel{background:#171b23;border-color:#303642}
+html.dark-theme .assignment-attachments-heading p:last-child,.dark-theme .assignment-attachment-copy small{color:#929baa}
+html.dark-theme .assignment-attachment-card{background:#12161d;border-color:#303642}
+html.dark-theme .assignment-attachment-copy strong{color:#e7ebf1}
+html.dark-theme .assignment-attachment-icon{background:#25243a}
+@media(max-width:620px){.assignment-attachments-heading{flex-direction:column}.assignment-attachment-card{grid-template-columns:36px minmax(0,1fr)}.assignment-attachment-action{grid-column:2}}
 .assignment-answer-row{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;padding:14px;border:1px solid #e8eaf0;border-radius:12px;background:#fafbfc}
 .assignment-answer-row>span{font-weight:800;color:#697184}
 .assignment-answer-row p{margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
