@@ -68,11 +68,13 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [selectedSubmission,setSelectedSubmission]=useState<AssignmentSubmission|null>(null)
   const [submissionAnswers,setSubmissionAnswers]=useState<AssignmentAnswer[]>([])
   const [submissionDocuments,setSubmissionDocuments]=useState<AssignmentDocument[]>([])
+  const [submissionReviewLoading,setSubmissionReviewLoading]=useState(false)
+  const assignmentReviewScrollRef=useRef<HTMLDivElement>(null)
   const [gradeForm,setGradeForm]=useState({score:'',feedback:''})
   const [leaderboard,setLeaderboard]=useState<LeaderboardRow[]>([])
   const [leaderboardLoading,setLeaderboardLoading]=useState(false)
-  const [leaderboardPage,setLeaderboardPage]=useState(1)
-  const [leaderboardPageSize,setLeaderboardPageSize]=useState(50)
+  const [assignmentSubmissionPage,setAssignmentSubmissionPage]=useState(1)
+  const [assignmentSubmissionPageSize,setAssignmentSubmissionPageSize]=useState(20)
   const [selectedParticipant,setSelectedParticipant]=useState<Participant|null>(null)
   const participantProfileScrollRef=useRef<HTMLDivElement>(null)
   const [participantAttendance,setParticipantAttendance]=useState<ParticipantAttendance[]>([])
@@ -166,6 +168,23 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   },[selectedParticipant?.id])
 
   useEffect(()=>{
+    if(!selectedSubmission)return
+    const previousBodyOverflow=document.body.style.overflow
+    const previousHtmlOverflow=document.documentElement.style.overflow
+    document.body.style.overflow='hidden'
+    document.documentElement.style.overflow='hidden'
+    const frame=window.requestAnimationFrame(()=>assignmentReviewScrollRef.current?.scrollTo({top:0,left:0,behavior:'auto'}))
+    const onKeyDown=(event:KeyboardEvent)=>{if(event.key==='Escape')setSelectedSubmission(null)}
+    window.addEventListener('keydown',onKeyDown)
+    return()=>{
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('keydown',onKeyDown)
+      document.body.style.overflow=previousBodyOverflow
+      document.documentElement.style.overflow=previousHtmlOverflow
+    }
+  },[selectedSubmission?.id])
+
+  useEffect(()=>{
     setApplicationFilter(current=>applications.some(a=>a.id===current)?current:(applications[0]?.id||''))
   },[applications])
 
@@ -255,15 +274,6 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   useEffect(()=>{setParticipantPage(1)},[query,applicationFilter,statusFilter,staffFilter])
   useEffect(()=>{if(participantPage>participantPageCount)setParticipantPage(participantPageCount)},[participantPage,participantPageCount])
 
-  const leaderboardPageCount=Math.max(1,Math.ceil(leaderboard.length/leaderboardPageSize))
-  const currentLeaderboardPage=Math.min(leaderboardPage,leaderboardPageCount)
-  const pagedLeaderboard=useMemo(
-    ()=>leaderboard.slice((currentLeaderboardPage-1)*leaderboardPageSize,currentLeaderboardPage*leaderboardPageSize),
-    [leaderboard,currentLeaderboardPage,leaderboardPageSize]
-  )
-
-  useEffect(()=>{if(leaderboardPage>leaderboardPageCount)setLeaderboardPage(leaderboardPageCount)},[leaderboardPage,leaderboardPageCount])
-
   const scopedParticipants=useMemo(()=>participants.filter(p=>p.status!=='withdrawn'&&(!applicationFilter||p.application_id===applicationFilter)),[participants,applicationFilter])
   const scopedSessions=useMemo(()=>sessions.filter(s=>!applicationFilter||s.application_id===applicationFilter),[sessions,applicationFilter])
   const scopedBenefits=useMemo(()=>benefits.filter(b=>!applicationFilter||b.application_id===applicationFilter),[benefits,applicationFilter])
@@ -275,7 +285,6 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   }),[scopedParticipants])
 
   async function loadLeaderboard(applicationId:string){
-    setLeaderboardPage(1)
     if(!applicationId||applicationId==='all'){setLeaderboard([]);return}
     setLeaderboardLoading(true)
     const {data,error}=await supabase.rpc('get_assignment_leaderboard',{p_application_id:applicationId})
@@ -760,7 +769,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     }catch(e){setError(friendlyErrorMessage(e,'Could not create assignment.'))}finally{setSaving(false)}
   }
   async function openAssignment(assignment:Assignment){
-    setSelectedAssignment(assignment);setSelectedSubmission(null);setEditingAssignment(false);setEditAssignmentForm({title:assignment.title,description:assignment.description||'',instructions:assignment.instructions||'',deadline:assignment.deadline?new Date(assignment.deadline).toISOString().slice(0,16):'',max_score:String(assignment.max_score),pass_mark:String(assignment.pass_mark)});setError('')
+    setSelectedAssignment(assignment);setSelectedSubmission(null);setAssignmentSubmissionPage(1);setEditingAssignment(false);setEditAssignmentForm({title:assignment.title,description:assignment.description||'',instructions:assignment.instructions||'',deadline:assignment.deadline?new Date(assignment.deadline).toISOString().slice(0,16):'',max_score:String(assignment.max_score),pass_mark:String(assignment.pass_mark)});setError('')
     const [questions,submissions]=await Promise.all([
       supabase.from('assignment_questions').select('id,assignment_id,type,label,description,required,position,config').eq('assignment_id',assignment.id).order('position'),
       supabase.from('assignment_submissions').select('id,assignment_id,participant_id,status,submitted_at,score,feedback,graded_at,participants(participant_id,applicants(full_name,email))').eq('assignment_id',assignment.id).order('submitted_at',{ascending:false})
@@ -768,7 +777,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     if(questions.error){setError(questions.error.message);return}
     if(submissions.error){setError(submissions.error.message);return}
     setAssignmentQuestions(x=>({...x,[assignment.id]:(questions.data||[]) as AssignmentQuestion[]}))
-    setAssignmentSubmissions((submissions.data||[]) as unknown as AssignmentSubmission[]);loadLeaderboard(assignment.application_id)
+    setAssignmentSubmissions((submissions.data||[]) as unknown as AssignmentSubmission[])
   }
   async function updateAssignment(e:FormEvent){
     e.preventDefault();if(!selectedAssignment||!editAssignmentForm.title.trim())return
@@ -809,14 +818,16 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   }
 
   async function openAssignmentSubmission(submission:AssignmentSubmission){
-    setSelectedSubmission(submission);setGradeForm({score:submission.score===null?'':String(submission.score),feedback:submission.feedback||''});setError('')
-    const [answers,documents]=await Promise.all([
-      supabase.from('assignment_answers').select('id,question_id,value,assignment_questions(label,type,position)').eq('submission_id',submission.id),
-      supabase.from('assignment_documents').select('id,question_id,storage_bucket,storage_path,original_name,mime_type,file_size').eq('submission_id',submission.id)
-    ])
-    if(answers.error){setError(answers.error.message);return}
-    if(documents.error){setError(documents.error.message);return}
-    setSubmissionAnswers((answers.data||[]) as unknown as AssignmentAnswer[]);setSubmissionDocuments((documents.data||[]) as AssignmentDocument[])
+    setSelectedSubmission(submission);setSubmissionAnswers([]);setSubmissionDocuments([]);setSubmissionReviewLoading(true);setGradeForm({score:submission.score===null?'':String(submission.score),feedback:submission.feedback||''});setError('')
+    try{
+      const [answers,documents]=await Promise.all([
+        supabase.from('assignment_answers').select('id,question_id,value,assignment_questions(label,type,position)').eq('submission_id',submission.id),
+        supabase.from('assignment_documents').select('id,question_id,storage_bucket,storage_path,original_name,mime_type,file_size').eq('submission_id',submission.id)
+      ])
+      if(answers.error)throw answers.error
+      if(documents.error)throw documents.error
+      setSubmissionAnswers((answers.data||[]) as unknown as AssignmentAnswer[]);setSubmissionDocuments((documents.data||[]) as AssignmentDocument[])
+    }catch(e){setError(friendlyErrorMessage(e,'Could not load this submission.'))}finally{setSubmissionReviewLoading(false)}
   }
   async function gradeSubmission(e:FormEvent){
     e.preventDefault();if(!selectedSubmission||!selectedAssignment)return
@@ -827,7 +838,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       const {data,error}=await supabase.rpc('grade_assignment_submission',{p_submission_id:selectedSubmission.id,p_score:score,p_feedback:gradeForm.feedback})
       if(error)throw error
       const updated={...selectedSubmission,score,status:'graded' as const,feedback:gradeForm.feedback||null,graded_at:data.graded_at}
-      setSelectedSubmission(updated);setAssignmentSubmissions(x=>x.map(s=>s.id===updated.id?updated:s));await loadLeaderboard(selectedAssignment.application_id);setNotice('Grade saved.')
+      setSelectedSubmission(updated);setAssignmentSubmissions(x=>x.map(s=>s.id===updated.id?updated:s));setNotice('Grade saved.')
     }catch(e){setError(friendlyErrorMessage(e,'Could not save grade.'))}finally{setSaving(false)}
   }
   async function openAssignmentDocument(doc:AssignmentDocument){
@@ -940,6 +951,14 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     const rate=total?Math.round((submitted/total)*100):0
     return {total,submitted,graded,awaitingGrade,notSubmitted,rate}
   },[assignmentRoster])
+
+  const assignmentSubmissionPageCount=assignmentSubmissionPageSize===0?1:Math.max(1,Math.ceil(assignmentRoster.length/assignmentSubmissionPageSize))
+  const currentAssignmentSubmissionPage=Math.min(assignmentSubmissionPage,assignmentSubmissionPageCount)
+  const pagedAssignmentRoster=useMemo(
+    ()=>assignmentSubmissionPageSize===0?assignmentRoster:assignmentRoster.slice((currentAssignmentSubmissionPage-1)*assignmentSubmissionPageSize,currentAssignmentSubmissionPage*assignmentSubmissionPageSize),
+    [assignmentRoster,currentAssignmentSubmissionPage,assignmentSubmissionPageSize]
+  )
+  useEffect(()=>{if(assignmentSubmissionPage>assignmentSubmissionPageCount)setAssignmentSubmissionPage(assignmentSubmissionPageCount)},[assignmentSubmissionPage,assignmentSubmissionPageCount])
 
   if(loading)return <div className="loading-card card">Loading participants…</div>
 
@@ -1119,32 +1138,10 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
                 <div className="attendance-rate-track" aria-label={'Submission rate '+assignmentSummary.rate+' percent'}><span style={{width:assignmentSummary.rate+'%'}}/></div>
               </div>
               <div className="attendance-roster-heading"><div><p className="eyebrow">Assignment roster</p><h3>Participant submission status</h3></div><span>{assignmentSummary.submitted} of {assignmentSummary.total} submitted</span></div>
-              <div className="table-wrap"><table><thead><tr><th>Participant</th><th>Submitted</th><th>Score</th><th>Status</th></tr></thead><tbody>{assignmentRoster.length?assignmentRoster.map(({participant,submission,status})=>submission?<tr key={participant.id} className={selectedSubmission?.id===submission.id?'clickable-row selected-row':'clickable-row'} onClick={()=>openAssignmentSubmission(submission)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openAssignmentSubmission(submission)}}} tabIndex={0} role="button" aria-label={'Open assignment submission for '+(participant.full_name||participant.participant_id)}><td><strong>{participant.full_name||participant.participant_id}</strong><span className="table-sub">{participant.participant_id}</span></td><td>{new Date(submission.submitted_at).toLocaleString()}</td><td>{submission.score===null?'—':submission.score+'/'+selectedAssignment.max_score}</td><td><span className={'status '+(status==='graded'?'green':'blue')}>{status==='graded'?'Graded':'Submitted'}</span></td></tr>:<tr key={participant.id}><td><strong>{participant.full_name||participant.participant_id}</strong><span className="table-sub">{participant.participant_id}</span></td><td>—</td><td>—</td><td><span className="status amber">Not submitted</span></td></tr>):<tr><td colSpan={4}><div className="table-empty">No participants are available for this assignment’s programme.</div></td></tr>}</tbody></table></div>
+              <div className="table-wrap"><table><thead><tr><th>Participant</th><th>Submitted</th><th>Score</th><th>Status</th></tr></thead><tbody>{assignmentRoster.length?pagedAssignmentRoster.map(({participant,submission,status})=>submission?<tr key={participant.id} className="clickable-row" onClick={()=>openAssignmentSubmission(submission)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openAssignmentSubmission(submission)}}} tabIndex={0} role="button" aria-label={'Open assignment submission for '+(participant.full_name||participant.participant_id)}><td><strong>{participant.full_name||participant.participant_id}</strong><span className="table-sub">{participant.participant_id}</span></td><td>{new Date(submission.submitted_at).toLocaleString()}</td><td>{submission.score===null?'—':submission.score+'/'+selectedAssignment.max_score}</td><td><span className={'status '+(status==='graded'?'green':'blue')}>{status==='graded'?'Graded':'Submitted'}</span></td></tr>:<tr key={participant.id}><td><strong>{participant.full_name||participant.participant_id}</strong><span className="table-sub">{participant.participant_id}</span></td><td>—</td><td>—</td><td><span className="status amber">Not submitted</span></td></tr>):<tr><td colSpan={4}><div className="table-empty">No participants are available for this assignment’s programme.</div></td></tr>}</tbody></table></div>
+              <TablePagination total={assignmentRoster.length} page={currentAssignmentSubmissionPage} pageSize={assignmentSubmissionPageSize} pageSizes={[20,50,100,200,0]} onPageChange={setAssignmentSubmissionPage} onPageSizeChange={size=>{setAssignmentSubmissionPageSize(size);setAssignmentSubmissionPage(1)}}/>
             </div>
-            <div className="assignment-leaderboard">
-              <div className="card-header"><div><p className="eyebrow">Programme performance</p><h3>Programme leaderboard</h3><p>Running standings across the programme. Released assignment scores, attendance points and bonus awards combine into one total.</p></div></div>
-              {leaderboardLoading?<div className="loading-card">Loading leaderboard…</div>:<>
-                <div className="table-wrap"><table className="assignment-leaderboard-table">
-                  <colgroup><col className="leaderboard-rank-col"/><col className="leaderboard-participant-col"/><col/><col/><col/><col/></colgroup>
-                  <thead><tr><th>Rank</th><th>Participant</th><th>Assignment points</th><th>Attendance points</th><th>Bonus points</th><th>Total points</th></tr></thead>
-                  <tbody>{leaderboard.length?pagedLeaderboard.map(row=><tr key={row.participant_record_id} className={row.rank&&row.rank<=3?'leaderboard-podium-row podium-'+row.rank:''}><td><LeaderboardRankBadge rank={row.rank}/></td><td><strong>{row.full_name||row.participant_id}</strong><span className="table-sub">{row.participant_id}</span></td><td>{Number(row.assignment_points||0).toFixed(0)}</td><td>{Number(row.attendance_points||0).toFixed(0)}</td><td>{Number(row.bonus_points||0).toFixed(0)}</td><td><strong>{Number(row.total_points||0).toFixed(0)}</strong><span className="table-sub">{row.graded_assignments}/{row.total_assignments} released assignments</span></td></tr>):<tr><td colSpan={6}><div className="table-empty">No participant performance data yet.</div></td></tr>}</tbody>
-                </table></div>
-                <TablePagination
-                  total={leaderboard.length}
-                  page={currentLeaderboardPage}
-                  pageSize={leaderboardPageSize}
-                  onPageChange={setLeaderboardPage}
-                  onPageSizeChange={size=>{setLeaderboardPageSize(size);setLeaderboardPage(1)}}
-                />
-              </>}
-            </div>
-            {selectedSubmission&&<div className="assignment-review">
-              <div className="card-header"><div><p className="eyebrow">Review submission</p><h3>{selectedSubmission.participants?.applicants?.full_name||selectedSubmission.participants?.participant_id||'Participant'}</h3><p>{selectedSubmission.participants?.participant_id} · {new Date(selectedSubmission.submitted_at).toLocaleString()}</p></div><button className="icon-button" onClick={()=>setSelectedSubmission(null)} aria-label="Close review"><X size={17}/></button></div>
-              {submissionDocuments.length>0&&<section className="assignment-attachments-panel"><div className="assignment-attachments-heading"><div><p className="eyebrow">Attachments</p><h4>Uploaded files</h4><p>All files attached to this submission are shown here.</p></div><span className="status blue">{submissionDocuments.length} file{submissionDocuments.length===1?'':'s'}</span></div><div className="assignment-attachments-list">{submissionDocuments.map(doc=>{const answer=submissionAnswers.find(a=>a.question_id===doc.question_id);return <button type="button" className="assignment-attachment-card" key={doc.id} onClick={()=>openAssignmentDocument(doc)}><span className="assignment-attachment-icon"><Download size={16}/></span><span className="assignment-attachment-copy"><strong>{doc.original_name}</strong><small>{answer?.assignment_questions?.label||'Assignment attachment'}{doc.file_size?' · '+Math.max(1,Math.round(doc.file_size/1024))+' KB':''}</small></span><span className="assignment-attachment-action">Open</span></button>})}</div></section>}
-              <div className="assignment-attachment-summary"><div><p className="eyebrow">Attachments</p><h4>All uploaded files</h4><small>{submissionDocuments.length} attachment{submissionDocuments.length===1?'':'s'} in this submission</small></div>{submissionDocuments.length?<div className="assignment-document-list assignment-document-list-all">{submissionDocuments.map((doc,index)=><button type="button" className="text-button" key={doc.id} onClick={()=>openAssignmentDocument(doc)}><Download size={14}/><span>{index+1}. {doc.original_name}</span></button>)}</div>:<p className="muted">No file attachments were uploaded.</p>}</div>
-              <div className="assignment-answer-list">{submissionAnswers.sort((a,b)=>(a.assignment_questions?.position||0)-(b.assignment_questions?.position||0)).map((a,i)=>{const docs=submissionDocuments.filter(d=>d.question_id===a.question_id);return <div className="assignment-answer-row" key={a.id}><span>{i+1}</span><div><strong>{a.assignment_questions?.label||'Question'}</strong>{docs.length?<div className="assignment-document-list">{docs.map((doc,index)=><button type="button" className="text-button" key={doc.id} onClick={()=>openAssignmentDocument(doc)}><Download size={14}/><span>Attachment {index+1}: {doc.original_name}</span></button>)}</div>:<p>{Array.isArray(a.value)?a.value.map((value:any)=>typeof value==='object'?(value?.name||'Uploaded file'):String(value)).join(', '):typeof a.value==='object'?JSON.stringify(a.value):String(a.value??'—')}</p>}</div></div>})}</div>
-              <form className="modal-form assignment-grade-form" onSubmit={gradeSubmission}><div className="assignment-form-grid"><label>Score<input type="number" min="0" max={selectedAssignment.max_score} step="0.01" value={gradeForm.score} onChange={e=>setGradeForm(x=>({...x,score:e.target.value}))} required/><small className="field-help">Maximum {selectedAssignment.max_score}</small></label><label>Status<input value={selectedSubmission.status==='graded'?'Graded':'Awaiting grade'} disabled/></label></div><label>Feedback<textarea rows={5} value={gradeForm.feedback} onChange={e=>setGradeForm(x=>({...x,feedback:e.target.value}))} placeholder="Give the participant clear feedback."/></label><button className="primary-button" disabled={saving}>{saving?'Saving…':selectedSubmission.status==='graded'?'Update grade':'Save grade'}</button></form>
-            </div>}
+            {selectedSubmission&&createPortal(<div className="modal-backdrop assignment-review-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)setSelectedSubmission(null)}}><div className="assignment-review-modal" role="dialog" aria-modal="true" aria-labelledby="assignment-review-title"><div className="assignment-review-modal-header"><div><p className="eyebrow">Review submission</p><h2 id="assignment-review-title">{selectedSubmission.participants?.applicants?.full_name||selectedSubmission.participants?.participant_id||'Participant'}</h2><p>{selectedSubmission.participants?.participant_id} · {new Date(selectedSubmission.submitted_at).toLocaleString()}</p></div><button className="icon-button" onClick={()=>setSelectedSubmission(null)} aria-label="Close review"><X size={18}/></button></div><div className="assignment-review-modal-body" ref={assignmentReviewScrollRef}>{submissionReviewLoading?<div className="loading-card">Loading submission…</div>:<>{submissionDocuments.length>0&&<section className="assignment-attachments-panel"><div className="assignment-attachments-heading"><div><p className="eyebrow">Attachments</p><h4>Uploaded files</h4><p>All files attached to this submission are shown here.</p></div><span className="status blue">{submissionDocuments.length} file{submissionDocuments.length===1?'':'s'}</span></div><div className="assignment-attachments-list">{submissionDocuments.map(doc=>{const answer=submissionAnswers.find(a=>a.question_id===doc.question_id);return <button type="button" className="assignment-attachment-card" key={doc.id} onClick={()=>openAssignmentDocument(doc)}><span className="assignment-attachment-icon"><Download size={16}/></span><span className="assignment-attachment-copy"><strong>{doc.original_name}</strong><small>{answer?.assignment_questions?.label||'Assignment attachment'}{doc.file_size?' · '+Math.max(1,Math.round(doc.file_size/1024))+' KB':''}</small></span><span className="assignment-attachment-action">Open</span></button>})}</div></section>}<div className="assignment-answer-list">{submissionAnswers.sort((a,b)=>(a.assignment_questions?.position||0)-(b.assignment_questions?.position||0)).map((a,i)=>{const docs=submissionDocuments.filter(d=>d.question_id===a.question_id);return <div className="assignment-answer-row" key={a.id}><span>{i+1}</span><div><strong>{a.assignment_questions?.label||'Question'}</strong>{docs.length?<div className="assignment-document-list">{docs.map((doc,index)=><button type="button" className="text-button" key={doc.id} onClick={()=>openAssignmentDocument(doc)}><Download size={14}/><span>Attachment {index+1}: {doc.original_name}</span></button>)}</div>:<p>{Array.isArray(a.value)?a.value.map((value:any)=>typeof value==='object'?(value?.name||'Uploaded file'):String(value)).join(', '):typeof a.value==='object'?JSON.stringify(a.value):String(a.value??'—')}</p>}</div></div>})}</div><form className="modal-form assignment-grade-form assignment-grade-modal-form" onSubmit={gradeSubmission}><div className="assignment-form-grid"><label>Score<input type="number" min="0" max={selectedAssignment.max_score} step="0.01" value={gradeForm.score} onChange={e=>setGradeForm(x=>({...x,score:e.target.value}))} required/><small className="field-help">Maximum {selectedAssignment.max_score}</small></label><label>Status<input value={selectedSubmission.status==='graded'?'Graded':'Awaiting grade'} disabled/></label></div><label>Feedback<textarea rows={5} value={gradeForm.feedback} onChange={e=>setGradeForm(x=>({...x,feedback:e.target.value}))} placeholder="Give the participant clear feedback."/></label><button className="primary-button" disabled={saving}>{saving?'Saving…':selectedSubmission.status==='graded'?'Update grade':'Save grade'}</button></form></>}</div></div></div>,document.body)}
           </>}
         </div>
       </div>
