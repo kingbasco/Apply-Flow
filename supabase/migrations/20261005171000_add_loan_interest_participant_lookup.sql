@@ -5,7 +5,7 @@ create or replace function public.get_loan_interest_participant_ids(p_applicatio
 returns table(participant_id uuid)
 language sql
 stable
-security definer
+security invoker
 set search_path=''
 as $$
   select distinct p.id
