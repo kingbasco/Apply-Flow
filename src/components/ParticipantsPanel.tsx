@@ -41,13 +41,20 @@ type ParticipantAttendance = {
 }
 type ExportField = {
   key:string; label:string; group:'participant'|'form'; position:number
-  core?:'participant_id'|'full_name'|'email'|'programme'|'status'|'joined_at'
+  core?:'participant_id'|'full_name'|'email'|'whatsapp_phone'|'programme'|'status'|'joined_at'
   questionIds?:string[]
 }
 
 export default function ParticipantsPanel({organizationId,applications,role}:{organizationId:string;applications:Application[];role?:'owner'|'admin'|'reviewer'}) {
-  const [tab,setTab]=useState<'participants'|'attendance'|'assignments'|'benefits'>('participants')
+  const [tab,setTab]=useState<'participants'|'loan_interest'|'attendance'|'assignments'|'benefits'>('participants')
   const isAdmin=role==='owner'||role==='admin'
+  const participantTabs:{key:'participants'|'loan_interest'|'attendance'|'assignments'|'benefits';label:string;adminOnly?:boolean}[]=[
+    {key:'participants',label:'Participants'},
+    {key:'loan_interest',label:'Loan Interest',adminOnly:true},
+    {key:'attendance',label:'Attendance'},
+    {key:'assignments',label:'Assignments'},
+    {key:'benefits',label:'Benefits',adminOnly:true}
+  ]
   const isProgrammeStaff=role==='reviewer'
   const canManagePoints=isAdmin
   const [participants,setParticipants]=useState<Participant[]>([])
@@ -109,6 +116,11 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [exportFieldQuery,setExportFieldQuery]=useState('')
   const [exportFields,setExportFields]=useState<ExportField[]>([])
   const [selectedExportFieldKeys,setSelectedExportFieldKeys]=useState<string[]>([])
+  const [loanInterestParticipantIds,setLoanInterestParticipantIds]=useState<string[]>([])
+  const [loanInterestLoading,setLoanInterestLoading]=useState(false)
+  const [loanInterestQuery,setLoanInterestQuery]=useState('')
+  const [loanInterestPage,setLoanInterestPage]=useState(1)
+  const [loanInterestPageSize,setLoanInterestPageSize]=useState(50)
 
   const appName=(id:string)=>applications.find(a=>a.id===id)?.name||'Programme'
   const whatsappUrl=(value:string|null|undefined)=>{
@@ -240,6 +252,26 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
 
   useEffect(()=>{load()},[organizationId])
 
+  async function loadLoanInterest(){
+    if(!isAdmin||!applicationFilter){setLoanInterestParticipantIds([]);return}
+    setLoanInterestLoading(true);setError('')
+    try{
+      const {data,error}=await supabase.rpc('get_loan_interest_participant_ids',{p_application_id:applicationFilter})
+      if(error)throw error
+      const rows=(Array.isArray(data)?data:[]) as Array<{participant_id:string}>
+      setLoanInterestParticipantIds(rows.map(row=>row.participant_id))
+    }catch(e){
+      setLoanInterestParticipantIds([])
+      setError(friendlyErrorMessage(e,'Could not load participants interested in a business loan.'))
+    }finally{
+      setLoanInterestLoading(false)
+    }
+  }
+
+  useEffect(()=>{
+    if(tab==='loan_interest'&&isAdmin)loadLoanInterest()
+  },[tab,isAdmin,applicationFilter,participants])
+
   const staffById=useMemo(()=>new Map(programmeStaff.map(staff=>[staff.id,staff])),[programmeStaff])
   const staffByParticipant=useMemo(()=>{
     const map=new Map<string,{id:string;full_name:string|null}[]>()
@@ -271,8 +303,27 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const currentParticipantPage=Math.min(participantPage,participantPageCount)
   const pagedParticipants=useMemo(()=>filtered.slice((currentParticipantPage-1)*participantPageSize,currentParticipantPage*participantPageSize),[filtered,currentParticipantPage,participantPageSize])
 
+  const loanInterestedParticipants=useMemo<Participant[]>(()=>{
+    const interestedIds=new Set<string>(loanInterestParticipantIds)
+    return participants.filter(p=>p.status!=='withdrawn'&&p.application_id===applicationFilter&&interestedIds.has(p.id))
+  },[participants,loanInterestParticipantIds,applicationFilter])
+  const loanFiltered=useMemo<Participant[]>(()=>{
+    const term=loanInterestQuery.trim().toLowerCase()
+    if(!term)return loanInterestedParticipants
+    return loanInterestedParticipants.filter(p=>{
+      const text=[p.participant_id,p.full_name||'',p.email||'',p.whatsapp_phone||'',appName(p.application_id)].join(' ').toLowerCase()
+      return text.includes(term)
+    })
+  },[loanInterestedParticipants,loanInterestQuery,applications])
+  const loanInterestPageCount=Math.max(1,Math.ceil(loanFiltered.length/loanInterestPageSize))
+  const currentLoanInterestPage=Math.min(loanInterestPage,loanInterestPageCount)
+  const pagedLoanParticipants=useMemo<Participant[]>(()=>loanFiltered.slice((currentLoanInterestPage-1)*loanInterestPageSize,currentLoanInterestPage*loanInterestPageSize),[loanFiltered,currentLoanInterestPage,loanInterestPageSize])
+
   useEffect(()=>{setParticipantPage(1)},[query,applicationFilter,statusFilter,staffFilter])
   useEffect(()=>{if(participantPage>participantPageCount)setParticipantPage(participantPageCount)},[participantPage,participantPageCount])
+  useEffect(()=>{setLoanInterestPage(1)},[loanInterestQuery,applicationFilter])
+  useEffect(()=>{setSelectedParticipantIds([])},[applicationFilter])
+  useEffect(()=>{if(loanInterestPage>loanInterestPageCount)setLoanInterestPage(loanInterestPageCount)},[loanInterestPage,loanInterestPageCount])
 
   const scopedParticipants=useMemo(()=>participants.filter(p=>p.status!=='withdrawn'&&(!applicationFilter||p.application_id===applicationFilter)),[participants,applicationFilter])
   const scopedSessions=useMemo(()=>sessions.filter(s=>!applicationFilter||s.application_id===applicationFilter),[sessions,applicationFilter])
@@ -299,6 +350,10 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     const visibleIds=pagedParticipants.map(p=>p.id)
     setSelectedParticipantIds(current=>checked?[...new Set([...current,...visibleIds])]:current.filter(id=>!visibleIds.includes(id)))
   }
+  function toggleAllVisibleLoanParticipants(checked:boolean){
+    const visibleIds=pagedLoanParticipants.map(p=>p.id)
+    setSelectedParticipantIds(current=>checked?[...new Set([...current,...visibleIds])]:current.filter(id=>!visibleIds.includes(id)))
+  }
   function csvCell(value:unknown){
     const text=value===null||value===undefined?'':String(value)
     return '"'+text.replace(/"/g,'""')+'"'
@@ -323,9 +378,10 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       {key:'core:participant_id',label:'Participant ID',group:'participant',core:'participant_id',position:0},
       {key:'core:full_name',label:'Name',group:'participant',core:'full_name',position:1},
       {key:'core:email',label:'Email',group:'participant',core:'email',position:2},
-      {key:'core:programme',label:'Programme',group:'participant',core:'programme',position:3},
-      {key:'core:status',label:'Status',group:'participant',core:'status',position:4},
-      {key:'core:joined_at',label:'Joined Date',group:'participant',core:'joined_at',position:5}
+      {key:'core:whatsapp_phone',label:'Phone / WhatsApp',group:'participant',core:'whatsapp_phone',position:3},
+      {key:'core:programme',label:'Programme',group:'participant',core:'programme',position:4},
+      {key:'core:status',label:'Status',group:'participant',core:'status',position:5},
+      {key:'core:joined_at',label:'Joined Date',group:'participant',core:'joined_at',position:6}
     ]
   }
 
@@ -334,7 +390,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     setExportOpen(true);setExportLoadingFields(true);setExportFieldQuery('');setError('')
     const coreFields=coreExportFields()
     setExportFields(coreFields)
-    setSelectedExportFieldKeys(['core:participant_id','core:full_name','core:email'])
+    setSelectedExportFieldKeys(['core:participant_id','core:full_name','core:email','core:whatsapp_phone'])
     try{
       const selectedRows=participants.filter(p=>selectedParticipantIds.includes(p.id))
       const submissionIds=selectedRows.map(p=>p.submission_id).filter((id):id is string=>Boolean(id))
@@ -387,6 +443,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     if(field.core==='participant_id')return participant.participant_id
     if(field.core==='full_name')return participant.full_name||''
     if(field.core==='email')return participant.email||''
+    if(field.core==='whatsapp_phone')return participant.whatsapp_phone||''
     if(field.core==='programme')return appName(participant.application_id)
     if(field.core==='status')return participant.status==='active'?'Active / Enrolled':participant.status
     if(field.core==='joined_at')return participant.joined_at?new Date(participant.joined_at).toLocaleDateString():''
@@ -988,13 +1045,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       <label className="participant-select-field"><span>Select application</span><div className="participant-select-wrap"><select aria-label="Select application" value={applicationFilter} onChange={e=>setApplicationFilter(e.target.value)}>{applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select><ChevronDown size={16}/></div></label>
     </div>
 
-    <div className="tabs" style={{display:'flex',gap:8,marginBottom:18}}>
-      {[
-        ['participants','Participants'],
-        ['attendance','Attendance'],
-        ['assignments','Assignments'],
-        ...(isAdmin?[['benefits','Benefits'] as const]:[])
-      ].map(([key,label])=><button key={key} className={tab===key?'secondary-button':'text-button'} onClick={()=>setTab(key as any)}>{label}</button>)}
+    <div className="tabs" style={{display:'flex',gap:8,marginBottom:18,flexWrap:'wrap'}}>
+      {participantTabs.filter(item=>!item.adminOnly||isAdmin).map(item=><button key={item.key} className={tab===item.key?'secondary-button':'text-button'} onClick={()=>{if(tab!==item.key)setSelectedParticipantIds([]);setTab(item.key)}}>{item.label}</button>)}
     </div>
 
     {tab==='participants'&&<>
@@ -1037,6 +1089,44 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           onPageChange={setParticipantPage}
           onPageSizeChange={size=>{setParticipantPageSize(size);setParticipantPage(1)}}
         />
+      </div>
+    </>}
+
+    {tab==='loan_interest'&&isAdmin&&<>
+      <div className="participant-stats-grid">
+        <div className="card stat-card"><div className="stat-icon"><Users size={18}/></div><div><p className="eyebrow">Interested</p><div className="stat-value">{loanInterestedParticipants.length}</div><p className="muted">Answered “Yes” to business loan interest</p></div></div>
+        <div className="card stat-card"><div className="stat-icon"><Phone size={18}/></div><div><p className="eyebrow">Phone available</p><div className="stat-value">{loanInterestedParticipants.filter(p=>p.whatsapp_phone).length}</div><p className="muted">Participants with a saved phone number</p></div></div>
+        <div className="card stat-card"><div className="stat-icon"><CheckCircle2 size={18}/></div><div><p className="eyebrow">Selected</p><div className="stat-value">{selectedParticipantIds.filter(id=>loanInterestParticipantIds.includes(id)).length}</div><p className="muted">Ready for export</p></div></div>
+      </div>
+      <div className="card table-card">
+        <div className="card-header">
+          <div><h2>Loan interest participants</h2><p>Enrolled or completed participants who answered “Yes” to “Are you interested in getting a business loan?”</p></div>
+          <div className="search"><Search size={16}/><input value={loanInterestQuery} onChange={e=>setLoanInterestQuery(e.target.value)} placeholder="Search name, email, phone or ID…"/></div>
+        </div>
+        <div className="participant-directory-filters">
+          <span className="participant-filter-count">{loanFiltered.length} interested participant{loanFiltered.length===1?'':'s'}</span>
+        </div>
+        <div className="participant-bulk-bar">
+          <div className="participant-bulk-summary"><strong>{selectedParticipantIds.length} selected</strong><span>Select the interested participants you need, then choose exactly which participant details or form answers to export.</span></div>
+          <div className="participant-bulk-actions"><button type="button" className="primary-button" disabled={exporting||!selectedParticipantIds.length} onClick={openParticipantExport}><Download size={16}/>{exporting?'Exporting…':'Export selected'}</button>{selectedParticipantIds.length>0&&<button type="button" className="text-button" onClick={()=>setSelectedParticipantIds([])}>Clear</button>}</div>
+        </div>
+        {loanInterestLoading?<div className="loading-card">Loading loan interest responses…</div>:<div className="table-wrap"><table><thead><tr><th className="participant-select-cell"><input type="checkbox" aria-label="Select all loan-interest participants on this page" checked={pagedLoanParticipants.length>0&&pagedLoanParticipants.every(p=>selectedParticipantIds.includes(p.id))} onChange={e=>toggleAllVisibleLoanParticipants(e.target.checked)}/></th><th>Participant ID</th><th>Participant</th><th>Phone / WhatsApp</th><th>Programme</th><th>Status</th></tr></thead><tbody>
+          {loanFiltered.length?pagedLoanParticipants.map(p=><tr key={p.id} className="clickable-row" onClick={()=>openParticipant(p)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openParticipant(p)}}} tabIndex={0} role="button" aria-label={'Open participant '+(p.full_name||p.participant_id)}>
+            <td className="participant-select-cell" onClick={e=>e.stopPropagation()}><input type="checkbox" aria-label={'Select '+(p.full_name||p.participant_id)} checked={selectedParticipantIds.includes(p.id)} onChange={e=>toggleParticipantSelection(p.id,e.target.checked)}/></td>
+            <td><strong>{p.participant_id}</strong></td>
+            <td><strong>{p.full_name||'Unnamed participant'}</strong><span className="table-sub">{p.email||'No email'}</span></td>
+            <td>{p.whatsapp_phone||'No phone'}</td>
+            <td>{appName(p.application_id)}</td>
+            <td><span className={'status '+(p.status==='active'?'green':'blue')}>{p.status==='active'?'Active / Enrolled':'Completed'}</span></td>
+          </tr>):<tr><td colSpan={6}><div className="table-empty">No enrolled participants in this programme answered “Yes” to the business loan interest question.</div></td></tr>}
+        </tbody></table></div>}
+        {!loanInterestLoading&&<TablePagination
+          total={loanFiltered.length}
+          page={currentLoanInterestPage}
+          pageSize={loanInterestPageSize}
+          onPageChange={setLoanInterestPage}
+          onPageSizeChange={size=>{setLoanInterestPageSize(size);setLoanInterestPage(1)}}
+        />}
       </div>
     </>}
 
