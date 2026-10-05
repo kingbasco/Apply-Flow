@@ -17,10 +17,11 @@ export default function TablePagination({
   onPageSizeChange:(pageSize:number)=>void
   pageSizes?:readonly number[]
 }){
-  const pageCount=Math.max(1,Math.ceil(total/pageSize))
+  const showAll=pageSize===0
+  const pageCount=showAll?1:Math.max(1,Math.ceil(total/pageSize))
   const currentPage=Math.min(Math.max(1,page),pageCount)
-  const start=total===0?0:(currentPage-1)*pageSize+1
-  const end=total===0?0:Math.min(currentPage*pageSize,total)
+  const start=total===0?0:showAll?1:(currentPage-1)*pageSize+1
+  const end=total===0?0:showAll?total:Math.min(currentPage*pageSize,total)
 
   return <div className="table-pagination">
     <div className="table-pagination-summary">
@@ -28,7 +29,7 @@ export default function TablePagination({
       <label>
         <span>Rows per page</span>
         <select value={pageSize} onChange={e=>onPageSizeChange(Number(e.target.value))}>
-          {pageSizes.map(size=><option key={size} value={size}>{size}</option>)}
+          {pageSizes.map(size=><option key={size} value={size}>{size===0?'All':size}</option>)}
         </select>
       </label>
     </div>
