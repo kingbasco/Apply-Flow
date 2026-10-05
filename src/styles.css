@@ -3001,6 +3001,8 @@ html.dark-theme .afx-landing .afx-floating-card-two{
 .assignment-leaderboard>.table-wrap:has(+.table-pagination){border-radius:12px 12px 0 0}
 .assignment-review{padding-bottom:26px}
 .assignment-answer-list{display:grid;gap:10px;margin-bottom:20px}
+.assignment-document-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.assignment-document-list .text-button{display:inline-flex;align-items:center;gap:5px}
 .assignment-answer-row{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;padding:14px;border:1px solid #e8eaf0;border-radius:12px;background:#fafbfc}
 .assignment-answer-row>span{font-weight:800;color:#697184}
 .assignment-answer-row p{margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
@@ -3150,6 +3152,8 @@ html.dark-theme .assignment-options-heading strong{color:#eef1f5}
 .public-file-name{min-width:0;display:flex;flex-direction:column;gap:2px}
 .public-file-name strong{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:340px}
 .public-file-name span,.public-file-name small{font-size:12px;color:#9299a6}
+.public-file-list{display:grid;gap:3px;margin:4px 0}
+.public-file-list small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px}
 .public-choice-list{display:grid;gap:8px}
 .public-choice{display:flex!important;flex-direction:row!important;align-items:center;gap:10px;padding:12px 13px!important;border:1px solid #e2e5eb;border-radius:10px;background:#fff;cursor:pointer}
 .public-choice input{width:18px!important;height:18px!important;margin:0!important;flex:0 0 auto}
