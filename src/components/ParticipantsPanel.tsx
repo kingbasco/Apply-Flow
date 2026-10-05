@@ -48,6 +48,13 @@ type ExportField = {
 export default function ParticipantsPanel({organizationId,applications,role}:{organizationId:string;applications:Application[];role?:'owner'|'admin'|'reviewer'}) {
   const [tab,setTab]=useState<'participants'|'loan_interest'|'attendance'|'assignments'|'benefits'>('participants')
   const isAdmin=role==='owner'||role==='admin'
+  const participantTabs:{key:'participants'|'loan_interest'|'attendance'|'assignments'|'benefits';label:string;adminOnly?:boolean}[]=[
+    {key:'participants',label:'Participants'},
+    {key:'loan_interest',label:'Loan Interest',adminOnly:true},
+    {key:'attendance',label:'Attendance'},
+    {key:'assignments',label:'Assignments'},
+    {key:'benefits',label:'Benefits',adminOnly:true}
+  ]
   const isProgrammeStaff=role==='reviewer'
   const canManagePoints=isAdmin
   const [participants,setParticipants]=useState<Participant[]>([])
@@ -251,7 +258,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     try{
       const {data,error}=await supabase.rpc('get_loan_interest_participant_ids',{p_application_id:applicationFilter})
       if(error)throw error
-      setLoanInterestParticipantIds(((data||[]) as {participant_id:string}[]).map(row=>row.participant_id))
+      const rows=(Array.isArray(data)?data:[]) as Array<{participant_id:string}>
+      setLoanInterestParticipantIds(rows.map(row=>row.participant_id))
     }catch(e){
       setLoanInterestParticipantIds([])
       setError(friendlyErrorMessage(e,'Could not load participants interested in a business loan.'))
@@ -295,20 +303,21 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const currentParticipantPage=Math.min(participantPage,participantPageCount)
   const pagedParticipants=useMemo(()=>filtered.slice((currentParticipantPage-1)*participantPageSize,currentParticipantPage*participantPageSize),[filtered,currentParticipantPage,participantPageSize])
 
-  const loanInterestedParticipants=useMemo(()=>{
-    const interestedIds=new Set(loanInterestParticipantIds)
+  const loanInterestedParticipants=useMemo<Participant[]>(()=>{
+    const interestedIds=new Set<string>(loanInterestParticipantIds)
     return participants.filter(p=>p.status!=='withdrawn'&&p.application_id===applicationFilter&&interestedIds.has(p.id))
   },[participants,loanInterestParticipantIds,applicationFilter])
-  const loanFiltered=useMemo(()=>{
+  const loanFiltered=useMemo<Participant[]>(()=>{
     const term=loanInterestQuery.trim().toLowerCase()
     if(!term)return loanInterestedParticipants
-    return loanInterestedParticipants.filter(p=>[
-      p.participant_id,p.full_name,p.email,p.whatsapp_phone,appName(p.application_id)
-    ].filter(Boolean).join(' ').toLowerCase().includes(term))
+    return loanInterestedParticipants.filter(p=>{
+      const text=[p.participant_id,p.full_name||'',p.email||'',p.whatsapp_phone||'',appName(p.application_id)].join(' ').toLowerCase()
+      return text.includes(term)
+    })
   },[loanInterestedParticipants,loanInterestQuery,applications])
   const loanInterestPageCount=Math.max(1,Math.ceil(loanFiltered.length/loanInterestPageSize))
   const currentLoanInterestPage=Math.min(loanInterestPage,loanInterestPageCount)
-  const pagedLoanParticipants=useMemo(()=>loanFiltered.slice((currentLoanInterestPage-1)*loanInterestPageSize,currentLoanInterestPage*loanInterestPageSize),[loanFiltered,currentLoanInterestPage,loanInterestPageSize])
+  const pagedLoanParticipants=useMemo<Participant[]>(()=>loanFiltered.slice((currentLoanInterestPage-1)*loanInterestPageSize,currentLoanInterestPage*loanInterestPageSize),[loanFiltered,currentLoanInterestPage,loanInterestPageSize])
 
   useEffect(()=>{setParticipantPage(1)},[query,applicationFilter,statusFilter,staffFilter])
   useEffect(()=>{if(participantPage>participantPageCount)setParticipantPage(participantPageCount)},[participantPage,participantPageCount])
@@ -1037,13 +1046,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     </div>
 
     <div className="tabs" style={{display:'flex',gap:8,marginBottom:18,flexWrap:'wrap'}}>
-      {[
-        ['participants','Participants'],
-        ...(isAdmin?[['loan_interest','Loan Interest'] as const]:[]),
-        ['attendance','Attendance'],
-        ['assignments','Assignments'],
-        ...(isAdmin?[['benefits','Benefits'] as const]:[])
-      ].map(([key,label])=><button key={key} className={tab===key?'secondary-button':'text-button'} onClick={()=>{if(tab!==key)setSelectedParticipantIds([]);setTab(key as any)}}>{label}</button>)}
+      {participantTabs.filter(item=>!item.adminOnly||isAdmin).map(item=><button key={item.key} className={tab===item.key?'secondary-button':'text-button'} onClick={()=>{if(tab!==item.key)setSelectedParticipantIds([]);setTab(item.key)}}>{item.label}</button>)}
     </div>
 
     {tab==='participants'&&<>
