@@ -23,6 +23,7 @@ type Application = {
 type Profile = { id: string; full_name: string | null; username: string | null; birth_month: number | null; birth_day: number | null; avatar_url: string | null; organization_id: string | null; role: 'owner'|'admin'|'reviewer' }
 type Organization = { id: string; name: string; slug: string; avatar_url: string | null }
 type WorkspaceLeaderboardRow = { participant_record_id:string; participant_id:string; full_name:string|null; graded_assignments:number; submitted_assignments:number; total_assignments:number; average_percentage:number|null; completion_percentage:number; assignment_points:number; attendance_points:number; bonus_points:number; total_points:number; rank:number|null }
+type LeaderboardGroup = { staff_id:string; staff_name:string; participant_count:number }
 
 const nav = [
   { label: 'Dashboard', icon: LayoutDashboard }, { label: 'Applications', icon: FolderKanban },
@@ -335,7 +336,7 @@ function PublicAssignmentResults({slug}:{slug:string}) {
   async function check(e:React.FormEvent){e.preventDefault();setBusy(true);setError('');setResult(null);const r=await supabase.rpc('get_public_assignment_result',{p_slug:slug,p_participant_code:code.trim(),p_email:email.trim()});setBusy(false);if(r.error||r.data?.error){setError(r.error?.message||r.data?.error);return}setResult(r.data)}
   if(!result)return <div className="auth-shell results-portal-shell"><div className="auth-panel results-login-panel"><div className="brand auth-brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Participant Results</span></div></div><div className="auth-copy results-login-copy"><p className="eyebrow">Results portal</p><h1>Check your assignment result.</h1><p>Enter your Participant ID and application email to securely view your score, feedback and programme leaderboard position.</p></div><form className="auth-form results-check-form" onSubmit={check}><label>Participant ID<input value={code} onChange={e=>setCode(e.target.value)} placeholder="e.g. ECA-2026-00001" required autoCapitalize="characters"/></label><label>Application email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" required autoComplete="email"/></label>{error&&<div className="form-error">{error}</div>}<button className="primary-button auth-submit" disabled={busy}>{busy?'Checking…':'Check Results'} <ArrowRight size={17}/></button></form><p className="results-privacy-note"><ShieldCheck size={14}/> Results are available only after your programme team releases them.</p></div><div className="auth-aside"><div><span className="aside-kicker">PARTICIPANT RESULTS</span><h2>Your performance, in one place.</h2><p>Review your assignment result and see the full programme leaderboard as points accumulate over time.</p></div></div></div>
   const rows=result.leaderboard||[]
-  return <div className="results-page"><header className="results-page-header"><div className="brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Participant Results</span></div></div><button className="secondary-button" onClick={()=>{setResult(null);setCode('');setEmail('');setError('')}}>Check another ID</button></header><main className="results-main"><section className="results-hero"><p className="eyebrow">Assignment result</p><h1>Welcome, {result.participant_name}.</h1><p>Your result for <strong>{result.title}</strong> has been released.</p></section><section className="results-score-grid"><div className="results-score-card primary"><span>Your score</span><strong>{result.score}<small> / {result.max_score}</small></strong><p>{result.percentage}%</p></div><div className="results-score-card"><span>Pass mark</span><strong>{result.pass_mark}</strong><p>Minimum required score</p></div><div className={'results-score-card '+(result.passed?'passed':'below')}><span>Result</span><strong>{result.passed?'Passed':'Below pass mark'}</strong><p>{result.passed?'You met the required score.':'Review the feedback below.'}</p></div></section><section className="results-feedback-card"><div><p className="eyebrow">Marker feedback</p><h2>Feedback from your programme team</h2></div><p>{result.feedback||'No written feedback was added for this assignment.'}</p><div className="results-dates"><span>Submitted <strong>{new Date(result.submitted_at).toLocaleString()}</strong></span>{result.graded_at&&<span>Graded <strong>{new Date(result.graded_at).toLocaleString()}</strong></span>}</div></section><section className="results-leaderboard"><div className="results-section-heading"><div><p className="eyebrow">Programme leaderboard</p><h2>Running standings</h2><p>Everyone in the programme is shown. Points accumulate from released assignment scores, attendance and bonus awards. Your row is highlighted.</p></div><div className="status green"><TrendingUp size={15}/> {rows.length} participants</div></div>{rows.length?<div className="results-table-wrap"><table><thead><tr><th>Rank</th><th>Participant</th><th>Assignment points</th><th>Attendance points</th><th>Bonus points</th><th>Points</th></tr></thead><tbody>{rows.map((row:any)=><tr key={row.participant_id} className={(row.is_you?'is-you ':'')+(row.rank&&row.rank<=3?'leaderboard-podium-row podium-'+row.rank:'')}><td><LeaderboardRankBadge rank={row.rank}/></td><td><div><strong>{row.display_name}</strong><small>{row.is_you?'You · ':''}{row.participant_id}</small></div></td><td>{Number(row.assignment_points||0).toFixed(0)}</td><td>{Number(row.attendance_points||0).toFixed(0)}</td><td>{Number(row.bonus_points||0).toFixed(0)}</td><td><strong>{Number(row.points||0).toFixed(0)}</strong></td></tr>)}</tbody></table></div>:<div className="results-empty">No programme leaderboard entries are available yet.</div>}</section></main></div>
+  return <div className="results-page"><header className="results-page-header"><div className="brand"><div className="brand-mark">A</div><div><strong>ApplyFlow</strong><span>Participant Results</span></div></div><button className="secondary-button" onClick={()=>{setResult(null);setCode('');setEmail('');setError('')}}>Check another ID</button></header><main className="results-main"><section className="results-hero"><p className="eyebrow">Assignment result</p><h1>Welcome, {result.participant_name}.</h1><p>Your result for <strong>{result.title}</strong> has been released.</p></section><section className="results-score-grid"><div className="results-score-card primary"><span>Your score</span><strong>{result.score}<small> / {result.max_score}</small></strong><p>{result.percentage}%</p></div><div className="results-score-card"><span>Pass mark</span><strong>{result.pass_mark}</strong><p>Minimum required score</p></div><div className={'results-score-card '+(result.passed?'passed':'below')}><span>Result</span><strong>{result.passed?'Passed':'Below pass mark'}</strong><p>{result.passed?'You met the required score.':'Review the feedback below.'}</p></div></section><section className="results-feedback-card"><div><p className="eyebrow">Marker feedback</p><h2>Feedback from your programme team</h2></div><p>{result.feedback||'No written feedback was added for this assignment.'}</p><div className="results-dates"><span>Submitted <strong>{new Date(result.submitted_at).toLocaleString()}</strong></span>{result.graded_at&&<span>Graded <strong>{new Date(result.graded_at).toLocaleString()}</strong></span>}</div></section><section className="results-leaderboard"><div className="results-section-heading"><div><p className="eyebrow">Your group leaderboard</p><h2>{result.leaderboard_group_name||'Group standings'}</h2><p>Only participants assigned to your group are shown. Points accumulate from released assignment scores, attendance and bonus awards. Your row is highlighted.</p></div><div className="status green"><TrendingUp size={15}/> {rows.length} in group</div></div>{rows.length?<div className="results-table-wrap"><table><thead><tr><th>Rank</th><th>Participant</th><th>Assignment points</th><th>Attendance points</th><th>Bonus points</th><th>Points</th></tr></thead><tbody>{rows.map((row:any)=><tr key={row.participant_id} className={(row.is_you?'is-you ':'')+(row.rank&&row.rank<=3?'leaderboard-podium-row podium-'+row.rank:'')}><td><LeaderboardRankBadge rank={row.rank}/></td><td><div><strong>{row.display_name}</strong><small>{row.is_you?'You · ':''}{row.participant_id}</small></div></td><td>{Number(row.assignment_points||0).toFixed(0)}</td><td>{Number(row.attendance_points||0).toFixed(0)}</td><td>{Number(row.bonus_points||0).toFixed(0)}</td><td><strong>{Number(row.points||0).toFixed(0)}</strong></td></tr>)}</tbody></table></div>:<div className="results-empty">No programme leaderboard entries are available yet.</div>}</section></main></div>
 }
 
 const ASSIGNMENT_FILE_LIMIT=10
@@ -775,6 +776,9 @@ function App() {
   const [leaderboardQuery,setLeaderboardQuery]=useState('')
   const [leaderboardPage,setLeaderboardPage]=useState(1)
   const [leaderboardPageSize,setLeaderboardPageSize]=useState(50)
+  const [leaderboardScope,setLeaderboardScope]=useState<'overall'|'group'>('overall')
+  const [leaderboardGroups,setLeaderboardGroups]=useState<LeaderboardGroup[]>([])
+  const [leaderboardGroupId,setLeaderboardGroupId]=useState('')
 
   useEffect(()=>{
     const frame=window.requestAnimationFrame(()=>{
@@ -1039,22 +1043,68 @@ function App() {
     }finally{setDeletingApplicationId('')}
   }
 
-  async function loadWorkspaceLeaderboard(applicationId:string){
+  async function loadLeaderboardGroups(applicationId:string){
+    if(!applicationId){setLeaderboardGroups([]);setLeaderboardGroupId('');return [] as LeaderboardGroup[]}
+    try{
+      const {data,error}=await supabase.rpc('get_leaderboard_groups',{p_application_id:applicationId})
+      if(error)throw error
+      const groups=(data||[]) as LeaderboardGroup[]
+      setLeaderboardGroups(groups)
+      return groups
+    }catch(e){
+      setLeaderboardGroups([])
+      setLeaderboardError(friendlyErrorMessage(e,'Could not load leaderboard groups.'))
+      return [] as LeaderboardGroup[]
+    }
+  }
+
+  async function loadWorkspaceLeaderboard(applicationId:string,staffId=''){
     if(!applicationId){setLeaderboardRows([]);return}
     setLeaderboardLoading(true);setLeaderboardError('')
     try{
-      const {data,error}=await supabase.rpc('get_assignment_leaderboard',{p_application_id:applicationId})
+      const request=staffId
+        ? supabase.rpc('get_assignment_group_leaderboard',{p_application_id:applicationId,p_staff_id:staffId})
+        : supabase.rpc('get_assignment_leaderboard',{p_application_id:applicationId})
+      const {data,error}=await request
       if(error)throw error
       setLeaderboardRows((data||[]) as WorkspaceLeaderboardRow[])
-    }catch(e){setLeaderboardRows([]);setLeaderboardError(friendlyErrorMessage(e,'Could not load the programme leaderboard.'))}
+    }catch(e){setLeaderboardRows([]);setLeaderboardError(friendlyErrorMessage(e,'Could not load the leaderboard.'))}
     finally{setLeaderboardLoading(false)}
   }
 
-  function changeLeaderboardProgramme(applicationId:string){
+  async function changeLeaderboardProgramme(applicationId:string){
     setLeaderboardApplicationId(applicationId)
     setLeaderboardPage(1)
     setLeaderboardQuery('')
-    void loadWorkspaceLeaderboard(applicationId)
+    setLeaderboardScope('overall')
+    setLeaderboardGroupId('')
+    if(!applicationId){setLeaderboardRows([]);setLeaderboardGroups([]);return}
+    await loadLeaderboardGroups(applicationId)
+    await loadWorkspaceLeaderboard(applicationId)
+  }
+
+  async function changeLeaderboardScope(scope:'overall'|'group'){
+    setLeaderboardScope(scope)
+    setLeaderboardPage(1)
+    setLeaderboardQuery('')
+    if(!leaderboardApplicationId)return
+    if(scope==='overall'){
+      setLeaderboardGroupId('')
+      await loadWorkspaceLeaderboard(leaderboardApplicationId)
+      return
+    }
+    const nextGroupId=leaderboardGroupId||leaderboardGroups[0]?.staff_id||''
+    setLeaderboardGroupId(nextGroupId)
+    if(nextGroupId)await loadWorkspaceLeaderboard(leaderboardApplicationId,nextGroupId)
+    else setLeaderboardRows([])
+  }
+
+  async function changeLeaderboardGroup(staffId:string){
+    setLeaderboardGroupId(staffId)
+    setLeaderboardPage(1)
+    setLeaderboardQuery('')
+    if(!leaderboardApplicationId||!staffId){setLeaderboardRows([]);return}
+    await loadWorkspaceLeaderboard(leaderboardApplicationId,staffId)
   }
 
   async function signOut() { await supabase.auth.signOut(); setSession(null); setProfile(null); setOrganization(null); setApplications([]) }
@@ -1182,10 +1232,12 @@ function App() {
           <section className="stats-grid dashboard-stats"><StatCard label="Programmes" value={applications.length.toLocaleString()} note="In your workspace" icon={FolderKanban}/><StatCard label="Targets" value={totalTarget.toLocaleString()} note="Across programmes" icon={FileCheck2}/><StatCard label="Published" value={applications.filter(a=>a.status==='published').length.toLocaleString()} note="Currently accepting" icon={ShieldCheck}/><StatCard label="Screening" value={applications.filter(a=>a.status==='screening').length.toLocaleString()} note="In review" icon={Users}/></section>
           <section className="dashboard-grid dashboard-panels"><div className="card table-card"><div className="card-header"><div><h2>Programmes</h2><p>Your application programmes from Supabase.</p></div>{canManageProgrammes&&<button className="text-button" onClick={()=>setActive('Applications')}>View all</button>}</div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th><th></th></tr></thead><tbody>{applications.length===0?<tr><td colSpan={4}><div className="table-empty">No programmes yet. Create your first application programme.</div></td></tr>:applications.map(item=><tr key={item.id}><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td><td>{canManageProgrammes&&<button type="button" className="icon-button" title="Delete application" aria-label={'Delete '+item.name} disabled={deletingApplicationId===item.id} onClick={e=>{e.stopPropagation();requestDeleteApplication(item)}}><Trash2 size={16}/></button>}</td></tr>)}</tbody></table></div></div><div className="card funnel-card"><div className="card-header"><div><h2>Workspace health</h2><p>Live database connection</p></div><span className="status green">Connected</span></div><div className="connection-list"><div><span>Organisation</span><strong>{organization?.name || '—'}</strong></div><div><span>Role</span><strong>{profile?.role || '—'}</strong></div><div><span>Programmes</span><strong>{applications.length}</strong></div></div></div></section>
         </> : selectedApplication ? <ApplicationDetails application={selectedApplication} settings={applicationSettings} tab={detailTab} setTab={setDetailTab} loading={detailLoading} saving={detailSaving} error={detailError} onBack={closeApplication} onSave={saveApplicationDetails}/> : active==='Leaderboard' ? <section className="workspace-leaderboard-page">
-          <div className="page-heading compact"><div><p className="eyebrow">Programme performance</p><h1>Leaderboard</h1><p className="subtitle">Running standings for active enrolled participants only. Assignment, attendance and bonus points all contribute to the total.</p></div><div className="workspace-leaderboard-count"><strong>{filteredLeaderboardRows.length}</strong><span>active participant{filteredLeaderboardRows.length===1?'':'s'}</span></div></div>
+          <div className="page-heading compact"><div><p className="eyebrow">Programme performance</p><h1>Leaderboard</h1><p className="subtitle">{leaderboardScope==='group'?'Group standings for active enrolled participants.':'Full programme standings for active enrolled participants.'} Assignment, attendance and bonus points all contribute to the total.</p></div><div className="workspace-leaderboard-count"><strong>{filteredLeaderboardRows.length}</strong><span>active participant{filteredLeaderboardRows.length===1?'':'s'}</span></div></div>
           <div className="card workspace-leaderboard-card">
             <div className="workspace-leaderboard-toolbar">
-              <label className="workspace-leaderboard-programme"><span>Programme</span><div className="toolbar-select"><select value={leaderboardApplicationId} onChange={e=>changeLeaderboardProgramme(e.target.value)}><option value="">Select programme</option>{applications.map(application=><option key={application.id} value={application.id}>{application.name}</option>)}</select><ChevronDown size={15}/></div></label>
+              <label className="workspace-leaderboard-programme"><span>Programme</span><div className="toolbar-select"><select value={leaderboardApplicationId} onChange={e=>void changeLeaderboardProgramme(e.target.value)}><option value="">Select programme</option>{applications.map(application=><option key={application.id} value={application.id}>{application.name}</option>)}</select><ChevronDown size={15}/></div></label>
+              <div className="workspace-leaderboard-scope-control"><span>View</span><div className="workspace-leaderboard-segmented"><button type="button" className={leaderboardScope==='overall'?'active':''} onClick={()=>void changeLeaderboardScope('overall')} disabled={!leaderboardApplicationId}>Overall</button><button type="button" className={leaderboardScope==='group'?'active':''} onClick={()=>void changeLeaderboardScope('group')} disabled={!leaderboardApplicationId||!leaderboardGroups.length}>By group</button></div></div>
+              {leaderboardApplicationId&&leaderboardScope==='group'&&(profile?.role==='reviewer'?<div className="workspace-leaderboard-current-group"><span>Your group</span><strong>{leaderboardGroups[0]?.staff_name||'Assigned group'}</strong><small>{leaderboardGroups[0]?.participant_count??0} active participants</small></div>:<label className="workspace-leaderboard-programme workspace-leaderboard-group-select"><span>Group</span><div className="toolbar-select"><select value={leaderboardGroupId} onChange={e=>void changeLeaderboardGroup(e.target.value)}><option value="">Select group</option>{leaderboardGroups.map(group=><option key={group.staff_id} value={group.staff_id}>{group.staff_name} · {group.participant_count}</option>)}</select><ChevronDown size={15}/></div></label>)}
               <div className="search workspace-leaderboard-search"><Search size={16}/><input value={leaderboardQuery} onChange={e=>{setLeaderboardQuery(e.target.value);setLeaderboardPage(1)}} placeholder="Search name or Participant ID…"/></div>
             </div>
             {leaderboardError&&<div className="form-error workspace-leaderboard-error">{leaderboardError}</div>}
