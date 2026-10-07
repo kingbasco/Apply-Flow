@@ -1,37 +1,136 @@
-# Email provider selection
+# Email Provider Selection
 
-Email Center supports Gmail SMTP, Zoho Mail SMTP and ZeptoMail API. Existing default preserves the earlier ZeptoMail-first, Zoho SMTP-second configuration. Explicit selections never fall back. Provider selection applies to the current Email Center session; reopening uses the existing default.
+**Last reconciled:** 7 October 2026
 
-## Gmail setup
+ApplyFlow Email Center supports these selections:
 
-In the ApplyFlow Supabase project's Edge Function Secrets, set:
+- **Existing default** — current compatibility/default path labelled in the UI as ZeptoMail / Zoho.
+- **Gmail**
+- **ZeptoMail**
+- **Zoho Mail SMTP**
 
-- `GMAIL_SMTP_USERNAME`: full Gmail / Google Workspace email address.
-- `GMAIL_SMTP_PASSWORD`: Google App Password from that same account (requires eligible account with 2-Step Verification).
+The provider selector is session/UI state; it does not create independent credential stores per organisation.
 
-The backend removes display spaces from the App Password. Gmail connects to `smtp.gmail.com:465` using direct TLS and uses the authenticated address as the sender. Do not enter a regular Google password. Never commit credentials or place them in frontend/Vercel variables.
+## Backend endpoints
 
-Keep all existing `ZOHO_*` and `ZEPTOMAIL_*` secrets. No database migration is required.
+The current frontend continues to use the compatibility Edge Function names:
 
-Deploy `zoho-mail-status` and `send-zoho-email` with their `index.ts`, `smtp.ts`, `zeptomail.ts` and `providers.ts` files, preserving JWT verification. Deploy the frontend after the functions. The endpoint names remain unchanged for compatibility.
+- zoho-mail-status
+- send-zoho-email
 
-## Use
+Those functions resolve the selected provider internally.
 
-1. Email → Email connection → Send using → Gmail.
-2. Validate Gmail. This authenticates and checks MAIL FROM, then resets/closes the SMTP session; it does not send an email.
-3. Compose → Send using → select the desired provider. Confirm the displayed sender.
-4. Select recipients and send. First verify receipt with one intended recipient.
-5. Delivery reports identify the provider and accepted/failed/skipped outcomes.
+## Provider behavior
 
-Only authenticated Owners/Admins in the requested organisation can check configuration or send. Recipient queries remain scoped to that organisation and programme. Passwords/tokens are not returned to clients. These are project-level configurations, shared by authorised organisations in this deployment, not independent per-organisation credential stores.
+### Existing default
 
-Gmail and Zoho limits still apply. A failure stops the current batch and remaining batches; already accepted recipients stay recorded and are removed from the current selection. Remaining unattempted recipients in the current batch are recorded as skipped. Later batches are not attempted or logged. No automatic provider switching or retry occurs. An unconfirmed/timed-out transaction may have been accepted: inspect provider records before retrying. There is no durable idempotency/queue guarantee across manual retries.
+The existing default preserves the deployed compatibility order/configuration used before explicit provider selection.
 
-“Sent” means provider acceptance, not inbox delivery. ZeptoMail token/domain validity is confirmed on sending rather than by the configuration check. Refreshing configuration cannot reset a provider's quota or unblock its account.
+Do not assume an explicit Gmail/Zoho/ZeptoMail choice will automatically fall back to another provider.
 
-## Verification
+### Gmail
 
-- `npm run build`
-- `node --test tests/email-providers.test.mjs`
+Required Edge Function Secrets:
 
-Tests mock all credentials/transports and exercise Gmail isolation, legacy selection, missing credentials, authorization and partial-failure reporting. They do not establish real Gmail authentication or delivery. A logged-in Owner/Admin must run Validate Gmail, then explicitly send and confirm a controlled email.
+- GMAIL_SMTP_USERNAME
+- GMAIL_SMTP_PASSWORD
+
+Use a Google App Password for an eligible Gmail / Google Workspace account with 2-Step Verification.
+
+Transport:
+
+- smtp.gmail.com
+- Port 465
+- Direct TLS
+
+Do not use a normal Google password.
+
+### Zoho Mail
+
+Zoho uses SMTP credentials stored in Supabase Edge Function Secrets.
+
+The exact active hostname/configuration depends on the deployed mail function configuration.
+
+Keep credentials server-side only.
+
+### ZeptoMail
+
+ZeptoMail uses its API/token-based configuration.
+
+Token/sender-domain validity may only be fully confirmed during an actual send rather than a no-send connection check.
+
+## Validation
+
+Email Center can request provider validation through the status function.
+
+For Gmail/SMTP, validation checks the connection/authentication path and does not itself send a participant email.
+
+After any credential/provider change, perform a controlled real send and confirm receipt.
+
+## Sending and batching
+
+Current backend requests are intentionally limited to safe batches.
+
+The frontend can split a larger selected audience into smaller backend requests.
+
+Delivery reporting records:
+
+- Provider.
+- Transport.
+- Requested count.
+- Sent count.
+- Failed count.
+- Skipped count.
+- Per-recipient details where available.
+- Failure details where recorded.
+
+## Failure semantics
+
+A failure in a batch does not mean already accepted recipients were unsent.
+
+Current behavior does not provide a durable exactly-once queue across manual retries.
+
+Before retrying an uncertain/timed-out send, inspect:
+
+- ApplyFlow delivery report.
+- Provider-side records/logs.
+
+## "Sent" vs delivered
+
+ApplyFlow "sent" means the provider accepted the transmission request.
+
+It does **not** guarantee:
+
+- Inbox placement.
+- No spam filtering.
+- Recipient read.
+- Permanent delivery.
+
+## Permissions
+
+Current Email Center sending/configuration actions are Owner/Admin workflows.
+
+Participant data remains organisation/programme scoped.
+
+## Secret handling
+
+Never put SMTP/API credentials in:
+
+- React/Vite public environment variables.
+- GitHub.
+- Documentation with real values.
+
+Use Supabase Edge Function Secrets.
+
+## Verification commands
+
+Repository automated coverage includes:
+
+~~~bash
+npm run build
+node --test tests/email-providers.test.mjs
+~~~
+
+The test suite uses mocked credentials/transports and does not prove real provider delivery.
+
+See [COMMUNICATIONS.md](./COMMUNICATIONS.md) for the wider communications model.
