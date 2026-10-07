@@ -4711,11 +4711,29 @@ html.dark-theme .workspace-leaderboard-modal>.table-pagination{border-color:#303
 .workspace-leaderboard-page .workspace-leaderboard-count{min-width:160px;justify-content:flex-end}
 .workspace-leaderboard-card .workspace-leaderboard-toolbar{border-bottom:1px solid #eef0f3}
 .workspace-leaderboard-card .workspace-leaderboard-body{min-height:360px}
+.workspace-leaderboard-scope-control{display:grid;gap:5px}
+.workspace-leaderboard-scope-control>span,.workspace-leaderboard-current-group>span{font-size:8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:#9aa1ad}
+.workspace-leaderboard-segmented{display:flex;align-items:center;padding:3px;border:1px solid #dfe3e8;border-radius:9px;background:#f3f5f7}
+.workspace-leaderboard-segmented button{border:0;background:transparent;color:#747d8a;font-size:10px;font-weight:700;min-height:30px;padding:0 12px;border-radius:7px;cursor:pointer}
+.workspace-leaderboard-segmented button.active{background:#fff;color:#242c38;box-shadow:0 1px 2px rgba(15,23,42,.08)}
+.workspace-leaderboard-segmented button:disabled{opacity:.45;cursor:not-allowed}
+.workspace-leaderboard-group-select{min-width:230px}
+.workspace-leaderboard-current-group{display:grid;gap:3px;min-width:190px;padding:2px 0}
+.workspace-leaderboard-current-group strong{font-size:11px;color:#303846}
+.workspace-leaderboard-current-group small{font-size:9px;color:#929aa6}
 .workspace-leaderboard-card>.table-pagination{border-top:1px solid #eef0f3}
 html.dark-theme .workspace-leaderboard-card>.table-pagination{border-color:#303642}
+html.dark-theme .workspace-leaderboard-segmented{background:#11151b;border-color:#353c48}
+html.dark-theme .workspace-leaderboard-segmented button{color:#9da6b4}
+html.dark-theme .workspace-leaderboard-segmented button.active{background:#262c36;color:#f0f3f7;box-shadow:none}
+html.dark-theme .workspace-leaderboard-current-group strong{color:#e4e8ee}
+html.dark-theme .workspace-leaderboard-current-group small{color:#929baa}
 @media(max-width:760px){
   .workspace-leaderboard-page .page-heading{align-items:flex-start}
   .workspace-leaderboard-page .workspace-leaderboard-count{justify-content:flex-start;min-width:0}
+  .workspace-leaderboard-scope-control,.workspace-leaderboard-group-select,.workspace-leaderboard-current-group{width:100%;min-width:0}
+  .workspace-leaderboard-segmented{width:100%}
+  .workspace-leaderboard-segmented button{flex:1}
 }
 
 
