@@ -4711,6 +4711,13 @@ html.dark-theme .workspace-leaderboard-modal>.table-pagination{border-color:#303
 .workspace-leaderboard-page .workspace-leaderboard-count{min-width:160px;justify-content:flex-end}
 .workspace-leaderboard-card .workspace-leaderboard-toolbar{border-bottom:1px solid #eef0f3}
 .workspace-leaderboard-card .workspace-leaderboard-body{min-height:360px}
+.workspace-leaderboard-group-tabs{display:flex;gap:8px;padding:14px 24px;border-bottom:1px solid #eef0f3;background:#fff;overflow-x:auto;scrollbar-width:thin}
+.workspace-leaderboard-group-tabs button{flex:0 0 auto;min-width:124px;display:grid;gap:3px;text-align:left;padding:10px 12px;border:1px solid #e1e5ea;border-radius:10px;background:#fafbfc;color:#697281;cursor:pointer;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease,transform .16s ease}
+.workspace-leaderboard-group-tabs button:hover{border-color:#cfd5dd;background:#fff;transform:translateY(-1px)}
+.workspace-leaderboard-group-tabs button.active{border-color:#7b82d5;background:#f3f3ff;box-shadow:0 0 0 2px rgba(91,99,198,.08)}
+.workspace-leaderboard-group-tabs button strong{font-family:Manrope,sans-serif;font-size:11px;color:#28303d}
+.workspace-leaderboard-group-tabs button span{font-size:9px;color:#8e96a3;white-space:nowrap}
+
 .workspace-leaderboard-scope-control{display:grid;gap:5px}
 .workspace-leaderboard-scope-control>span,.workspace-leaderboard-current-group>span{font-size:8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:#9aa1ad}
 .workspace-leaderboard-segmented{display:flex;align-items:center;padding:3px;border:1px solid #dfe3e8;border-radius:9px;background:#f3f5f7}
@@ -4723,6 +4730,12 @@ html.dark-theme .workspace-leaderboard-modal>.table-pagination{border-color:#303
 .workspace-leaderboard-current-group small{font-size:9px;color:#929aa6}
 .workspace-leaderboard-card>.table-pagination{border-top:1px solid #eef0f3}
 html.dark-theme .workspace-leaderboard-card>.table-pagination{border-color:#303642}
+html.dark-theme .workspace-leaderboard-group-tabs{background:#171b23;border-color:#303642}
+html.dark-theme .workspace-leaderboard-group-tabs button{background:#151920;border-color:#343b47;color:#aeb6c3}
+html.dark-theme .workspace-leaderboard-group-tabs button:hover{background:#1d222b;border-color:#464e5c}
+html.dark-theme .workspace-leaderboard-group-tabs button.active{background:#24243a;border-color:#787fd0;box-shadow:0 0 0 2px rgba(120,127,208,.1)}
+html.dark-theme .workspace-leaderboard-group-tabs button strong{color:#edf0f4}
+html.dark-theme .workspace-leaderboard-group-tabs button span{color:#9ca5b2}
 html.dark-theme .workspace-leaderboard-segmented{background:#11151b;border-color:#353c48}
 html.dark-theme .workspace-leaderboard-segmented button{color:#9da6b4}
 html.dark-theme .workspace-leaderboard-segmented button.active{background:#262c36;color:#f0f3f7;box-shadow:none}
@@ -4731,6 +4744,8 @@ html.dark-theme .workspace-leaderboard-current-group small{color:#929baa}
 @media(max-width:760px){
   .workspace-leaderboard-page .page-heading{align-items:flex-start}
   .workspace-leaderboard-page .workspace-leaderboard-count{justify-content:flex-start;min-width:0}
+  .workspace-leaderboard-group-tabs{padding:12px 16px}
+  .workspace-leaderboard-group-tabs button{min-width:116px}
   .workspace-leaderboard-scope-control,.workspace-leaderboard-group-select,.workspace-leaderboard-current-group{width:100%;min-width:0}
   .workspace-leaderboard-segmented{width:100%}
   .workspace-leaderboard-segmented button{flex:1}
