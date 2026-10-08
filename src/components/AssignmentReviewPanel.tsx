@@ -237,7 +237,7 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
             <h3>Assign &amp; Shuffle</h3>
             <p>Select ungraded submissions, then choose the Programme Staff who should review them. Test accounts are excluded automatically.</p>
           </div>
-          <div className="review-allocation-step">Step 1 of 2</div>
+          <div className="review-allocation-step">Admin only</div>
         </div>
 
         <div className="review-bulk-actions">
