@@ -1,0 +1,574 @@
+/* Assignment Review — scoped production UI polish.
+   Keep controls and staff selection consistent with ApplyFlow's purple workspace system. */
+.assignment-review-workspace .review-filter-toolbar{
+  display:grid;
+  grid-template-columns:minmax(195px,.83fr) minmax(280px,1.45fr) auto;
+  align-items:end;
+  gap:16px;
+  padding:22px 24px;
+  background:#fbfcff;
+  border-bottom:1px solid #e9ebf1;
+}
+.assignment-review-workspace .review-filter-field{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  min-width:0;
+  color:#647083;
+  font-size:11px;
+  font-weight:750;
+  letter-spacing:.015em;
+}
+.assignment-review-workspace .review-filter-select{
+  display:block;
+  width:100%;
+  min-width:0;
+  position:relative;
+}
+.assignment-review-workspace .review-filter-select select{
+  display:block;
+  width:100%;
+  height:46px;
+  padding:0 42px 0 14px;
+  appearance:none;
+  -webkit-appearance:none;
+  outline:none;
+  border:1px solid #dfe3eb;
+  border-radius:11px;
+  background:#fff;
+  color:#293344;
+  font-family:inherit;
+  font-size:12px;
+  font-weight:650;
+  line-height:1.4;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+  cursor:pointer;
+  box-shadow:0 1px 2px rgba(24,32,47,.025);
+  transition:box-shadow .18s ease,border-color .18s ease,background .18s ease;
+}
+.assignment-review-workspace .review-filter-select select:hover:not(:disabled){
+  border-color:#aea7fd;
+  background:#fefeff;
+}
+.assignment-review-workspace .review-filter-select select:focus-visible{
+  border-color:var(--accent,#6d5dfc);
+  box-shadow:0 0 0 4px rgba(109,93,252,.12);
+}
+.assignment-review-workspace .review-filter-select select:disabled{
+  opacity:.6;
+  cursor:not-allowed;
+  background:#f6f7fa;
+}
+.assignment-review-workspace .review-filter-select > svg{
+  position:absolute;
+  right:14px;
+  top:50%;
+  transform:translateY(-50%);
+  pointer-events:none;
+  color:#858fa1;
+}
+.assignment-review-workspace .review-filter-refresh{
+  min-height:46px;
+  min-width:105px;
+  display:inline-flex;
+  justify-content:center;
+  align-items:center;
+  gap:8px;
+  border:1px solid #dfe3eb;
+  border-radius:11px;
+  white-space:nowrap;
+  font-size:12px;
+  font-weight:750;
+  background:#fff;
+  color:#515b6d;
+  box-shadow:0 1px 2px rgba(24,32,47,.02);
+}
+.assignment-review-workspace .review-filter-refresh:hover:not(:disabled){
+  background:#f4f2ff;
+  color:var(--accent-strong,#5b4be7);
+  border-color:#c9c2fe;
+}
+.review-spinning{animation:review-refresh-spin .7s linear infinite}
+@keyframes review-refresh-spin{to{transform:rotate(360deg)}}
+
+.assignment-review-workspace .review-allocation-panel{
+  padding:24px;
+  border-top:1px solid #e9ebf1;
+  background:#fff;
+}
+.assignment-review-workspace .review-allocation-heading{
+  display:flex;
+  align-items:start;
+  justify-content:space-between;
+  gap:18px;
+  margin:0 0 22px;
+}
+.assignment-review-workspace .review-allocation-heading .eyebrow{
+  margin:0 0 8px;
+  color:#8d93a3;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.11em;
+}
+.assignment-review-workspace .review-allocation-heading h3{
+  margin:0 0 6px;
+  color:#222b3a;
+  font-family:Manrope,sans-serif;
+  font-size:17px;
+  letter-spacing:-.03em;
+  font-weight:800;
+}
+.assignment-review-workspace .review-allocation-heading p:last-child{
+  max-width:620px;
+  margin:0;
+  color:#8992a0;
+  font-size:11px;
+  line-height:1.6;
+}
+.assignment-review-workspace .review-allocation-step{
+  flex:0 0 auto;
+  color:#6a5df3;
+  font-size:10px;
+  font-weight:750;
+  border:1px solid #e0dcff;
+  background:#f6f4ff;
+  padding:7px 11px;
+  border-radius:999px;
+}
+.assignment-review-workspace .review-bulk-actions{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  padding:14px 15px;
+  margin-bottom:23px;
+  border:1px solid #e8eaf1;
+  border-radius:13px;
+  background:#fafbfe;
+}
+.assignment-review-workspace .review-bulk-copy{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  min-width:0;
+}
+.assignment-review-workspace .review-bulk-copy strong{
+  font-size:12px;
+  color:#2c3545;
+  font-weight:800;
+}
+.assignment-review-workspace .review-bulk-copy span{
+  color:#8d96a6;
+  font-size:10px;
+  line-height:1.45;
+}
+.assignment-review-workspace .review-bulk-buttons{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.assignment-review-workspace .review-select-all{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  min-height:35px;
+  padding:6px 11px;
+  border:1px solid #dcd7ff;
+  border-radius:9px;
+  background:#fff;
+  color:var(--accent-strong,#5b4be7);
+  font-size:11px;
+  font-weight:800;
+  white-space:nowrap;
+}
+.assignment-review-workspace .review-select-all>span{
+  border-radius:999px;
+  background:#f0edff;
+  padding:2px 7px;
+  font-size:10px;
+}
+.assignment-review-workspace .review-select-all:hover:not(:disabled){
+  border-color:#ad9fff;
+  background:#f8f6ff;
+}
+.assignment-review-workspace .review-clear-button{
+  color:#7e8695;
+  background:transparent;
+  padding:7px 5px;
+  font-size:11px;
+  font-weight:750;
+  cursor:pointer;
+}
+.assignment-review-workspace .review-clear-button:hover:not(:disabled){color:#5144cf}
+.assignment-review-workspace .review-clear-button:disabled{opacity:.43;cursor:not-allowed}
+.assignment-review-workspace .review-selection-count{
+  padding:6px 10px;
+  background:#f0edff;
+  border-radius:7px;
+  color:#6b5ee0;
+  font-size:10px;
+  font-weight:800;
+  white-space:nowrap;
+}
+
+.assignment-review-workspace .review-staff-heading{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin:0 0 12px;
+}
+.assignment-review-workspace .review-staff-heading-title{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}
+.assignment-review-workspace .review-staff-icon{
+  width:36px;
+  height:36px;
+  flex:0 0 36px;
+  display:grid;
+  place-items:center;
+  border:1px solid #e2deff;
+  border-radius:10px;
+  color:var(--accent,#6d5dfc);
+  background:#f2f0ff;
+}
+.assignment-review-workspace .review-staff-heading-title>div{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.assignment-review-workspace .review-staff-heading-title strong{
+  color:#252e3d;
+  font-size:12px;
+  font-weight:800;
+}
+.assignment-review-workspace .review-staff-heading-title span:not(.review-staff-icon){
+  color:#939ba8;
+  font-size:10px;
+}
+.assignment-review-workspace .review-staff-summary{
+  flex:0 0 auto;
+  color:#6f788a;
+  background:#f7f8fb;
+  border:1px solid #e8eaf0;
+  border-radius:999px;
+  padding:7px 11px;
+  font-size:10px;
+  font-weight:750;
+}
+.assignment-review-workspace .review-staff-scroller{
+  max-width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+  padding:2px 1px 5px;
+  scrollbar-width:thin;
+  scrollbar-color:#c7c9dc transparent;
+  overscroll-behavior-inline:contain;
+}
+.assignment-review-workspace .review-staff-scroller:focus-visible{
+  outline:2px solid var(--accent,#6d5dfc);
+  outline-offset:3px;
+  border-radius:9px;
+}
+.assignment-review-workspace .review-staff-row{
+  display:flex;
+  flex-wrap:nowrap;
+  gap:9px;
+  width:100%;
+  min-width:max(790px,100%);
+  padding:2px 2px 9px;
+}
+.assignment-review-workspace .review-staff-card{
+  position:relative;
+  flex:1 0 124px;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  justify-content:flex-start;
+  min-width:0;
+  min-height:135px;
+  gap:0;
+  padding:13px 12px 11px;
+  border:1px solid #e5e8f0;
+  border-radius:12px;
+  background:#fff;
+  box-shadow:0 1px 3px rgba(19,28,47,.025);
+  cursor:pointer;
+  transition:border-color .18s ease,background .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+.assignment-review-workspace .review-staff-card:hover:not(.is-excluded){
+  border-color:#bdb6fa;
+  transform:translateY(-1px);
+  box-shadow:0 5px 15px rgba(91,75,231,.07);
+}
+.assignment-review-workspace .review-staff-card.is-selected{
+  border-color:#bcb4fe;
+  background:#faf9ff;
+  box-shadow:inset 0 0 0 1px rgba(109,93,252,.15),0 2px 7px rgba(109,93,252,.05);
+}
+.assignment-review-workspace .review-staff-card.is-excluded{
+  border-style:dashed;
+  background:#f8f9fb;
+  color:#9ca3ae;
+  cursor:not-allowed;
+  opacity:.88;
+}
+.assignment-review-workspace .review-staff-card:focus-within{
+  outline:3px solid rgba(109,93,252,.15);
+  outline-offset:1px;
+}
+.assignment-review-workspace .review-staff-input{
+  position:absolute;
+  top:10px;
+  right:10px;
+  width:23px;
+  height:23px;
+  margin:0;
+  opacity:0;
+  cursor:inherit;
+}
+.assignment-review-workspace .review-staff-card-top{
+  width:100%;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  margin-bottom:9px;
+}
+.assignment-review-workspace .review-staff-avatar{
+  width:29px;
+  height:29px;
+  display:grid;
+  place-items:center;
+  border-radius:9px;
+  border:1px solid #e4e7f4;
+  color:#797f9c;
+  font-size:12px;
+  font-weight:850;
+  background:#f4f5fb;
+}
+.assignment-review-workspace .is-selected .review-staff-avatar{
+  color:#6355df;
+  border-color:#e0dbff;
+  background:#eeeaff;
+}
+.assignment-review-workspace .review-staff-check{
+  flex:0 0 18px;
+  width:18px;
+  height:18px;
+  margin-top:1px;
+  position:relative;
+  border:1.5px solid #cfd5df;
+  border-radius:6px;
+  background:#fff;
+}
+.assignment-review-workspace .is-selected .review-staff-check{
+  border-color:var(--accent,#6d5dfc);
+  background:var(--accent,#6d5dfc);
+}
+.assignment-review-workspace .is-selected .review-staff-check::after{
+  content:'';
+  position:absolute;
+  left:5px;
+  top:2px;
+  width:4px;
+  height:8px;
+  border:solid white;
+  border-width:0 2px 2px 0;
+  transform:rotate(45deg);
+}
+.assignment-review-workspace .is-excluded .review-staff-check{
+  background:#eff0f4;
+  border-color:#d7dce4;
+}
+.assignment-review-workspace .review-staff-name{
+  display:block;
+  overflow-wrap:anywhere;
+  color:#2b3444;
+  font-size:10.5px;
+  line-height:1.35;
+  font-weight:800;
+  min-height:43px;
+  max-width:100%;
+}
+.assignment-review-workspace .is-excluded .review-staff-name{color:#8c95a5}
+.assignment-review-workspace .review-staff-meta{
+  margin-top:auto;
+  padding-top:6px;
+  font-size:9px;
+  line-height:1.4;
+  color:#8d96a5;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+  max-width:100%;
+  overflow:hidden;
+}
+.assignment-review-workspace .is-excluded .review-staff-meta{color:#9b7696}
+.assignment-review-workspace .review-staff-scroll-hint{
+  margin:3px 1px 17px;
+  color:#a0a8b4;
+  font-size:9px;
+  line-height:1.5;
+}
+.assignment-review-workspace .review-allocation-footer{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:14px;
+  padding:15px 17px;
+  border:1px solid #e7e4ff;
+  background:linear-gradient(110deg,#fbfaff,#f7f6ff);
+  border-radius:13px;
+}
+.assignment-review-workspace .review-allocation-total{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.assignment-review-workspace .review-allocation-total strong{
+  color:#2a3141;
+  font-weight:850;
+  font-size:13px;
+}
+.assignment-review-workspace .review-allocation-total span{
+  font-size:10px;
+  color:#8a91a1;
+}
+.assignment-review-workspace .review-assign-button{
+  min-height:40px;
+  min-width:168px;
+  border-radius:9px;
+  gap:8px;
+  padding:10px 16px;
+  display:inline-flex;
+  justify-content:center;
+  align-items:center;
+  white-space:nowrap;
+  font-size:12px;
+  font-weight:800;
+  box-shadow:0 3px 8px rgba(109,93,252,.15);
+}
+.assignment-review-workspace .review-assign-button:disabled{box-shadow:none;opacity:.55}
+.assignment-review-workspace .review-assign-button:not(:disabled):hover{transform:translateY(-1px)}
+
+/* Dark theme: isolated selectors prevent the original bright native controls reappearing. */
+html.dark-theme .assignment-review-workspace .review-filter-toolbar{
+  background:#151920;
+  border-color:#303642;
+}
+html.dark-theme .assignment-review-workspace .review-filter-field{color:#adb6c5}
+html.dark-theme .assignment-review-workspace .review-filter-select select,
+html.dark-theme .assignment-review-workspace .review-filter-refresh{
+  color:#e4e8f0;
+  background:#1b2029;
+  border-color:#363e4a;
+  box-shadow:none;
+}
+html.dark-theme .assignment-review-workspace .review-filter-select select:hover:not(:disabled),
+html.dark-theme .assignment-review-workspace .review-filter-refresh:hover:not(:disabled){
+  border-color:#8074f4;
+  background:#262638;
+}
+html.dark-theme .assignment-review-workspace .review-filter-select select:disabled{background:#151920;color:#8892a1}
+html.dark-theme .assignment-review-workspace .review-filter-select>svg{color:#a4adba}
+html.dark-theme .assignment-review-workspace .review-filter-select option{background:#1b2029;color:#e4e8f0}
+html.dark-theme .assignment-review-workspace .review-allocation-panel{
+  background:#171b23;
+  border-color:#303642;
+}
+html.dark-theme .assignment-review-workspace .review-allocation-heading h3,
+html.dark-theme .assignment-review-workspace .review-bulk-copy strong,
+html.dark-theme .assignment-review-workspace .review-staff-heading-title strong,
+html.dark-theme .assignment-review-workspace .review-allocation-total strong{color:#e8eaf1}
+html.dark-theme .assignment-review-workspace .review-allocation-heading p:last-child,
+html.dark-theme .assignment-review-workspace .review-bulk-copy span,
+html.dark-theme .assignment-review-workspace .review-staff-heading-title span:not(.review-staff-icon),
+html.dark-theme .assignment-review-workspace .review-allocation-total span{color:#9da6b5}
+html.dark-theme .assignment-review-workspace .review-allocation-step{
+  background:#28233d;
+  border-color:#51457c;
+  color:#beb8ff;
+}
+html.dark-theme .assignment-review-workspace .review-bulk-actions,
+html.dark-theme .assignment-review-workspace .review-staff-summary{
+  background:#1b2029;
+  border-color:#343b48;
+  color:#abb4c4;
+}
+html.dark-theme .assignment-review-workspace .review-select-all{
+  background:#272638;
+  color:#c5beff;
+  border-color:#504776;
+}
+html.dark-theme .assignment-review-workspace .review-select-all>span,
+html.dark-theme .assignment-review-workspace .review-selection-count{
+  background:#352d55;
+  color:#c9c0ff;
+}
+html.dark-theme .assignment-review-workspace .review-clear-button{color:#aab2be}
+html.dark-theme .assignment-review-workspace .review-staff-icon{
+  color:#beb6ff;
+  background:#2a253e;
+  border-color:#4e456b;
+}
+html.dark-theme .assignment-review-workspace .review-staff-card{
+  background:#1c222c;
+  border-color:#343c49;
+  box-shadow:none;
+}
+html.dark-theme .assignment-review-workspace .review-staff-card.is-selected{
+  background:#262339;
+  border-color:#8578ef;
+  box-shadow:inset 0 0 0 1px #6558b0;
+}
+html.dark-theme .assignment-review-workspace .review-staff-card.is-excluded{
+  background:#171b22;
+  border-color:#383e4a;
+}
+html.dark-theme .assignment-review-workspace .review-staff-name{color:#e3e7ef}
+html.dark-theme .assignment-review-workspace .review-staff-card.is-excluded .review-staff-name{color:#8e96a6}
+html.dark-theme .assignment-review-workspace .review-staff-avatar{background:#282f3d;border-color:#3a4351;color:#c0c6d8}
+html.dark-theme .assignment-review-workspace .is-selected .review-staff-avatar{background:#3a315e;border-color:#554988;color:#d0c9ff}
+html.dark-theme .assignment-review-workspace .review-staff-check{background:#1b2029;border-color:#626b7a}
+html.dark-theme .assignment-review-workspace .is-selected .review-staff-check{background:#6d5dfc;border-color:#6d5dfc}
+html.dark-theme .assignment-review-workspace .review-staff-meta{color:#9fa8b7}
+html.dark-theme .assignment-review-workspace .review-staff-scroll-hint{color:#788393}
+html.dark-theme .assignment-review-workspace .review-allocation-footer{
+  background:linear-gradient(110deg,#201d30,#26203b);
+  border-color:#474066;
+}
+
+/* Fit workspaces without forcing the whole dashboard to scroll horizontally. */
+@media(max-width:1150px){
+  .assignment-review-workspace .review-filter-toolbar{
+    grid-template-columns:minmax(0,.9fr) minmax(0,1.2fr) auto;
+    gap:12px;
+  }
+}
+@media(max-width:800px){
+  .assignment-review-workspace .review-filter-toolbar{
+    grid-template-columns:1fr 1.35fr;
+    padding:16px;
+  }
+  .assignment-review-workspace .review-filter-refresh{grid-column:1 / -1;justify-self:end}
+  .assignment-review-workspace .review-allocation-panel{padding:19px 16px}
+  .assignment-review-workspace .review-bulk-actions{align-items:flex-start;flex-direction:column}
+}
+@media(max-width:600px){
+  .assignment-review-workspace .review-filter-toolbar{grid-template-columns:1fr;gap:13px}
+  .assignment-review-workspace .review-filter-refresh{grid-column:auto;width:100%}
+  .assignment-review-workspace .review-allocation-heading{flex-direction:column;gap:10px}
+  .assignment-review-workspace .review-staff-heading{flex-direction:column;align-items:flex-start}
+  .assignment-review-workspace .review-allocation-footer{flex-direction:column;align-items:stretch}
+  .assignment-review-workspace .review-assign-button{width:100%}
+}
+@media(prefers-reduced-motion:reduce){
+  .assignment-review-workspace .review-staff-card,
+  .assignment-review-workspace .review-filter-select select,
+  .assignment-review-workspace .review-assign-button{transition:none}
+  .review-spinning{animation:none}
+}
