@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ClipboardCheck, Download, RefreshCw, Shuffle, X } from 'lucide-react'
+import { ChevronDown, ClipboardCheck, Download, RefreshCw, Shuffle, UsersRound, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
 import TablePagination from './TablePagination'
+import './AssignmentReviewPanel.css'
 
 type Assignment = { id: string; application_id: string; title: string; max_score: number; status: string }
 type Programme = { id: string; name: string }
@@ -195,43 +196,105 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
     {error&&<div className="form-error">{error}</div>}
     {notice&&<div className="form-message">{notice}</div>}
     <div className="card table-card">
-      <div className="toolbar" style={{flexWrap:'wrap',gap:12}}>
-        <label>Programme <select value={programme} onChange={e=>{setProgramme(e.target.value);setPage(1)}}>
-          <option value="">All programmes</option>
-          {applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
-        <label>Assignment <select value={assignmentId} onChange={e=>setAssignmentId(e.target.value)} disabled={loading}>
-          {availableAssignments.length===0?<option value="">No assignments</option>:availableAssignments.map(a=><option key={a.id} value={a.id}>{a.title}</option>)}
-        </select></label>
-        <button type="button" className="secondary-button" onClick={()=>void reload()} disabled={queueLoading||!assignmentId}>
-          <RefreshCw size={15}/> Refresh</button>
-
+      <div className="review-filter-toolbar">
+        <label className="review-filter-field">
+          <span>Programme</span>
+          <span className="review-filter-select">
+            <select aria-label="Filter assignment reviews by programme" value={programme}
+              onChange={e=>{setProgramme(e.target.value);setPage(1)}}>
+              <option value="">All programmes</option>
+              {applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            <ChevronDown size={17} aria-hidden="true"/>
+          </span>
+        </label>
+        <label className="review-filter-field review-filter-field-assignment">
+          <span>Assignment</span>
+          <span className="review-filter-select">
+            <select aria-label="Choose assignment to review" value={assignmentId}
+              onChange={e=>setAssignmentId(e.target.value)} disabled={loading||availableAssignments.length===0}>
+              {availableAssignments.length===0
+                ?<option value="">No assignments available</option>
+                :availableAssignments.map(a=><option key={a.id} value={a.id}>{a.title}</option>)}
+            </select>
+            <ChevronDown size={17} aria-hidden="true"/>
+          </span>
+        </label>
+        <button type="button" className="secondary-button review-filter-refresh"
+          onClick={()=>void reload()} disabled={queueLoading||!assignmentId}>
+          <RefreshCw size={16} className={queueLoading?'review-spinning':''}/> Refresh
+        </button>
       </div>
       <div className="attendance-analytics-grid" style={{padding:16}}>
         <div className="attendance-metric"><span>Allocated submissions</span><strong>{allocated}</strong><small>{isAdmin?unassigned+' unassigned':'Assigned to you'}</small></div>
         <div className="attendance-metric is-pending"><span>Awaiting grade</span><strong>{pending}</strong><small>To review</small></div>
         <div className="attendance-metric is-present"><span>Graded</span><strong>{completed}</strong><small>Completed reviews</small></div>
       </div>
-      {isAdmin&&<section style={{padding:'8px 16px 20px',borderTop:'1px solid #e5e7eb'}}>
-        <div className="card-header"><div><p className="eyebrow">Owner / Admin controls</p><h3>Assign & Shuffle</h3>
-          <p>Pick ungraded submissions and eligible reviewers. Test-group and staff-owned participants are excluded automatically.</p></div></div>
-        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',marginBottom:16}}>
-          <button type="button" className="secondary-button" onClick={()=>setSubmissionIds(pendingRows.map(row=>row.submission_id))} disabled={!pending||busy}>Select all {pending} ungraded</button>
-          <button type="button" className="text-button" onClick={()=>setSubmissionIds([])} disabled={!submissionIds.length||busy}>Clear selection</button>
-          <strong>{submissionIds.length} selected</strong>
+      {isAdmin&&<section className="review-allocation-panel">
+        <div className="review-allocation-heading">
+          <div>
+            <p className="eyebrow">Owner / Admin controls</p>
+            <h3>Assign &amp; Shuffle</h3>
+            <p>Select ungraded submissions, then choose the Programme Staff who should review them. Test accounts are excluded automatically.</p>
+          </div>
+          <div className="review-allocation-step">Step 1 of 2</div>
         </div>
-        <h4 style={{marginBottom:10}}>Programme Staff to receive grading</h4>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(215px,1fr))',gap:10,marginBottom:18}}>
-          {staffOptions.map(staff=><label className="card" key={staff.staff_id} style={{display:'flex',alignItems:'center',gap:10,padding:12,cursor:staff.is_eligible?'pointer':'not-allowed'}}>
-            <input type="checkbox" checked={staff.is_eligible&&reviewerIds.includes(staff.staff_id)} disabled={!staff.is_eligible||busy}
-              onChange={()=>toggleReviewer(staff.staff_id)}/>
-            <span><strong style={{display:'block'}}>{staff.staff_name||'Programme Staff'}</strong>
-              <small>{staff.is_eligible?staff.participant_count+' group participants':staff.exclusion_reason||'Excluded'}</small></span>
-          </label>)}
+
+        <div className="review-bulk-actions">
+          <div className="review-bulk-copy">
+            <strong>Choose submissions</strong>
+            <span>Pick specific entries below, or select every ungraded submission.</span>
+          </div>
+          <div className="review-bulk-buttons">
+            <button type="button" className="secondary-button review-select-all"
+              onClick={()=>setSubmissionIds(pendingRows.map(row=>row.submission_id))} disabled={!pending||busy}>
+              Select all <span>{pending}</span>
+            </button>
+            <button type="button" className="review-clear-button" onClick={()=>setSubmissionIds([])}
+              disabled={!submissionIds.length||busy}>Clear</button>
+            <span className="review-selection-count" aria-live="polite">{submissionIds.length} selected</span>
+          </div>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-          <button type="button" className="primary-button" disabled={busy||queueLoading||!submissionIds.length||!reviewerIds.length}
-            onClick={()=>void assignAndShuffle()}><Shuffle size={16}/>{busy?'Assigning…':'Assign & Shuffle'}</button>
-          <span className="muted">{reviewerIds.length} staff chosen · {submissionIds.length} submissions selected</span>
+
+        <div className="review-staff-heading">
+          <div className="review-staff-heading-title">
+            <span className="review-staff-icon"><UsersRound size={17}/></span>
+            <div>
+              <strong>Programme Staff</strong>
+              <span>Select who receives grading allocations</span>
+            </div>
+          </div>
+          <span className="review-staff-summary">{staffOptions.filter(staff=>staff.is_eligible).length} eligible · {reviewerIds.length} chosen</span>
+        </div>
+        <div className="review-staff-scroller" role="region" aria-label="Programme Staff selection, scroll horizontally to see all staff" tabIndex={0}>
+          <div className="review-staff-row">
+            {staffOptions.map(staff=><label key={staff.staff_id}
+              className={'review-staff-card'+(!staff.is_eligible?' is-excluded':reviewerIds.includes(staff.staff_id)?' is-selected':'')}
+              title={!staff.is_eligible?(staff.exclusion_reason||'Not eligible for grading'):undefined}>
+              <input className="review-staff-input" type="checkbox"
+                checked={staff.is_eligible&&reviewerIds.includes(staff.staff_id)}
+                disabled={!staff.is_eligible||busy} onChange={()=>toggleReviewer(staff.staff_id)}/>
+              <span className="review-staff-card-top">
+                <span className="review-staff-avatar" aria-hidden="true">{staff.staff_name?.trim().charAt(0).toUpperCase()||'S'}</span>
+                <span className="review-staff-check" aria-hidden="true"/>
+              </span>
+              <span className="review-staff-name">{staff.staff_name||'Programme Staff'}</span>
+              <span className="review-staff-meta">{staff.is_eligible?staff.participant_count+' group participants':'Test account · excluded'}</span>
+            </label>)}
+          </div>
+        </div>
+        <p className="review-staff-scroll-hint">All staff remain in one row. Scroll sideways on smaller screens to view everyone.</p>
+
+        <div className="review-allocation-footer">
+          <div className="review-allocation-total">
+            <strong>{submissionIds.length} submissions</strong>
+            <span>to {reviewerIds.length} selected reviewers</span>
+          </div>
+          <button type="button" className="primary-button review-assign-button"
+            disabled={busy||queueLoading||!submissionIds.length||!reviewerIds.length}
+            onClick={()=>void assignAndShuffle()}>
+            <Shuffle size={16}/>{busy?'Assigning…':'Assign & Shuffle'}
+          </button>
         </div>
       </section>}
       {isAdmin&&reviewerSummary.length>0&&<div style={{padding:'0 16px 16px'}}>
