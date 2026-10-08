@@ -40,7 +40,7 @@ create policy "Admins read review assignment history" on public.assignment_revie
 for select to authenticated using (
  private.has_active_user_session() and exists (
   select 1 from public.profiles p
-  where p.id=(select auth.uid()) and p.organization_id=organization_id and p.role in ('owner','admin')
+  where p.id=(select auth.uid()) and p.organization_id=assignment_review_allocation_events.organization_id and p.role in ('owner','admin')
  )
 );
 
@@ -176,7 +176,6 @@ declare
  v_staff_count integer;
  v_row record;
  v_reviewer uuid;
- v_before uuid;
  v_allocated integer:=0;
  v_batch uuid:=gen_random_uuid();
 begin
@@ -222,19 +221,15 @@ begin
    where s.id=any(p_submission_ids) and s.status<>'submitted'
  ) then raise exception 'A selected submission was graded during allocation. Refresh and retry'; end if;
 
- -- Preserve previous allocations in a private audit trail. All changes roll back on error.
- for v_row in
-   select s.id,s.participant_id,ra.reviewer_id
-   from public.assignment_submissions s
-   left join public.assignment_review_allocations ra on ra.submission_id=s.id
-   where s.id=any(p_submission_ids)
-   order by pg_catalog.random()
- loop
-   v_before:=v_row.reviewer_id;
-   -- For re-shuffle count only other assignments; remove each selected allocation first
-   -- so all included reviewers start from a fair workload baseline.
-   delete from public.assignment_review_allocations where submission_id=v_row.id;
- end loop;
+ -- Log previous allocations before reassigning. The action and reallocation share a batch ID.
+ insert into public.assignment_review_allocation_events
+  (organization_id,assignment_id,submission_id,reviewer_before,reviewer_after,assigned_by,action,batch_id)
+ select ra.organization_id,ra.assignment_id,ra.submission_id,ra.reviewer_id,null,auth.uid(),'manual_reassignment',v_batch
+ from public.assignment_review_allocations ra
+ where ra.submission_id=any(p_submission_ids);
+ -- Remove only the selected pending allocations before balancing the chosen pool.
+ delete from public.assignment_review_allocations ra
+ where ra.submission_id=any(p_submission_ids);
  for v_row in
    select s.id,s.participant_id from public.assignment_submissions s
    where s.id=any(p_submission_ids)
