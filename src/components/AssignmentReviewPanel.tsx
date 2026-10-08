@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, ClipboardCheck, Download, RefreshCw, Shuffle, UsersRound, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
@@ -41,6 +42,41 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
   const [documents, setDocuments] = useState<Document[]>([])
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [grade, setGrade] = useState({score:'',feedback:''})
+  const reviewDialogRef = useRef<HTMLDivElement>(null)
+  const reviewCloseRef = useRef<HTMLButtonElement>(null)
+
+  // The workspace uses its own scroll container and an animated content surface.
+  // Keep the dialog at document.body level so its fixed overlay cannot be clipped
+  // by the workspace scroll area or appear behind the sticky top navigation.
+  useEffect(()=>{
+    if(!selected)return
+    const lastFocused=document.activeElement instanceof HTMLElement?document.activeElement:null
+    const previousBodyOverflow=document.body.style.overflow
+    document.body.style.overflow='hidden'
+    const frame=window.requestAnimationFrame(()=>reviewCloseRef.current?.focus())
+    function onKeyDown(event:KeyboardEvent){
+      if(event.key==='Escape'){
+        event.preventDefault()
+        setSelected(null)
+        return
+      }
+      if(event.key!=='Tab')return
+      const items=reviewDialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])'
+      )
+      if(!items?.length)return
+      const first=items[0],last=items[items.length-1]
+      if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}
+      else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}
+    }
+    document.addEventListener('keydown',onKeyDown)
+    return ()=>{
+      window.cancelAnimationFrame(frame)
+      document.removeEventListener('keydown',onKeyDown)
+      document.body.style.overflow=previousBodyOverflow
+      lastFocused?.focus()
+    }
+  },[selected?.submission_id])
 
   useEffect(()=>{
     let alive = true
@@ -332,12 +368,12 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
         pageSizes={[20,50,100,200,0]} onPageChange={setPage}
         onPageSizeChange={size=>{setPageSize(size);setPage(1)}}/>}
     </div>
-    {selected&&<div className="modal-backdrop assignment-review-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSelected(null)}}>
-      <div className="assignment-review-modal" role="dialog" aria-modal="true" aria-labelledby="shuffle-review-title">
+    {selected&&createPortal(<div className="modal-backdrop assignment-review-backdrop assignment-review-portal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSelected(null)}}>
+      <div ref={reviewDialogRef} className="assignment-review-modal assignment-review-portal-dialog" role="dialog" aria-modal="true" aria-labelledby="shuffle-review-title" aria-describedby="assignment-review-dialog-description">
         <div className="assignment-review-modal-header"><div><p className="eyebrow">Assignment Review</p>
           <h2 id="shuffle-review-title">{selected.participant_name||selected.participant_code}</h2>
-          <p>{selected.participant_code} · {new Date(selected.submitted_at).toLocaleString()}</p></div>
-          <button type="button" className="icon-button" aria-label="Close review" onClick={()=>setSelected(null)}><X size={18}/></button></div>
+          <p id="assignment-review-dialog-description">{selected.participant_code} · Submitted {new Date(selected.submitted_at).toLocaleString()}</p></div>
+          <button ref={reviewCloseRef} type="button" className="icon-button assignment-review-close" aria-label="Close submission review" onClick={()=>setSelected(null)}><X size={20}/></button></div>
         <div className="assignment-review-modal-body">
           {detailsLoading?<div className="loading-card">Loading answers and attachments…</div>:<>
             {documents.length>0&&<section className="assignment-attachments-panel"><div className="assignment-attachments-heading"><div>
@@ -361,17 +397,25 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
             {selected.status==='graded'&&!isAdmin
               ?<div className="assignment-grade-form"><h3>Grade completed</h3><p>Score: <strong>{selected.score}/{selectedAssignment?.max_score}</strong></p>
                   <p>{selected.feedback||'No feedback provided.'}</p></div>
-              :<form className="modal-form assignment-grade-form assignment-grade-modal-form" onSubmit={saveGrade}>
+              :<form id="assignment-review-grade-form" className="modal-form assignment-grade-form assignment-grade-modal-form" onSubmit={saveGrade}>
                 <div className="assignment-form-grid"><label>Score<input type="number" required min="0" max={selectedAssignment?.max_score}
                   step="0.01" value={grade.score} onChange={e=>setGrade(v=>({...v,score:e.target.value}))}/></label>
                   <label>Status<input disabled value={selected.status==='graded'?'Graded':'Awaiting grade'}/></label></div>
                 <label>Feedback<textarea rows={5} value={grade.feedback} onChange={e=>setGrade(v=>({...v,feedback:e.target.value}))}
                   placeholder="Provide clear, constructive feedback."/></label>
-                <button type="submit" className="primary-button" disabled={busy}>{busy?'Saving…':selected.status==='graded'?'Update grade':'Save grade'}</button>
               </form>}
           </>}
         </div>
+        <div className="assignment-review-modal-footer">
+          <span className="assignment-review-footer-hint">{selected.status==='graded'&&!isAdmin?'Review completed':'Check the submitted work before saving your grade.'}</span>
+          <div className="assignment-review-footer-actions">
+            <button type="button" className="secondary-button" onClick={()=>setSelected(null)}>Close</button>
+            {(selected.status!=='graded'||isAdmin)&&<button type="submit" form="assignment-review-grade-form" className="primary-button" disabled={busy||detailsLoading}>
+              {busy?'Saving…':selected.status==='graded'?'Update grade':'Save grade'}
+            </button>}
+          </div>
+        </div>
       </div>
-    </div>}
+    </div>,document.body)}
   </section>
 }
