@@ -6,6 +6,7 @@ import TablePagination from './TablePagination'
 
 type Assignment = { id: string; application_id: string; title: string; max_score: number; status: string }
 type Programme = { id: string; name: string }
+type StaffOption = { staff_id:string; staff_name:string|null; is_eligible:boolean; participant_count:number; exclusion_reason:string|null }
 type Review = {
   submission_id: string; assignment_id: string; participant_id: string; participant_code: string;
   participant_name: string | null; status: 'submitted' | 'graded'; submitted_at: string;
@@ -23,6 +24,9 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
   const [programme, setProgramme] = useState('')
   const [assignmentId, setAssignmentId] = useState('')
   const [rows, setRows] = useState<Review[]>([])
+  const [staffOptions,setStaffOptions] = useState<StaffOption[]>([])
+  const [reviewerIds,setReviewerIds] = useState<string[]>([])
+  const [submissionIds,setSubmissionIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [queueLoading, setQueueLoading] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -65,21 +69,34 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
     let alive=true
     async function load(){
       setRows([]);setPage(1);setSelected(null);setError('')
+      setSubmissionIds([]);setStaffOptions([]);setReviewerIds([])
       if(!assignmentId){setQueueLoading(false);return}
       setQueueLoading(true)
-      const {data,error:queueError}=await supabase.rpc('get_assignment_review_queue',{p_assignment_id:assignmentId})
+      const [queue,staff] = await Promise.all([
+        supabase.rpc('get_assignment_review_queue',{p_assignment_id:assignmentId}),
+        isAdmin?supabase.rpc('get_assignment_review_staff',{p_assignment_id:assignmentId}):Promise.resolve({data:[],error:null})
+      ])
       if(!alive)return
-      if(queueError)setError(friendlyErrorMessage(queueError,'Could not load the review queue.'))
-      else setRows((data||[]) as Review[])
+      if(queue.error)setError(friendlyErrorMessage(queue.error,'Could not load the review queue.'))
+      else setRows((queue.data||[]) as Review[])
+      if(staff.error)setError(friendlyErrorMessage(staff.error,'Could not load eligible staff.'))
+      else {
+        const options=(staff.data||[]) as StaffOption[]
+        setStaffOptions(options)
+        setReviewerIds(options.filter(x=>x.is_eligible).map(x=>x.staff_id))
+      }
       setQueueLoading(false)
     }
     void load()
     return ()=>{alive=false}
-  },[assignmentId])
+  },[assignmentId,isAdmin])
 
   const selectedAssignment=assignments.find(a=>a.id===assignmentId)
-  const pending=rows.filter(x=>x.status!=='graded').length
+  const pendingRows=rows.filter(x=>x.status==='submitted')
+  const pending=pendingRows.length
   const completed=rows.filter(x=>x.status==='graded').length
+  const unassigned=isAdmin?pendingRows.filter(x=>!x.reviewer_id).length:0
+  const allocated=isAdmin?rows.filter(x=>x.reviewer_id!==null).length:rows.length
   const visible=rows.filter(x=>filter==='all'||(filter==='pending'?x.status!=='graded':x.status==='graded'))
   const paged=pageSize===0?visible:visible.slice((page-1)*pageSize,page*pageSize)
   const reviewerSummary=useMemo(()=>{
@@ -100,19 +117,32 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
     setQueueLoading(true);setError('')
     const {data,error:reloadError}=await supabase.rpc('get_assignment_review_queue',{p_assignment_id:assignmentId})
     if(reloadError)setError(friendlyErrorMessage(reloadError,'Could not refresh assignment reviews.'))
-    else setRows((data||[]) as Review[])
+    else {
+      const nextRows=(data||[]) as Review[]
+      setRows(nextRows)
+      setSubmissionIds(ids=>ids.filter(id=>nextRows.some(row=>row.submission_id===id&&row.status==='submitted')))
+    }
     setQueueLoading(false)
   }
-  async function reshuffle(){
-    if(!isAdmin||!assignmentId)return
-    if(!window.confirm('Re-shuffle ALL currently ungraded submissions? Existing scores and graded work will not change. Reviewers will receive new allocations.'))return
+  function toggleSubmission(id:string){
+    setSubmissionIds(ids=>ids.includes(id)?ids.filter(x=>x!==id):[...ids,id])
+  }
+  function toggleReviewer(id:string){
+    setReviewerIds(ids=>ids.includes(id)?ids.filter(x=>x!==id):[...ids,id])
+  }
+  async function assignAndShuffle(){
+    if(!isAdmin||!assignmentId||!submissionIds.length||!reviewerIds.length)return
+    if(!window.confirm('Assign '+submissionIds.length+' selected ungraded submissions across '+reviewerIds.length+' chosen Programme Staff? Existing pending allocations for those submissions will be replaced. Completed grades stay unchanged.'))return
     setBusy(true);setError('');setNotice('')
     try{
-      const {data,error:shuffleError}=await supabase.rpc('shuffle_assignment_reviews',{p_assignment_id:assignmentId,p_reshuffle:true})
-      if(shuffleError)throw shuffleError
-      setNotice('Review queue shuffled. '+(data?.assigned||0)+' pending submissions allocated.')
+      const {data,error:assignError}=await supabase.rpc('assign_and_shuffle_assignment_reviews',{
+        p_assignment_id:assignmentId,p_submission_ids:submissionIds,p_reviewer_ids:reviewerIds
+      })
+      if(assignError)throw assignError
+      setNotice((data?.assigned||0)+' submissions distributed across '+(data?.reviewers||0)+' selected reviewers.')
+      setSubmissionIds([])
       await reload()
-    }catch(e){setError(friendlyErrorMessage(e,'Could not shuffle reviews.'))}
+    }catch(e){setError(friendlyErrorMessage(e,'Could not assign selected grading work.'))}
     finally{setBusy(false)}
   }
   async function openSubmission(row:Review){
@@ -159,7 +189,7 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
   return <section className="assignment-review-workspace">
     <div className="page-heading compact"><div><p className="eyebrow">Independent marking</p><h1>Assignment Review</h1>
       <p className="subtitle">{isAdmin
-        ? 'Monitor every reviewer’s allocated work, grading progress and source groups. Pending work can be re-shuffled without affecting graded submissions.'
+        ? 'Select submitted work, choose eligible Programme Staff, then Assign & Shuffle. Participant groups stay unchanged.'
         : 'Grade submissions allocated from across the programme. Your usual participant group is still available under Participants → Assignments.'}</p></div>
       <ClipboardCheck size={25}/></div>
     {error&&<div className="form-error">{error}</div>}
@@ -174,14 +204,36 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
         </select></label>
         <button type="button" className="secondary-button" onClick={()=>void reload()} disabled={queueLoading||!assignmentId}>
           <RefreshCw size={15}/> Refresh</button>
-        {isAdmin&&<button type="button" className="primary-button" onClick={()=>void reshuffle()} disabled={busy||queueLoading||!assignmentId}>
-          <Shuffle size={15}/> Re-shuffle pending</button>}
+
       </div>
       <div className="attendance-analytics-grid" style={{padding:16}}>
-        <div className="attendance-metric"><span>Allocated submissions</span><strong>{rows.length}</strong><small>{isAdmin?'Across all reviewers':'Assigned to you'}</small></div>
+        <div className="attendance-metric"><span>Allocated submissions</span><strong>{allocated}</strong><small>{isAdmin?unassigned+' unassigned':'Assigned to you'}</small></div>
         <div className="attendance-metric is-pending"><span>Awaiting grade</span><strong>{pending}</strong><small>To review</small></div>
         <div className="attendance-metric is-present"><span>Graded</span><strong>{completed}</strong><small>Completed reviews</small></div>
       </div>
+      {isAdmin&&<section style={{padding:'8px 16px 20px',borderTop:'1px solid #e5e7eb'}}>
+        <div className="card-header"><div><p className="eyebrow">Owner / Admin controls</p><h3>Assign & Shuffle</h3>
+          <p>Pick ungraded submissions and eligible reviewers. Test-group and staff-owned participants are excluded automatically.</p></div></div>
+        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',marginBottom:16}}>
+          <button type="button" className="secondary-button" onClick={()=>setSubmissionIds(pendingRows.map(row=>row.submission_id))} disabled={!pending||busy}>Select all {pending} ungraded</button>
+          <button type="button" className="text-button" onClick={()=>setSubmissionIds([])} disabled={!submissionIds.length||busy}>Clear selection</button>
+          <strong>{submissionIds.length} selected</strong>
+        </div>
+        <h4 style={{marginBottom:10}}>Programme Staff to receive grading</h4>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(215px,1fr))',gap:10,marginBottom:18}}>
+          {staffOptions.map(staff=><label className="card" key={staff.staff_id} style={{display:'flex',alignItems:'center',gap:10,padding:12,cursor:staff.is_eligible?'pointer':'not-allowed'}}>
+            <input type="checkbox" checked={staff.is_eligible&&reviewerIds.includes(staff.staff_id)} disabled={!staff.is_eligible||busy}
+              onChange={()=>toggleReviewer(staff.staff_id)}/>
+            <span><strong style={{display:'block'}}>{staff.staff_name||'Programme Staff'}</strong>
+              <small>{staff.is_eligible?staff.participant_count+' group participants':staff.exclusion_reason||'Excluded'}</small></span>
+          </label>)}
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          <button type="button" className="primary-button" disabled={busy||queueLoading||!submissionIds.length||!reviewerIds.length}
+            onClick={()=>void assignAndShuffle()}><Shuffle size={16}/>{busy?'Assigning…':'Assign & Shuffle'}</button>
+          <span className="muted">{reviewerIds.length} staff chosen · {submissionIds.length} submissions selected</span>
+        </div>
+      </section>}
       {isAdmin&&reviewerSummary.length>0&&<div style={{padding:'0 16px 16px'}}>
         <h3 style={{marginBottom:10}}>Reviewer allocation breakdown</h3>
         <div className="table-wrap"><table><thead><tr><th>Reviewer</th><th>Pending</th><th>Graded</th><th>Total</th></tr></thead>
@@ -193,11 +245,17 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
           <span>{value==='pending'?pending:value==='graded'?completed:rows.length} submissions</span></button>)}
       </div>
       <div className="table-wrap"><table><thead><tr>
+        {isAdmin&&<th><input type="checkbox" aria-label="Select all ungraded submissions"
+          checked={pending>0&&pendingRows.every(row=>submissionIds.includes(row.submission_id))}
+          disabled={!pending||busy} onChange={event=>setSubmissionIds(event.target.checked?pendingRows.map(row=>row.submission_id):[])} /></th>}
         <th>Participant</th><th>Submitted</th>{isAdmin&&<><th>Original group</th><th>Review allocated to</th></>}
         <th>Status</th><th>Score</th><th>Action</th>
       </tr></thead><tbody>
-        {queueLoading?<tr><td colSpan={isAdmin?7:5}><div className="loading-card">Loading review queue…</div></td></tr>
+        {queueLoading?<tr><td colSpan={isAdmin?8:5}><div className="loading-card">Loading review queue…</div></td></tr>
         :paged.length?paged.map(row=><tr key={row.submission_id}>
+          {isAdmin&&<td><input type="checkbox" aria-label={'Select '+row.participant_code}
+            checked={submissionIds.includes(row.submission_id)}
+            disabled={row.status!=='submitted'||busy} onChange={()=>toggleSubmission(row.submission_id)}/></td>}
           <td><strong>{row.participant_name||row.participant_code}</strong><span className="table-sub">{row.participant_code}</span></td>
           <td>{new Date(row.submitted_at).toLocaleString()}</td>
           {isAdmin&&<><td>{row.source_group||'No group'}</td><td>{row.reviewer_name||'Unassigned'}</td></>}
@@ -205,7 +263,7 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
           <td>{row.score===null?'—':row.score+'/'+(selectedAssignment?.max_score||100)}</td>
           <td><button type="button" className="text-button" onClick={()=>void openSubmission(row)}>
             {row.status==='graded'&&!isAdmin?'View grade':'Open review'}</button></td>
-        </tr>):<tr><td colSpan={isAdmin?7:5}><div className="table-empty">{!assignmentId?'Select an assignment.':'No submissions in this review view.'}</div></td></tr>}
+        </tr>):<tr><td colSpan={isAdmin?8:5}><div className="table-empty">{!assignmentId?'Select an assignment.':'No submissions in this review view.'}</div></td></tr>}
       </tbody></table></div>
       {visible.length>0&&<TablePagination total={visible.length} page={page} pageSize={pageSize}
         pageSizes={[20,50,100,200,0]} onPageChange={setPage}
