@@ -572,3 +572,235 @@ html.dark-theme .assignment-review-workspace .review-allocation-footer{
   .assignment-review-workspace .review-assign-button{transition:none}
   .review-spinning{animation:none}
 }
+
+
+/* Submission review dialog — render via a body portal, outside the animated
+   workspace and its independently scrolling main element. */
+.assignment-review-portal-backdrop.modal-backdrop{
+  position:fixed;
+  inset:0;
+  z-index:2100;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  overflow:hidden;
+  overscroll-behavior:contain;
+  background:rgba(15,20,34,.64);
+  backdrop-filter:blur(5px);
+  -webkit-backdrop-filter:blur(5px);
+}
+.assignment-review-portal-backdrop .assignment-review-portal-dialog{
+  position:relative;
+  isolation:isolate;
+  flex:0 1 1000px;
+  width:min(1000px,100%);
+  height:min(860px,calc(100dvh - 40px));
+  max-height:calc(100dvh - 40px);
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  margin:0;
+  border:1px solid #e2e6ef;
+  border-radius:18px;
+  background:#fff;
+  box-shadow:0 30px 90px rgba(8,14,35,.36);
+}
+.assignment-review-portal-dialog .assignment-review-modal-header{
+  z-index:2;
+  flex:0 0 auto;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:16px;
+  padding:18px 24px;
+  min-height:84px;
+  border-bottom:1px solid #e9ecf2;
+  background:#fff;
+}
+.assignment-review-portal-dialog .assignment-review-modal-header>div{min-width:0}
+.assignment-review-portal-dialog .assignment-review-modal-header h2{
+  margin:5px 0 6px;
+  font-family:Manrope,sans-serif;
+  font-size:clamp(16px,2vw,21px);
+  line-height:1.25;
+  font-weight:800;
+  letter-spacing:-.035em;
+  color:#232b3b;
+  overflow-wrap:anywhere;
+}
+.assignment-review-portal-dialog .assignment-review-modal-header p:last-child{
+  color:#8b93a1;
+  font-size:11px;
+  line-height:1.4;
+}
+.assignment-review-portal-dialog .assignment-review-close{
+  flex:0 0 36px;
+  width:36px;
+  height:36px;
+  border:1px solid #e1e5ed;
+  border-radius:10px;
+  background:#f9fafc;
+  color:#5c6676;
+}
+.assignment-review-portal-dialog .assignment-review-close:hover{
+  color:#292f42;
+  border-color:#c7cddd;
+  background:#f0f2f7;
+}
+.assignment-review-portal-dialog .assignment-review-close:focus-visible{
+  outline:3px solid rgba(109,93,252,.25);
+  outline-offset:2px;
+}
+.assignment-review-portal-dialog .assignment-review-modal-body{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  padding:22px 24px 30px;
+  scrollbar-width:thin;
+  scrollbar-color:#aeb5c6 transparent;
+}
+.assignment-review-portal-dialog .assignment-review-modal-body>.loading-card{
+  min-height:200px;
+  display:grid;
+  place-content:center;
+}
+.assignment-review-portal-dialog .assignment-attachments-panel{
+  margin:0 0 18px;
+}
+.assignment-review-portal-dialog .assignment-answer-list{
+  gap:12px;
+  margin:0;
+}
+.assignment-review-portal-dialog .assignment-answer-row{
+  grid-template-columns:26px minmax(0,1fr);
+  padding:16px;
+  gap:12px;
+}
+.assignment-review-portal-dialog .assignment-answer-row strong{
+  font-size:12px;
+  font-weight:700;
+  line-height:1.6;
+  color:#31394a;
+}
+.assignment-review-portal-dialog .assignment-answer-row p{
+  font-size:12px;
+  line-height:1.6;
+  overflow-wrap:anywhere;
+}
+.assignment-review-portal-dialog .assignment-grade-modal-form{
+  margin-top:18px;
+  padding:18px;
+}
+.assignment-review-portal-dialog .assignment-review-modal-footer{
+  position:relative;
+  z-index:2;
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:14px 24px;
+  min-height:68px;
+  border-top:1px solid #e9ecf2;
+  background:#fff;
+  box-shadow:0 -9px 26px rgba(30,38,58,.045);
+}
+.assignment-review-portal-dialog .assignment-review-footer-hint{
+  color:#9099a9;
+  font-size:11px;
+  line-height:1.5;
+}
+.assignment-review-portal-dialog .assignment-review-footer-actions{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex:0 0 auto;
+}
+.assignment-review-portal-dialog .assignment-review-footer-actions .primary-button,
+.assignment-review-portal-dialog .assignment-review-footer-actions .secondary-button{
+  min-height:40px;
+  min-width:100px;
+  padding:9px 16px;
+  font-weight:750;
+  font-size:11px;
+}
+.assignment-review-portal-dialog .assignment-review-footer-actions .primary-button{
+  min-width:130px;
+}
+html.dark-theme .assignment-review-portal-backdrop.modal-backdrop{
+  background:rgba(0,0,0,.73);
+}
+html.dark-theme .assignment-review-portal-backdrop .assignment-review-portal-dialog{
+  background:#171b23;
+  border-color:#353d4a;
+  color:#e8ebf2;
+}
+html.dark-theme .assignment-review-portal-dialog .assignment-review-modal-header,
+html.dark-theme .assignment-review-portal-dialog .assignment-review-modal-footer{
+  background:#171b23;
+  border-color:#343c49;
+}
+html.dark-theme .assignment-review-portal-dialog .assignment-review-modal-header h2,
+html.dark-theme .assignment-review-portal-dialog .assignment-answer-row strong{
+  color:#e9edf4;
+}
+html.dark-theme .assignment-review-portal-dialog .assignment-review-close{
+  background:#222835;
+  border-color:#404755;
+  color:#d3d9e4;
+}
+html.dark-theme .assignment-review-portal-dialog .assignment-review-modal-footer{
+  box-shadow:0 -8px 25px rgba(0,0,0,.15);
+}
+html.dark-theme .assignment-review-portal-dialog .assignment-review-footer-hint{
+  color:#9da6b4;
+}
+html.dark-theme .assignment-review-portal-dialog .assignment-answer-row p{
+  color:#ced4df;
+}
+@media(max-width:700px){
+  .assignment-review-portal-backdrop.modal-backdrop{
+    padding:10px;
+  }
+  .assignment-review-portal-backdrop .assignment-review-portal-dialog{
+    height:calc(100dvh - 20px);
+    max-height:calc(100dvh - 20px);
+    border-radius:14px;
+  }
+  .assignment-review-portal-dialog .assignment-review-modal-header{padding:15px 16px}
+  .assignment-review-portal-dialog .assignment-review-modal-body{padding:16px 14px 24px}
+  .assignment-review-portal-dialog .assignment-review-modal-footer{padding:12px 14px}
+  .assignment-review-portal-dialog .assignment-review-footer-hint{display:none}
+  .assignment-review-portal-dialog .assignment-review-footer-actions{width:100%;justify-content:flex-end}
+}
+@media(max-width:420px){
+  .assignment-review-portal-backdrop.modal-backdrop{padding:0}
+  .assignment-review-portal-backdrop .assignment-review-portal-dialog{
+    width:100vw;
+    max-width:100vw;
+    height:100dvh;
+    max-height:100dvh;
+    border-radius:0;
+    border:0;
+  }
+  .assignment-review-portal-dialog .assignment-review-modal-header{
+    padding-top:max(14px,env(safe-area-inset-top));
+  }
+  .assignment-review-portal-dialog .assignment-review-modal-footer{
+    padding-bottom:max(12px,env(safe-area-inset-bottom));
+  }
+  .assignment-review-portal-dialog .assignment-review-footer-actions .secondary-button,
+  .assignment-review-portal-dialog .assignment-review-footer-actions .primary-button{
+    flex:1;
+    min-width:0;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .assignment-review-portal-backdrop,
+  .assignment-review-portal-dialog{animation:none!important;transition:none!important}
+}
