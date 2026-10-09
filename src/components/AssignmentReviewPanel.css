@@ -804,3 +804,98 @@ html.dark-theme .assignment-review-portal-dialog .assignment-answer-row p{
   .assignment-review-portal-backdrop,
   .assignment-review-portal-dialog{animation:none!important;transition:none!important}
 }
+
+/* Assignment Review participant search — scoped to the review queue, not staff selection. */
+.assignment-review-workspace .review-participant-search-toolbar{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:12px;
+  padding:15px 18px;
+  background:#fafbfe;
+  border-top:1px solid #edf0f5;
+  border-bottom:1px solid #edf0f5;
+}
+.assignment-review-workspace .review-participant-search-field{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:190px;
+  width:min(440px,100%);
+  min-height:44px;
+  padding:0 13px;
+  border:1px solid #dfe3ec;
+  border-radius:11px;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(24,32,47,.025);
+  color:#8d96a6;
+  transition:border-color .18s ease,box-shadow .18s ease;
+}
+.assignment-review-workspace .review-participant-search-field:focus-within{
+  border-color:var(--accent,#6d5dfc);
+  box-shadow:0 0 0 4px rgba(109,93,252,.12);
+}
+.assignment-review-workspace .review-participant-search-field svg{flex:0 0 auto;color:#7e87a1}
+.assignment-review-workspace .review-participant-search-field input{
+  min-width:0;
+  flex:1;
+  height:42px;
+  padding:0;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:#293344;
+  font:500 12px inherit;
+  box-shadow:none;
+}
+.assignment-review-workspace .review-participant-search-field input::placeholder{color:#9da5b3;opacity:1}
+.assignment-review-workspace .review-participant-search-clear{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  min-height:34px;
+  padding:7px 9px;
+  border-radius:9px;
+  color:#675bd4;
+  background:#f0edff;
+  font-size:11px;
+  font-weight:750;
+}
+.assignment-review-workspace .review-participant-search-clear:hover{background:#e6e0ff}
+.assignment-review-workspace .review-participant-search-clear:focus-visible{
+  outline:3px solid rgba(109,93,252,.24);
+  outline-offset:2px;
+}
+.assignment-review-workspace .review-participant-search-count{
+  margin-left:auto;
+  color:#8791a0;
+  font-size:11px;
+  font-weight:700;
+  white-space:nowrap;
+}
+html.dark-theme .assignment-review-workspace .review-participant-search-toolbar{
+  background:#151920;
+  border-color:#303642;
+}
+html.dark-theme .assignment-review-workspace .review-participant-search-field{
+  background:#1b2029;
+  border-color:#363e4a;
+  color:#aeb6c6;
+}
+html.dark-theme .assignment-review-workspace .review-participant-search-field:focus-within{
+  border-color:#8f83fc;
+}
+html.dark-theme .assignment-review-workspace .review-participant-search-field input{color:#edf0f5}
+html.dark-theme .assignment-review-workspace .review-participant-search-field input::placeholder{color:#8791a1}
+html.dark-theme .assignment-review-workspace .review-participant-search-clear{background:#342d53;color:#c4baff}
+html.dark-theme .assignment-review-workspace .review-participant-search-clear:hover{background:#44376d}
+html.dark-theme .assignment-review-workspace .review-participant-search-count{color:#9fa8b8}
+@media(max-width:600px){
+  .assignment-review-workspace .review-participant-search-toolbar{padding:13px 15px;gap:10px}
+  .assignment-review-workspace .review-participant-search-field{width:100%}
+  .assignment-review-workspace .review-participant-search-count{margin-left:0}
+}
+@media(prefers-reduced-motion:reduce){
+  .assignment-review-workspace .review-participant-search-field{transition:none}
+}
