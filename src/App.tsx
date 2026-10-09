@@ -24,8 +24,9 @@ type Application = {
 }
 type Profile = { id: string; full_name: string | null; username: string | null; birth_month: number | null; birth_day: number | null; avatar_url: string | null; organization_id: string | null; role: 'owner'|'admin'|'reviewer' }
 type Organization = { id: string; name: string; slug: string; avatar_url: string | null }
-type WorkspaceLeaderboardRow = { participant_record_id:string; participant_id:string; full_name:string|null; graded_assignments:number; submitted_assignments:number; total_assignments:number; average_percentage:number|null; completion_percentage:number; assignment_points:number; attendance_points:number; bonus_points:number; total_points:number; rank:number|null }
+type WorkspaceLeaderboardRow = { group_label?:string|null; staff_name?:string|null; participant_record_id:string; participant_id:string; full_name:string|null; graded_assignments:number; submitted_assignments:number; total_assignments:number; average_percentage:number|null; completion_percentage:number; assignment_points:number; attendance_points:number; bonus_points:number; total_points:number; rank:number|null }
 type LeaderboardGroup = { staff_id:string; staff_name:string; participant_count:number; group_number:number; group_label:string }
+type LeaderboardParticipantGroup = { participant_record_id:string; group_label:string|null; staff_name:string|null }
 
 const nav = [
   { label: 'Dashboard', icon: LayoutDashboard }, { label: 'Applications', icon: FolderKanban },
@@ -1061,9 +1062,19 @@ function App() {
       const request=staffId
         ? supabase.rpc('get_assignment_group_leaderboard',{p_application_id:applicationId,p_staff_id:staffId})
         : supabase.rpc('get_assignment_leaderboard',{p_application_id:applicationId})
-      const {data,error}=await request
-      if(error)throw error
-      setLeaderboardRows((data||[]) as WorkspaceLeaderboardRow[])
+      const [scores,groups]=await Promise.all([
+        request,
+        staffId ? Promise.resolve(null) : supabase.rpc('get_leaderboard_participant_groups',{p_application_id:applicationId})
+      ])
+      if(scores.error)throw scores.error
+      if(groups?.error)throw groups.error
+      const groupByParticipant=new Map(
+        ((groups?.data||[]) as LeaderboardParticipantGroup[]).map(item=>[item.participant_record_id,item])
+      )
+      setLeaderboardRows(((scores.data||[]) as WorkspaceLeaderboardRow[]).map(row=>({
+        ...row,
+        ...(staffId ? {} : (groupByParticipant.get(row.participant_record_id)||{group_label:null,staff_name:null}))
+      })))
     }catch(e){setLeaderboardRows([]);setLeaderboardError(friendlyErrorMessage(e,'Could not load the leaderboard.'))}
     finally{setLeaderboardLoading(false)}
   }
@@ -1244,9 +1255,9 @@ function App() {
             </div>}
             {leaderboardError&&<div className="form-error workspace-leaderboard-error">{leaderboardError}</div>}
             <div className="workspace-leaderboard-body">
-              {!leaderboardApplicationId?<div className="table-empty">Select a programme to view its leaderboard.</div>:leaderboardLoading?<div className="loading-card">Loading leaderboard…</div>:leaderboardRows.length?<div className="table-wrap workspace-leaderboard-table"><table>
-                <thead><tr><th>Rank</th><th>Participant</th><th>Assignment points</th><th>Attendance points</th><th>Bonus points</th><th>Total points</th></tr></thead>
-                <tbody>{pagedWorkspaceLeaderboard.map(row=><tr key={row.participant_record_id} className={row.rank&&row.rank<=3?'leaderboard-podium-row podium-'+row.rank:''}><td><LeaderboardRankBadge rank={row.rank}/></td><td><strong>{row.full_name||row.participant_id}</strong><span className="table-sub">{row.participant_id}</span></td><td>{Number(row.assignment_points||0).toFixed(0)}</td><td>{Number(row.attendance_points||0).toFixed(0)}</td><td>{Number(row.bonus_points||0).toFixed(0)}</td><td><strong>{Number(row.total_points||0).toFixed(0)}</strong><span className="table-sub">{row.graded_assignments}/{row.total_assignments} released assignments</span></td></tr>)}</tbody>
+              {!leaderboardApplicationId?<div className="table-empty">Select a programme to view its leaderboard.</div>:leaderboardLoading?<div className="loading-card">Loading leaderboard…</div>:leaderboardRows.length?<div className="table-wrap workspace-leaderboard-table"><table className={leaderboardScope==='overall'?'has-group-column':''}>
+                <thead><tr><th>Rank</th><th>Participant</th>{leaderboardScope==='overall'&&<th className="workspace-leaderboard-group-column">Group</th>}<th>Assignment points</th><th>Attendance points</th><th>Bonus points</th><th>Total points</th></tr></thead>
+                <tbody>{pagedWorkspaceLeaderboard.map(row=><tr key={row.participant_record_id} className={row.rank&&row.rank<=3?'leaderboard-podium-row podium-'+row.rank:''}><td><LeaderboardRankBadge rank={row.rank}/></td><td><strong>{row.full_name||row.participant_id}</strong><span className="table-sub">{row.participant_id}</span></td>{leaderboardScope==='overall'&&<td className="workspace-leaderboard-group-column">{row.group_label?<><span className="workspace-leaderboard-group-name">{row.group_label}</span><span className="workspace-leaderboard-staff-name">{row.staff_name||'Programme Staff'}</span></>:<span className="workspace-leaderboard-unassigned">Not assigned</span>}</td>}<td>{Number(row.assignment_points||0).toFixed(0)}</td><td>{Number(row.attendance_points||0).toFixed(0)}</td><td>{Number(row.bonus_points||0).toFixed(0)}</td><td><strong>{Number(row.total_points||0).toFixed(0)}</strong><span className="table-sub">{row.graded_assignments}/{row.total_assignments} released assignments</span></td></tr>)}</tbody>
               </table></div>:<div className="table-empty">No active participants are available in this leaderboard view.</div>}
             </div>
             {leaderboardApplicationId&&!leaderboardLoading&&leaderboardRows.length>0&&<TablePagination total={leaderboardRows.length} page={currentLeaderboardPage} pageSize={leaderboardPageSize} onPageChange={setLeaderboardPage} onPageSizeChange={size=>{setLeaderboardPageSize(size);setLeaderboardPage(1)}}/>}

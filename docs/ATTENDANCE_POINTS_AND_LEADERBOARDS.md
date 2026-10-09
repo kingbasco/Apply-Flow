@@ -61,6 +61,8 @@ The internal Overall leaderboard includes active participants and totals:
 - Total points.
 - Rank.
 
+The **Overall** leaderboard includes a **Group** column after the participant's name. It shows the configured Group label on the first line, followed by the assigned Programme Staff member's name on the second line. The separate `get_leaderboard_participant_groups` RPC resolves the mapping using active participant-to-staff assignments and `private.programme_leaderboard_groups`, with the same programme-scoped, active-session, Owner/Admin/Reviewer authorization as the overall leaderboard. Missing mappings display `Not assigned`. The group-scoped leaderboard remains unchanged, and no points or ranks are recalculated.
+
 ## Group leaderboard model
 
 Group leaderboards are based on Program Staff assignment.
