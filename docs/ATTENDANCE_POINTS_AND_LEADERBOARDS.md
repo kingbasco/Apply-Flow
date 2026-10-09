@@ -45,6 +45,10 @@ Current UI/backend policy restricts extra/bonus point management to Owner/Admin.
 
 Awards can be audited/revoked rather than silently overwritten.
 
+Owner/Admin can use the **Award Bonus Points** tab in Participants to paste multiple Participant IDs and apply Points, Category, Reason, and an optional Note in one confirmed batch. The participant identity and production-group membership are previewed before awarding. The backend `award_participant_points_bulk` function authorizes the administrator, validates every participant, and inserts all recipients atomically with a unique request ID to prevent retry duplication.
+
+**First people on the call** is a dedicated category available in both individual and bulk point awards. For bulk use, every included production Group 1–5 must contain **exactly five** selected active participants; one or several complete groups can be awarded in one batch. The separate Test group is not eligible. Points per participant are explicitly entered, not automatically set to five. Additional First on the Call awards to the same person on the same Lagos calendar date are blocked by the bulk endpoint. Failed verification results in no points being awarded.
+
 ## Overall leaderboard
 
 The internal Overall leaderboard includes active participants and totals:
