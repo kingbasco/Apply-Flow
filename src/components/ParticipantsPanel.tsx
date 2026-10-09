@@ -29,6 +29,8 @@ type AssignmentSubmission = { id:string; assignment_id:string; participant_id:st
 type AssignmentAnswer = { id:string; question_id:string; value:any; assignment_questions?:{label:string;type:string;position:number}|null }
 type AssignmentDocument = { id:string; question_id:string; storage_bucket:string; storage_path:string; original_name:string; mime_type:string|null; file_size:number|null }
 type LeaderboardRow = { participant_record_id:string; participant_id:string; full_name:string|null; graded_assignments:number; submitted_assignments:number; total_assignments:number; average_percentage:number|null; completion_percentage:number; assignment_points:number; attendance_points:number; bonus_points:number; total_points:number; rank:number|null }
+type LeaderboardGroup = {staff_id:string;staff_name:string;group_number:number;group_label:string;participant_count:number}
+type BulkPointRow = { code:string; participant:Participant|null; group:LeaderboardGroup|null; problem:string|null }
 type PointAward = { id:string; points:number; category:string; reason:string; note:string|null; awarded_by:string; awarded_by_name:string; created_at:string; revoked_at:string|null; revoked_by?:string|null; revoked_reason?:string|null }
 
 function LeaderboardRankBadge({rank}:{rank:number|null|undefined}){
@@ -49,13 +51,14 @@ type ExportField = {
 }
 
 export default function ParticipantsPanel({organizationId,applications,role}:{organizationId:string;applications:Application[];role?:'owner'|'admin'|'reviewer'}) {
-  const [tab,setTab]=useState<'participants'|'loan_interest'|'attendance'|'assignments'|'benefits'>('participants')
+  const [tab,setTab]=useState<'participants'|'loan_interest'|'attendance'|'assignments'|'benefits'|'bonus_points'>('participants')
   const isAdmin=role==='owner'||role==='admin'
-  const participantTabs:{key:'participants'|'loan_interest'|'attendance'|'assignments'|'benefits';label:string;adminOnly?:boolean}[]=[
+  const participantTabs:{key:'participants'|'loan_interest'|'attendance'|'assignments'|'benefits'|'bonus_points';label:string;adminOnly?:boolean}[]=[
     {key:'participants',label:'Participants'},
     {key:'loan_interest',label:'Loan Interest',adminOnly:true},
     {key:'attendance',label:'Attendance'},
     {key:'assignments',label:'Assignments'},
+    {key:'bonus_points',label:'Award Bonus Points',adminOnly:true},
     {key:'benefits',label:'Benefits',adminOnly:true}
   ]
   const isProgrammeStaff=role==='reviewer'
@@ -94,6 +97,13 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [pointAwardsLoading,setPointAwardsLoading]=useState(false)
   const [pointAwardSaving,setPointAwardSaving]=useState(false)
   const [pointAwardForm,setPointAwardForm]=useState({points:'',category:'class_activity',reason:'Most active in class',note:''})
+  const [bulkAwardIds,setBulkAwardIds]=useState('')
+  const [bulkAwardForm,setBulkAwardForm]=useState({points:'',category:'first_on_call',reason:'First people on the call',note:''})
+  const [bulkGroups,setBulkGroups]=useState<LeaderboardGroup[]>([])
+  const [bulkGroupsLoading,setBulkGroupsLoading]=useState(false)
+  const [bulkPreviewOpen,setBulkPreviewOpen]=useState(false)
+  const [bulkAwardSaving,setBulkAwardSaving]=useState(false)
+  const [bulkAwardReceipt,setBulkAwardReceipt]=useState<{count:number;total:number;points:number;category:string;reason:string}|null>(null)
   const [selectedSession,setSelectedSession]=useState<Session|null>(null)
   const [checkInSlugDraft,setCheckInSlugDraft]=useState('')
   const [editingCheckInSlug,setEditingCheckInSlug]=useState(false)
@@ -327,6 +337,20 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   useEffect(()=>{if(participantPage>participantPageCount)setParticipantPage(participantPageCount)},[participantPage,participantPageCount])
   useEffect(()=>{setLoanInterestPage(1)},[loanInterestQuery,applicationFilter])
   useEffect(()=>{setSelectedParticipantIds([])},[applicationFilter])
+  useEffect(()=>{setBulkPreviewOpen(false);setBulkAwardReceipt(null)},[applicationFilter])
+  useEffect(()=>{
+    if(tab!=='bonus_points'||!isAdmin||!applicationFilter)return
+    let cancelled=false
+    setBulkGroupsLoading(true);setBulkGroups([])
+    void (async()=>{
+      const {data,error}=await supabase.rpc('get_leaderboard_groups',{p_application_id:applicationFilter})
+      if(cancelled)return
+      if(error){setError(friendlyErrorMessage(error,'Could not load group assignments.'));setBulkGroups([])}
+      else setBulkGroups((data||[]) as LeaderboardGroup[])
+      setBulkGroupsLoading(false)
+    })()
+    return()=>{cancelled=true}
+  },[tab,isAdmin,applicationFilter])
   useEffect(()=>{if(loanInterestPage>loanInterestPageCount)setLoanInterestPage(loanInterestPageCount)},[loanInterestPage,loanInterestPageCount])
 
   const scopedParticipants=useMemo(()=>participants.filter(p=>p.status!=='withdrawn'&&(!applicationFilter||p.application_id===applicationFilter)),[participants,applicationFilter])
@@ -601,8 +625,65 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     participation:'Participation',
     leadership:'Leadership',
     helpfulness:'Helpfulness / support',
+    first_on_call:'First people on the call',
     other:'Other'
   } as Record<string,string>)[value]||'Bonus'
+
+  const bulkPointRows=useMemo<BulkPointRow[]>(()=>{
+    const tokens=bulkAwardIds.split(/[\s,;]+/).map(token=>token.trim().toUpperCase()).filter(Boolean)
+    const participantIndex=new Map(participants.filter(p=>p.application_id===applicationFilter).map(p=>[p.participant_id.trim().toUpperCase(),p]))
+    const seen=new Set<string>()
+    return tokens.map(code=>{
+      const participant=participantIndex.get(code)||null
+      const matches=participant?bulkGroups.filter(group=>group.group_number>=1&&group.group_number<=5&&participantStaff.some(assignment=>assignment.participant_id===participant.id&&assignment.staff_id===group.staff_id)):[]
+      const group=matches.length===1?matches[0]:null
+      let problem:string|null=null
+      if(seen.has(code))problem='Duplicate Participant ID'
+      else if(!participant)problem='Not found in the selected programme'
+      else if(participant.status!=='active')problem='Participant is not active'
+      else if(bulkAwardForm.category==='first_on_call'&&matches.length!==1)problem='Must belong to exactly one of Groups 1–5'
+      seen.add(code)
+      return {code,participant,group,problem}
+    })
+  },[bulkAwardIds,participants,applicationFilter,participantStaff,bulkGroups,bulkAwardForm.category])
+
+  const bulkGroupCounts=useMemo(()=>bulkGroups.filter(group=>group.group_number>=1&&group.group_number<=5)
+    .sort((a,b)=>a.group_number-b.group_number)
+    .map(group=>({...group,selected:bulkPointRows.filter(row=>row.group?.staff_id===group.staff_id&&!row.problem).length})),[bulkGroups,bulkPointRows])
+  const bulkLimitProblem=bulkAwardForm.category==='first_on_call'
+    ? bulkGroupCounts.find(group=>group.selected>0&&group.selected!==5)
+    :undefined
+  const bulkInvalidCount=bulkPointRows.filter(row=>row.problem).length
+  const bulkPoints=Number(bulkAwardForm.points)
+  const bulkCanAward=isAdmin&&!bulkGroupsLoading&&bulkPointRows.length>0&&bulkPointRows.length<=100
+    &&(bulkAwardForm.category!=='first_on_call'||bulkPointRows.length<=25)
+    &&bulkInvalidCount===0&&!bulkLimitProblem
+    &&Number.isFinite(bulkPoints)&&bulkPoints>0&&bulkPoints<=10000
+    &&bulkAwardForm.reason.trim().length>=2&&bulkAwardForm.reason.trim().length<=200
+    &&bulkAwardForm.note.trim().length<=1000
+
+  async function awardBulkParticipantPoints(){
+    if(!bulkCanAward||bulkAwardSaving||!bulkPreviewOpen||!applicationFilter)return
+    const selectedCodes=bulkPointRows.map(row=>row.code)
+    const requestId=crypto.randomUUID()
+    setBulkAwardSaving(true);setError('');setNotice('')
+    try{
+      const {data,error}=await supabase.rpc('award_participant_points_bulk',{
+        p_application_id:applicationFilter,p_participant_codes:selectedCodes,
+        p_points:Number(bulkAwardForm.points),p_category:bulkAwardForm.category,
+        p_reason:bulkAwardForm.reason.trim(),p_note:bulkAwardForm.note.trim()||null,
+        p_request_id:requestId
+      })
+      if(error)throw error
+      const result=data as {awarded:number;total_points:number;points_each:number}
+      if(result.awarded!==selectedCodes.length)throw new Error('Bulk award receipt did not match the selected participants. Check award history before retrying.')
+      setBulkAwardReceipt({count:result.awarded,total:result.total_points,points:result.points_each,category:bulkAwardForm.category,reason:bulkAwardForm.reason.trim()})
+      setBulkAwardIds('');setBulkPreviewOpen(false)
+      await loadLeaderboard(applicationFilter)
+      setNotice('Successfully awarded bonus points to '+result.awarded+' participants.')
+    }catch(e){setBulkPreviewOpen(false);setError(friendlyErrorMessage(e,'Could not award points. No partial batch should be saved.'))}
+    finally{setBulkAwardSaving(false)}
+  }
 
   async function awardParticipantPoints(e:FormEvent){
     e.preventDefault()
@@ -1072,6 +1153,38 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
       {participantTabs.filter(item=>!item.adminOnly||isAdmin).map(item=><button key={item.key} className={tab===item.key?'secondary-button':'text-button'} onClick={()=>{if(tab!==item.key)setSelectedParticipantIds([]);setTab(item.key)}}>{item.label}</button>)}
     </div>
 
+
+    {tab==='bonus_points'&&isAdmin&&<div className="bulk-points-layout">
+      <div className="card bulk-points-card">
+        <div className="card-header"><div><p className="eyebrow">Bonus points</p><h2>Bulk Award Bonus Points</h2><p>Paste Participant IDs instead of opening profiles one by one. Every award uses the existing bonus-point history and leaderboard totals.</p></div><Gift size={21}/></div>
+        <div className="bulk-points-content">
+          <label className="bulk-points-label">Participant IDs <span className="optional">Separate with a new line, comma, or space</span>
+            <textarea rows={7} value={bulkAwardIds} onChange={e=>{setBulkAwardIds(e.target.value);setBulkPreviewOpen(false);setBulkAwardReceipt(null)}} placeholder={'ECA-2026-00001\nECA-2026-00002\nECA-2026-00003'} spellCheck={false} autoCapitalize="characters"/>
+          </label>
+          <div className="bulk-points-fields">
+            <label>Points per participant<input type="number" min="0.01" max="10000" step="0.01" required value={bulkAwardForm.points} onChange={e=>{setBulkAwardForm(x=>({...x,points:e.target.value}));setBulkPreviewOpen(false)}} placeholder="Enter points"/></label>
+            <label>Category<div className="participant-select-wrap"><select value={bulkAwardForm.category} onChange={e=>{const category=e.target.value;setBulkAwardForm(x=>({...x,category,reason:pointCategoryLabel(category)}));setBulkPreviewOpen(false)}}><option value="first_on_call">First people on the call</option><option value="class_activity">Most active in class</option><option value="group_activity">Most active in group</option><option value="participation">Participation</option><option value="leadership">Leadership</option><option value="helpfulness">Helpfulness / support</option><option value="other">Other</option></select><ChevronDown size={16}/></div></label>
+          </div>
+          <label className="bulk-points-label">Reason<input type="text" maxLength={200} value={bulkAwardForm.reason} onChange={e=>{setBulkAwardForm(x=>({...x,reason:e.target.value}));setBulkPreviewOpen(false)}} placeholder="Why are you awarding these points?" required/></label>
+          <label className="bulk-points-label">Note <span className="optional">Optional</span><textarea rows={3} maxLength={1000} value={bulkAwardForm.note} onChange={e=>{setBulkAwardForm(x=>({...x,note:e.target.value}));setBulkPreviewOpen(false)}} placeholder="Session, date, or extra context."/></label>
+          {bulkAwardForm.category==='first_on_call'&&<p className="bulk-points-tip"><CheckCircle2 size={16}/> First on the Call requires five participants from each included group (Groups 1–5). You can award one or more groups per batch. Test group participants are excluded.</p>}
+        </div>
+      </div>
+      <div className="card bulk-points-card">
+        <div className="card-header"><div><p className="eyebrow">Verification</p><h2>Review recipients</h2><p>Check each Participant ID, name, and group before confirming the award.</p></div><Users size={21}/></div>
+        <div className="bulk-points-content">
+          <div className="bulk-points-summary"><div><span>IDs entered</span><strong>{bulkPointRows.length}</strong></div><div><span>Valid matches</span><strong>{bulkPointRows.length-bulkInvalidCount}</strong></div><div><span>Problems</span><strong>{bulkInvalidCount+(bulkLimitProblem?1:0)}</strong></div></div>
+          {bulkAwardForm.category==='first_on_call'&&<div className="bulk-points-groups">{bulkGroupCounts.map(group=><div className={'bulk-points-group '+(group.selected===5?'is-complete':group.selected>5?'has-error':'')} key={group.staff_id}><strong>{group.group_label}</strong><span>{group.selected} / 5 selected</span></div>)}</div>}
+          {bulkGroupsLoading?<div className="loading-card">Verifying programme groups…</div>:bulkPointRows.length?<div className="table-wrap bulk-points-table"><table><thead><tr><th>Participant ID</th><th>Name</th><th>Group</th><th>Status</th></tr></thead><tbody>{bulkPointRows.map((row,i)=><tr key={row.code+'-'+i}><td><strong>{row.code}</strong></td><td>{row.participant?.full_name||'—'}</td><td>{row.group?.group_label||'—'}</td><td>{row.problem?<span className="bulk-points-invalid">{row.problem}</span>:<span className="status green">Matched</span>}</td></tr>)}</tbody></table></div>:<div className="table-empty">Paste Participant IDs to preview the recipients.</div>}
+          {bulkLimitProblem&&<p className="bulk-points-error">{bulkLimitProblem.group_label}: select exactly five people before awarding this category (currently {bulkLimitProblem.selected}).</p>}
+          {bulkPointRows.length>100&&<p className="bulk-points-error">A bulk award supports a maximum of 100 Participant IDs.</p>}
+          {bulkAwardForm.category==='first_on_call'&&bulkPointRows.length>25&&<p className="bulk-points-error">First on the Call supports a maximum of 25 participants across Groups 1–5.</p>}
+          {bulkAwardReceipt&&<div className="bulk-points-receipt" role="status"><CheckCircle2 size={19}/><div><strong>Award complete: {bulkAwardReceipt.count} participants</strong><span>+{bulkAwardReceipt.points} each · +{bulkAwardReceipt.total} total · {pointCategoryLabel(bulkAwardReceipt.category)} · {bulkAwardReceipt.reason}</span></div></div>}
+          {!bulkPreviewOpen?<button type="button" className="primary-button bulk-points-submit" disabled={!bulkCanAward||bulkAwardSaving} onClick={()=>setBulkPreviewOpen(true)}><CheckCircle2 size={16}/> Review award</button>:<div className="bulk-points-confirm"><div><strong>Confirm bulk bonus award</strong><p>This will immediately add <b>{bulkAwardForm.points} points</b> to each of <b>{bulkPointRows.length} participants</b> ({bulkPointRows.length*bulkPoints} points total). You can revoke awards individually from participant profiles.</p></div><div className="bulk-points-confirm-actions"><button type="button" className="secondary-button" disabled={bulkAwardSaving} onClick={()=>setBulkPreviewOpen(false)}>Cancel</button><button type="button" className="primary-button" disabled={!bulkCanAward||bulkAwardSaving} onClick={awardBulkParticipantPoints}>{bulkAwardSaving?'Awarding…':'Confirm & award points'}</button></div></div>}
+        </div>
+      </div>
+    </div>}
+
     {tab==='participants'&&<>
       <div className="participant-stats-grid">
         <div className="card stat-card"><div className="stat-icon"><Users size={18}/></div><div><p className="eyebrow">Total</p><div className="stat-value">{stats.total}</div><p className="muted">Total participants</p></div></div>
@@ -1362,7 +1475,7 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
             <form className="modal-form" onSubmit={awardParticipantPoints}>
               <div className="assignment-form-grid">
                 <label>Points<input type="number" min="0.01" max="10000" step="0.01" value={pointAwardForm.points} onChange={e=>setPointAwardForm(x=>({...x,points:e.target.value}))} placeholder="5" required/></label>
-                <label>Category<div className="participant-select-wrap"><select value={pointAwardForm.category} onChange={e=>{const category=e.target.value;setPointAwardForm(x=>({...x,category,reason:pointCategoryLabel(category)}))}}><option value="class_activity">Most active in class</option><option value="group_activity">Most active in group</option><option value="participation">Participation</option><option value="leadership">Leadership</option><option value="helpfulness">Helpfulness / support</option><option value="other">Other</option></select><ChevronDown size={16}/></div></label>
+                <label>Category<div className="participant-select-wrap"><select value={pointAwardForm.category} onChange={e=>{const category=e.target.value;setPointAwardForm(x=>({...x,category,reason:pointCategoryLabel(category)}))}}><option value="class_activity">Most active in class</option><option value="group_activity">Most active in group</option><option value="participation">Participation</option><option value="leadership">Leadership</option><option value="helpfulness">Helpfulness / support</option><option value="first_on_call">First people on the call</option><option value="other">Other</option></select><ChevronDown size={16}/></div></label>
               </div>
               <label>Reason<input value={pointAwardForm.reason} onChange={e=>setPointAwardForm(x=>({...x,reason:e.target.value}))} maxLength={200} placeholder="e.g. Most active participant during Week 3" required/></label>
               <label>Note <span className="optional">Optional</span><textarea rows={3} value={pointAwardForm.note} onChange={e=>setPointAwardForm(x=>({...x,note:e.target.value}))} maxLength={1000} placeholder="Add context for the award."/></label>
