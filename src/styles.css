@@ -4691,6 +4691,14 @@ html.dark-theme .participant-email-editor details>div{border-color:#343a47}
 .workspace-leaderboard-body{min-height:260px;overflow:auto}
 .workspace-leaderboard-table{overflow:auto}
 .workspace-leaderboard-table table{min-width:820px}
+.workspace-leaderboard-table table.has-group-column{min-width:1080px}
+.workspace-leaderboard-table .workspace-leaderboard-group-column{text-align:left!important;min-width:190px;max-width:235px;white-space:normal;vertical-align:middle}
+.workspace-leaderboard-group-name{display:block;width:max-content;max-width:100%;padding:5px 9px;margin-bottom:5px;border:1px solid #dce0fa;background:#f1f2ff;border-radius:8px;font-size:11px;font-weight:800;color:#555fba;line-height:1.25;overflow-wrap:anywhere}
+.workspace-leaderboard-staff-name{display:block;max-width:210px;color:#858f9e;font-size:11px;font-weight:500;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
+.workspace-leaderboard-unassigned{color:#8b94a3;font-size:11px}
+html.dark-theme .workspace-leaderboard-group-name{color:#d6d5ff;background:#2b2945;border-color:#494676}
+html.dark-theme .workspace-leaderboard-staff-name{color:#aeb7c7}
+html.dark-theme .workspace-leaderboard-unassigned{color:#a0a9ba}
 .workspace-leaderboard-table th:first-child,.workspace-leaderboard-table td:first-child{width:72px;min-width:72px}
 .workspace-leaderboard-table th:nth-child(n+3),.workspace-leaderboard-table td:nth-child(n+3){text-align:right}
 .workspace-leaderboard-table td:last-child strong{color:#242c39}
