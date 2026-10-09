@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ClipboardCheck, Download, RefreshCw, Shuffle, UsersRound, X } from 'lucide-react'
+import { ChevronDown, ClipboardCheck, Download, RefreshCw, Search, Shuffle, UsersRound, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
 import TablePagination from './TablePagination'
@@ -35,6 +35,7 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [filter, setFilter] = useState<'pending' | 'graded' | 'all'>('pending')
+  const [participantSearch, setParticipantSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [selected, setSelected] = useState<Review | null>(null)
@@ -134,8 +135,15 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
   const completed=rows.filter(x=>x.status==='graded').length
   const unassigned=isAdmin?pendingRows.filter(x=>!x.reviewer_id).length:0
   const allocated=isAdmin?rows.filter(x=>x.reviewer_id!==null).length:rows.length
-  const visible=rows.filter(x=>filter==='all'||(filter==='pending'?x.status!=='graded':x.status==='graded'))
-  const paged=pageSize===0?visible:visible.slice((page-1)*pageSize,page*pageSize)
+  const searchTerm=participantSearch.trim().toLocaleLowerCase()
+  const visible=rows.filter(row=>{
+    if(filter!=='all' && (filter==='pending'?row.status==='graded':row.status!=='graded'))return false
+    if(!searchTerm)return true
+    return [row.participant_name,row.participant_code].some(value=>(value||'').toLocaleLowerCase().includes(searchTerm))
+  })
+  const maxReviewPage=pageSize===0?1:Math.max(1,Math.ceil(visible.length/pageSize))
+  const currentReviewPage=Math.min(page,maxReviewPage)
+  const paged=pageSize===0?visible:visible.slice((currentReviewPage-1)*pageSize,currentReviewPage*pageSize)
   const reviewerSummary=useMemo(()=>{
     const summary=new Map<string,{id:string;name:string;pending:number;graded:number}>()
     if(!isAdmin)return []
@@ -343,6 +351,19 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
           onClick={()=>{setFilter(value);setPage(1)}}><strong>{value==='pending'?'Awaiting grade':value==='graded'?'Graded':'All'}</strong>
           <span>{value==='pending'?pending:value==='graded'?completed:rows.length} submissions</span></button>)}
       </div>
+      <div className="review-participant-search-toolbar" role="search" aria-label="Search assignment review participants">
+        <label className="review-participant-search-field" htmlFor="assignment-review-participant-search">
+          <Search size={17} aria-hidden="true"/>
+          <input id="assignment-review-participant-search" type="search" autoComplete="off"
+            placeholder="Search participant name or ID…" aria-label="Search participant name or Participant ID"
+            value={participantSearch} onChange={event=>{setParticipantSearch(event.target.value);setPage(1)}}/>
+        </label>
+        {participantSearch.trim()&&<button type="button" className="review-participant-search-clear"
+          onClick={()=>{setParticipantSearch('');setPage(1)}}><X size={14}/> Clear</button>}
+        <span className="review-participant-search-count" aria-live="polite">
+          {participantSearch.trim()?visible.length+' matching submission'+(visible.length===1?'':'s'):visible.length+' submission'+(visible.length===1?'':'s')}
+        </span>
+      </div>
       <div className="table-wrap"><table><thead><tr>
         {isAdmin&&<th><input type="checkbox" aria-label="Select all ungraded submissions"
           checked={pending>0&&pendingRows.every(row=>submissionIds.includes(row.submission_id))}
@@ -362,9 +383,9 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
           <td>{row.score===null?'—':row.score+'/'+(selectedAssignment?.max_score||100)}</td>
           <td><button type="button" className="text-button" onClick={()=>void openSubmission(row)}>
             {row.status==='graded'&&!isAdmin?'View grade':'Open review'}</button></td>
-        </tr>):<tr><td colSpan={isAdmin?8:5}><div className="table-empty">{!assignmentId?'Select an assignment.':'No submissions in this review view.'}</div></td></tr>}
+        </tr>):<tr><td colSpan={isAdmin?8:5}><div className="table-empty">{!assignmentId?'Select an assignment.':searchTerm?'No participants match your search in this review view.':'No submissions in this review view.'}</div></td></tr>}
       </tbody></table></div>
-      {visible.length>0&&<TablePagination total={visible.length} page={page} pageSize={pageSize}
+      {visible.length>0&&<TablePagination total={visible.length} page={currentReviewPage} pageSize={pageSize}
         pageSizes={[20,50,100,200,0]} onPageChange={setPage}
         onPageSizeChange={size=>{setPageSize(size);setPage(1)}}/>}
     </div>
