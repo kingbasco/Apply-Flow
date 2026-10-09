@@ -845,7 +845,9 @@ html.dark-theme .assignment-review-portal-dialog .assignment-answer-row p{
   outline:0;
   background:transparent;
   color:#293344;
-  font:500 12px inherit;
+  font-family:inherit;
+  font-size:12px;
+  font-weight:500;
   box-shadow:none;
 }
 .assignment-review-workspace .review-participant-search-field input::placeholder{color:#9da5b3;opacity:1}
