@@ -1154,35 +1154,117 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     </div>
 
 
-    {tab==='bonus_points'&&isAdmin&&<div className="bulk-points-layout">
-      <div className="card bulk-points-card">
-        <div className="card-header"><div><p className="eyebrow">Bonus points</p><h2>Bulk Award Bonus Points</h2><p>Paste Participant IDs instead of opening profiles one by one. Every award uses the existing bonus-point history and leaderboard totals.</p></div><Gift size={21}/></div>
-        <div className="bulk-points-content">
-          <label className="bulk-points-label">Participant IDs <span className="optional">Separate with a new line, comma, or space</span>
-            <textarea rows={7} value={bulkAwardIds} onChange={e=>{setBulkAwardIds(e.target.value);setBulkPreviewOpen(false);setBulkAwardReceipt(null)}} placeholder={'ECA-2026-00001\nECA-2026-00002\nECA-2026-00003'} spellCheck={false} autoCapitalize="characters"/>
-          </label>
-          <div className="bulk-points-fields">
-            <label>Points per participant<input type="number" min="0.01" max="10000" step="0.01" required value={bulkAwardForm.points} onChange={e=>{setBulkAwardForm(x=>({...x,points:e.target.value}));setBulkPreviewOpen(false)}} placeholder="Enter points"/></label>
-            <label>Category<div className="participant-select-wrap"><select value={bulkAwardForm.category} onChange={e=>{const category=e.target.value;setBulkAwardForm(x=>({...x,category,reason:pointCategoryLabel(category)}));setBulkPreviewOpen(false)}}><option value="first_on_call">First people on the call</option><option value="class_activity">Most active in class</option><option value="group_activity">Most active in group</option><option value="participation">Participation</option><option value="leadership">Leadership</option><option value="helpfulness">Helpfulness / support</option><option value="other">Other</option></select><ChevronDown size={16}/></div></label>
+    {tab==='bonus_points'&&isAdmin&&<div className="bulk-awards-workspace">
+      <div className="bulk-awards-intro">
+        <div className="bulk-awards-intro-icon"><Gift size={23}/></div>
+        <div className="bulk-awards-intro-copy">
+          <p className="eyebrow">Participant rewards</p>
+          <h2>Bulk award bonus points</h2>
+          <p>Recognise participants in a few steps. Add their IDs, set the award details, then review everything before confirming.</p>
+        </div>
+        <div className="bulk-awards-access"><BadgeCheck size={15}/> Owner &amp; Admin</div>
+      </div>
+
+      <div className="bulk-awards-form-grid">
+        <section className="card bulk-awards-panel">
+          <div className="bulk-awards-panel-heading">
+            <span className="bulk-awards-step-number">01</span>
+            <div><h3>Add participants</h3><p>Paste their unique IDs to select recipients.</p></div>
+            <span className="bulk-awards-heading-count">{bulkPointRows.length} entered</span>
           </div>
-          <label className="bulk-points-label">Reason<input type="text" maxLength={200} value={bulkAwardForm.reason} onChange={e=>{setBulkAwardForm(x=>({...x,reason:e.target.value}));setBulkPreviewOpen(false)}} placeholder="Why are you awarding these points?" required/></label>
-          <label className="bulk-points-label">Note <span className="optional">Optional</span><textarea rows={3} maxLength={1000} value={bulkAwardForm.note} onChange={e=>{setBulkAwardForm(x=>({...x,note:e.target.value}));setBulkPreviewOpen(false)}} placeholder="Session, date, or extra context."/></label>
-          {bulkAwardForm.category==='first_on_call'&&<p className="bulk-points-tip"><CheckCircle2 size={16}/> First on the Call requires five participants from each included group (Groups 1–5). You can award one or more groups per batch. Test group participants are excluded.</p>}
-        </div>
+          <div className="bulk-awards-panel-body">
+            <div className="bulk-awards-field-head">
+              <label htmlFor="bulk-awards-id-list">Participant IDs <span className="bulk-awards-required">*</span></label>
+              {bulkAwardIds.trim()&&<button className="bulk-awards-clear" type="button" onClick={()=>{setBulkAwardIds('');setBulkPreviewOpen(false);setBulkAwardReceipt(null)}} disabled={bulkAwardSaving}>Clear all</button>}
+            </div>
+            <p className="bulk-awards-helper" id="bulk-awards-id-hint">Enter one ID per line, or separate IDs with commas or spaces.</p>
+            <textarea
+              id="bulk-awards-id-list"
+              className="bulk-awards-id-textarea"
+              aria-describedby="bulk-awards-id-hint"
+              rows={8}
+              value={bulkAwardIds}
+              onChange={e=>{setBulkAwardIds(e.target.value);setBulkPreviewOpen(false);setBulkAwardReceipt(null)}}
+              placeholder={'ECA-2026-00001\nECA-2026-00002\nECA-2026-00003'}
+              spellCheck={false}
+              autoCapitalize="characters"
+              disabled={bulkAwardSaving}
+            />
+            <div className="bulk-awards-input-footer">
+              <span><Users size={15}/> IDs are matched against the selected programme.</span>
+              <span>{bulkAwardForm.category==='first_on_call'?'Max 25 for this category':'Up to 100 at once'}</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="card bulk-awards-panel">
+          <div className="bulk-awards-panel-heading">
+            <span className="bulk-awards-step-number">02</span>
+            <div><h3>Set award details</h3><p>Choose the amount and why it is being awarded.</p></div>
+          </div>
+          <div className="bulk-awards-panel-body">
+            <div className="bulk-awards-detail-grid">
+              <div className="bulk-awards-field">
+                <label htmlFor="bulk-awards-points">Points per participant <span className="bulk-awards-required">*</span></label>
+                <input id="bulk-awards-points" type="number" min="0.01" max="10000" step="0.01" value={bulkAwardForm.points} onChange={e=>{setBulkAwardForm(x=>({...x,points:e.target.value}));setBulkPreviewOpen(false)}} placeholder="e.g. 5" disabled={bulkAwardSaving}/>
+              </div>
+              <div className="bulk-awards-field">
+                <label htmlFor="bulk-awards-category">Category <span className="bulk-awards-required">*</span></label>
+                <div className="bulk-awards-select"><select id="bulk-awards-category" value={bulkAwardForm.category} onChange={e=>{const category=e.target.value;setBulkAwardForm(x=>({...x,category,reason:pointCategoryLabel(category)}));setBulkPreviewOpen(false)}} disabled={bulkAwardSaving}>
+                  <option value="first_on_call">First people on the call</option><option value="class_activity">Most active in class</option><option value="group_activity">Most active in group</option><option value="participation">Participation</option><option value="leadership">Leadership</option><option value="helpfulness">Helpfulness / support</option><option value="other">Other</option>
+                </select><ChevronDown size={17}/></div>
+              </div>
+            </div>
+            <div className="bulk-awards-field">
+              <label htmlFor="bulk-awards-reason">Reason <span className="bulk-awards-required">*</span></label>
+              <input id="bulk-awards-reason" type="text" maxLength={200} value={bulkAwardForm.reason} onChange={e=>{setBulkAwardForm(x=>({...x,reason:e.target.value}));setBulkPreviewOpen(false)}} placeholder="Why are you awarding these points?" disabled={bulkAwardSaving}/>
+            </div>
+            <div className="bulk-awards-field">
+              <label htmlFor="bulk-awards-note">Additional note <span className="bulk-awards-optional">Optional</span></label>
+              <textarea id="bulk-awards-note" rows={3} maxLength={1000} value={bulkAwardForm.note} onChange={e=>{setBulkAwardForm(x=>({...x,note:e.target.value}));setBulkPreviewOpen(false)}} placeholder="Add session details or any other context…" disabled={bulkAwardSaving}/>
+            </div>
+            {bulkAwardForm.category==='first_on_call'&&<div className="bulk-awards-rule"><CheckCircle2 size={18}/><p>For this reward, choose <strong>exactly 5 participants per included group</strong> (Groups 1–5). You can include one or multiple groups. The Test group is excluded.</p></div>}
+          </div>
+        </section>
       </div>
-      <div className="card bulk-points-card">
-        <div className="card-header"><div><p className="eyebrow">Verification</p><h2>Review recipients</h2><p>Check each Participant ID, name, and group before confirming the award.</p></div><Users size={21}/></div>
-        <div className="bulk-points-content">
-          <div className="bulk-points-summary"><div><span>IDs entered</span><strong>{bulkPointRows.length}</strong></div><div><span>Valid matches</span><strong>{bulkPointRows.length-bulkInvalidCount}</strong></div><div><span>Problems</span><strong>{bulkInvalidCount+(bulkLimitProblem?1:0)}</strong></div></div>
-          {bulkAwardForm.category==='first_on_call'&&<div className="bulk-points-groups">{bulkGroupCounts.map(group=><div className={'bulk-points-group '+(group.selected===5?'is-complete':group.selected>5?'has-error':'')} key={group.staff_id}><strong>{group.group_label}</strong><span>{group.selected} / 5 selected</span></div>)}</div>}
-          {bulkGroupsLoading?<div className="loading-card">Verifying programme groups…</div>:bulkPointRows.length?<div className="table-wrap bulk-points-table"><table><thead><tr><th>Participant ID</th><th>Name</th><th>Group</th><th>Status</th></tr></thead><tbody>{bulkPointRows.map((row,i)=><tr key={row.code+'-'+i}><td><strong>{row.code}</strong></td><td>{row.participant?.full_name||'—'}</td><td>{row.group?.group_label||'—'}</td><td>{row.problem?<span className="bulk-points-invalid">{row.problem}</span>:<span className="status green">Matched</span>}</td></tr>)}</tbody></table></div>:<div className="table-empty">Paste Participant IDs to preview the recipients.</div>}
-          {bulkLimitProblem&&<p className="bulk-points-error">{bulkLimitProblem.group_label}: select exactly five people before awarding this category (currently {bulkLimitProblem.selected}).</p>}
-          {bulkPointRows.length>100&&<p className="bulk-points-error">A bulk award supports a maximum of 100 Participant IDs.</p>}
-          {bulkAwardForm.category==='first_on_call'&&bulkPointRows.length>25&&<p className="bulk-points-error">First on the Call supports a maximum of 25 participants across Groups 1–5.</p>}
-          {bulkAwardReceipt&&<div className="bulk-points-receipt" role="status"><CheckCircle2 size={19}/><div><strong>Award complete: {bulkAwardReceipt.count} participants</strong><span>+{bulkAwardReceipt.points} each · +{bulkAwardReceipt.total} total · {pointCategoryLabel(bulkAwardReceipt.category)} · {bulkAwardReceipt.reason}</span></div></div>}
-          {!bulkPreviewOpen?<button type="button" className="primary-button bulk-points-submit" disabled={!bulkCanAward||bulkAwardSaving} onClick={()=>setBulkPreviewOpen(true)}><CheckCircle2 size={16}/> Review award</button>:<div className="bulk-points-confirm"><div><strong>Confirm bulk bonus award</strong><p>This will immediately add <b>{bulkAwardForm.points} points</b> to each of <b>{bulkPointRows.length} participants</b> ({bulkPointRows.length*bulkPoints} points total). You can revoke awards individually from participant profiles.</p></div><div className="bulk-points-confirm-actions"><button type="button" className="secondary-button" disabled={bulkAwardSaving} onClick={()=>setBulkPreviewOpen(false)}>Cancel</button><button type="button" className="primary-button" disabled={!bulkCanAward||bulkAwardSaving} onClick={awardBulkParticipantPoints}>{bulkAwardSaving?'Awarding…':'Confirm & award points'}</button></div></div>}
+
+      <section className="card bulk-awards-panel bulk-awards-review-panel">
+        <div className="bulk-awards-panel-heading">
+          <span className="bulk-awards-step-number">03</span>
+          <div><h3>Review &amp; confirm</h3><p>Verify the recipients and group counts. No points are added until you confirm.</p></div>
+          <span className="bulk-awards-check-status">{bulkGroupsLoading?'Checking groups…':bulkPointRows.length===0?'Waiting for IDs':bulkCanAward?'Ready to review':'Needs attention'}</span>
         </div>
-      </div>
+        <div className="bulk-awards-panel-body">
+          <div className="bulk-awards-overview">
+            <div className="bulk-awards-metric"><span>IDs entered</span><strong>{bulkPointRows.length}</strong></div>
+            <div className="bulk-awards-metric"><span>Valid participants</span><strong>{bulkPointRows.length-bulkInvalidCount}</strong></div>
+            <div className="bulk-awards-metric"><span>Issues to resolve</span><strong>{bulkInvalidCount+(bulkLimitProblem?1:0)}</strong></div>
+            <div className="bulk-awards-metric"><span>Total points</span><strong>{bulkPointRows.length&&Number.isFinite(bulkPoints)&&bulkPoints>0?(bulkPointRows.length*bulkPoints).toLocaleString():'—'}</strong></div>
+          </div>
+          {bulkAwardForm.category==='first_on_call'&&<div className="bulk-awards-groups-area">
+            <div className="bulk-awards-subheading"><h4>Group allocation</h4><span>5 recipients per selected group</span></div>
+            <div className="bulk-awards-groups">
+              {bulkGroupCounts.map(group=><div key={group.staff_id} className={'bulk-awards-group '+(group.selected===5?'is-complete':group.selected>5?'has-error':'')}>
+                <div className="bulk-awards-group-top"><strong>{group.group_label}</strong><span>{group.selected} / 5</span></div>
+                <div className="bulk-awards-group-track" aria-hidden="true"><span style={{width:Math.min(100,group.selected/5*100)+'%'}}/></div>
+              </div>)}
+            </div>
+          </div>}
+          <div className="bulk-awards-subheading bulk-awards-recipient-heading"><h4>Recipient preview</h4><span>{bulkPointRows.length} IDs</span></div>
+          {bulkGroupsLoading?<div className="bulk-awards-empty"><Users size={23}/><p>Verifying participant groups…</p></div>:bulkPointRows.length?<div className="bulk-awards-table-scroll"><table className="bulk-awards-recipients-table"><thead><tr><th>Participant ID</th><th>Participant</th><th>Group</th><th>Verification</th></tr></thead><tbody>{bulkPointRows.map((row,i)=><tr key={row.code+'-'+i}><td><strong>{row.code}</strong></td><td>{row.participant?.full_name||'—'}</td><td>{row.group?.group_label||'—'}</td><td>{row.problem?<span className="bulk-awards-invalid">{row.problem}</span>:<span className="bulk-awards-valid"><CheckCircle2 size={13}/> Matched</span>}</td></tr>)}</tbody></table></div>:<div className="bulk-awards-empty"><Users size={23}/><strong>No recipients added yet</strong><p>Paste Participant IDs in step 1 to see matching participants here.</p></div>}
+          {bulkLimitProblem&&<p className="bulk-awards-error">{bulkLimitProblem.group_label} needs exactly five participants; {bulkLimitProblem.selected} selected.</p>}
+          {bulkPointRows.length>100&&<p className="bulk-awards-error">Maximum 100 Participant IDs per batch.</p>}
+          {bulkAwardForm.category==='first_on_call'&&bulkPointRows.length>25&&<p className="bulk-awards-error">First people on the call allows up to 25 participants across Groups 1–5.</p>}
+          {bulkAwardReceipt&&<div className="bulk-awards-receipt" role="status"><CheckCircle2 size={20}/><div><strong>Award complete: {bulkAwardReceipt.count} participants</strong><span>+{bulkAwardReceipt.points} each · +{bulkAwardReceipt.total} total · {pointCategoryLabel(bulkAwardReceipt.category)} · {bulkAwardReceipt.reason}</span></div></div>}
+          <div className="bulk-awards-review-footer">
+            <div><strong>Confirm only after checking every participant.</strong><p>Bonus points will appear in participant history and the leaderboard.</p></div>
+            {!bulkPreviewOpen?<button type="button" className="primary-button bulk-awards-action" disabled={!bulkCanAward||bulkAwardSaving} onClick={()=>setBulkPreviewOpen(true)}><CheckCircle2 size={17}/> Review award</button>:<div className="bulk-awards-confirm">
+              <p>Give <strong>{bulkAwardForm.points} points each</strong> to <strong>{bulkPointRows.length} participants</strong> ({(bulkPointRows.length*bulkPoints).toLocaleString()} total)?</p>
+              <div><button type="button" className="secondary-button" disabled={bulkAwardSaving} onClick={()=>setBulkPreviewOpen(false)}>Cancel</button><button type="button" className="primary-button bulk-awards-action" disabled={!bulkCanAward||bulkAwardSaving} onClick={awardBulkParticipantPoints}>{bulkAwardSaving?'Awarding…':'Confirm & award points'}</button></div>
+            </div>}
+          </div>
+        </div>
+      </section>
     </div>}
 
     {tab==='participants'&&<>
