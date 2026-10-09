@@ -35,6 +35,9 @@ Question types include:
 - Multiple choice.
 - File.
 - URL.
+- Read-only instruction / reading-passage blocks (stored as optional long-text questions with `config.display_only = true`). These render inline above subsequent questions, never collect an answer, and are skipped in question numbering.
+
+The question builder lets staff add a heading and multi-paragraph passage. General assignment instructions also remain visible on the participant's answer screen, not only on the welcome screen. At least one answerable question is required before publishing. No schema migration is required for the display-only block because it uses the existing question type and JSON configuration.
 
 ## Participant access
 
