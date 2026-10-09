@@ -19,7 +19,7 @@ Assignments support:
 - Title.
 - Description.
 - Instructions.
-- Deadline.
+- Deadline (entered and displayed as Nigeria time, Africa/Lagos / WAT; stored as a UTC `timestamptz` instant).
 - Maximum score.
 - Pass mark.
 - Draft / Published / Closed status.
@@ -38,6 +38,10 @@ Question types include:
 - Read-only instruction / reading-passage blocks (stored as optional long-text questions with `config.display_only = true`). These render inline above subsequent questions, never collect an answer, and are skipped in question numbering.
 
 The question builder lets staff add a heading and multi-paragraph passage. General assignment instructions also remain visible on the participant's answer screen, not only on the welcome screen. At least one answerable question is required before publishing. No schema migration is required for the display-only block because it uses the existing question type and JSON configuration.
+
+Assignment date/time inputs are converted explicitly from Nigeria time to ISO UTC before they are stored. Editing converts UTC back to Nigeria time, and admin lists and both public assignment screens format the timezone explicitly. This prevents the previous one-hour shift where a naive `16:00` value was stored as UTC and rendered as `17:00` WAT.
+
+Existing assignments that were created using the old conversion must be evaluated separately: historical submission windows are not automatically shifted.
 
 ## Participant access
 
