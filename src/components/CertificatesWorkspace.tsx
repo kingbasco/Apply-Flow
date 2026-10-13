@@ -330,7 +330,9 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     const page=pdf.addPage([canvas.width,canvas.height])
     page.drawImage(image,{x:0,y:0,width:canvas.width,height:canvas.height})
     const bytes=await pdf.save()
-    return new Blob([bytes],{type:'application/pdf'})
+    const copy=new Uint8Array(bytes.length)
+    copy.set(bytes)
+    return new Blob([copy.buffer],{type:'application/pdf'})
   }
 
   async function exportCurrent(kind:'png'|'pdf'){
