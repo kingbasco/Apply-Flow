@@ -4772,6 +4772,32 @@ html.dark-theme .workspace-leaderboard-current-group small{color:#929baa}
 }
 
 
+/* Overall leaderboard bulk selection + export */
+.workspace-leaderboard-toolbar .workspace-leaderboard-export-button{margin-left:auto;white-space:nowrap;min-height:37px}
+.workspace-leaderboard-selection-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 24px;border-bottom:1px solid #e8ebf0;background:#f8f9fc}
+.workspace-leaderboard-selection-bar>div:first-child{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px}
+.workspace-leaderboard-selection-bar strong{color:#303846;font-size:11px}
+.workspace-leaderboard-selection-bar span{color:#7b8491;font-size:10px}
+.workspace-leaderboard-selection-actions{display:flex;gap:10px;align-items:center;flex:0 0 auto}
+.workspace-leaderboard-selection-actions .text-button:disabled{opacity:.45;cursor:not-allowed}
+.workspace-leaderboard-notice{margin:12px 24px 0;padding:10px 12px;border:1px solid #cfe6d5;border-radius:9px;background:#f4fbf6;color:#33784b;font-size:11px}
+.workspace-leaderboard-table th.leaderboard-select-cell,.workspace-leaderboard-table td.leaderboard-select-cell{width:44px!important;min-width:44px!important;max-width:44px!important;text-align:center!important;padding-left:12px!important;padding-right:6px!important}
+.workspace-leaderboard-table th.leaderboard-rank-cell,.workspace-leaderboard-table td.leaderboard-rank-cell{width:72px;min-width:72px;text-align:left!important}
+.workspace-leaderboard-table th.leaderboard-text-cell,.workspace-leaderboard-table td.leaderboard-text-cell{text-align:left!important}
+.workspace-leaderboard-table .leaderboard-select-cell input{display:block;margin:auto;width:17px;height:17px;cursor:pointer;accent-color:#6259df}
+.workspace-leaderboard-table tr.leaderboard-selected-row td{box-shadow:inset 0 0 0 999px rgba(98,89,223,.035)}
+html.dark-theme .workspace-leaderboard-selection-bar{background:#151920;border-color:#303642}
+html.dark-theme .workspace-leaderboard-selection-bar strong{color:#e5eaf2}
+html.dark-theme .workspace-leaderboard-selection-bar span{color:#a1aab9}
+html.dark-theme .workspace-leaderboard-notice{background:#18281e;border-color:#30543b;color:#b6e6c1}
+html.dark-theme .workspace-leaderboard-table tr.leaderboard-selected-row td{box-shadow:inset 0 0 0 999px rgba(130,122,230,.065)}
+@media(max-width:760px){
+  .workspace-leaderboard-toolbar .workspace-leaderboard-export-button{margin-left:0;justify-content:center}
+  .workspace-leaderboard-selection-bar{padding:12px 16px;flex-direction:column;align-items:flex-start;gap:8px}
+  .workspace-leaderboard-selection-actions{flex-wrap:wrap}
+  .workspace-leaderboard-notice{margin-left:16px;margin-right:16px}
+}
+
 /* Leaderboard podium badges */
 .leaderboard-rank-badge{display:inline-flex;align-items:center;gap:5px;min-height:28px;padding:4px 8px 4px 6px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
 .leaderboard-rank-badge strong{font-size:10px;line-height:1}
