@@ -8,7 +8,7 @@ import './AssignmentReviewPanel.css'
 
 type Assignment = { id: string; application_id: string; title: string; max_score: number; status: string }
 type Programme = { id: string; name: string }
-type StaffOption = { staff_id:string; staff_name:string|null; is_eligible:boolean; participant_count:number; exclusion_reason:string|null }
+type StaffOption = { staff_id:string; staff_name:string|null; staff_role:'admin'|'reviewer'; is_eligible:boolean; participant_count:number; exclusion_reason:string|null }
 type Review = {
   submission_id: string; assignment_id: string; participant_id: string | null; participant_code: string | null;
   participant_name: string | null; blind_label: string | null; answer_count: number; document_count: number; status: 'submitted' | 'graded'; submitted_at: string | null;
@@ -122,7 +122,7 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
       else {
         const options=(staff.data||[]) as StaffOption[]
         setStaffOptions(options)
-        setReviewerIds(options.filter(x=>x.is_eligible).map(x=>x.staff_id))
+        setReviewerIds([])
       }
       setQueueLoading(false)
     }
@@ -195,6 +195,24 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
     }catch(e){setError(friendlyErrorMessage(e,'Could not assign selected grading work.'))}
     finally{setBusy(false)}
   }
+  async function assignToMe(){
+    if(role!=='admin'||!assignmentId||!submissionIds.length)return
+    if(!window.confirm('Assign '+submissionIds.length+' selected ungraded submission'+(submissionIds.length===1?'':'s')+' to yourself for marking? Existing pending allocations for those submissions will be replaced.'))return
+    setBusy(true);setError('');setNotice('')
+    try{
+      const {data,error:assignError}=await supabase.rpc('assign_assignment_reviews_to_me',{
+        p_assignment_id:assignmentId,
+        p_submission_ids:submissionIds,
+      })
+      if(assignError)throw assignError
+      const count=Number(data?.assigned||0)
+      setNotice(count+' submission'+(count===1?'':'s')+' assigned to you for marking.')
+      setSubmissionIds([])
+      await reload()
+    }catch(e){setError(friendlyErrorMessage(e,'Could not assign selected submissions to you.'))}
+    finally{setBusy(false)}
+  }
+
   async function unassignSelected(){
     if(!isAdmin||!assignmentId||!selectedAssignedIds.length)return
     if(!window.confirm('Unassign '+selectedAssignedIds.length+' selected pending submission'+(selectedAssignedIds.length===1?'':'s')+' from their Programme Staff? Grades already completed will not be changed.'))return
@@ -348,7 +366,9 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
                 <span className="review-staff-check" aria-hidden="true"/>
               </span>
               <span className="review-staff-name">{staff.staff_name||'Programme Staff'}</span>
-              <span className="review-staff-meta">{staff.is_eligible?staff.participant_count+' group participants':'Test account · excluded'}</span>
+              <span className="review-staff-meta">{staff.is_eligible
+                ?staff.staff_role==='admin'?'Admin reviewer':staff.participant_count+' group participants'
+                :staff.exclusion_reason||'Excluded from marking'}</span>
             </label>)}
           </div>
         </div>
@@ -360,6 +380,11 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
             <span>to {reviewerIds.length} selected reviewers</span>
           </div>
           <div className="review-allocation-action-buttons">
+            {role==='admin'&&<button type="button" className="secondary-button review-assign-to-me-button"
+              disabled={busy||queueLoading||submissionIds.length===0}
+              onClick={()=>void assignToMe()}>
+              <UsersRound size={16}/>Assign to Me {submissionIds.length>0?'('+submissionIds.length+')':''}
+            </button>}
             <button type="button" className="secondary-button review-unassign-button"
               disabled={busy||queueLoading||selectedAssignedIds.length===0}
               onClick={()=>void unassignSelected()}>
