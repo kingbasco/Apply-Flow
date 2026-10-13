@@ -135,6 +135,9 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
   const completed=rows.filter(x=>x.status==='graded').length
   const unassigned=isAdmin?pendingRows.filter(x=>!x.reviewer_id).length:0
   const allocated=isAdmin?rows.filter(x=>x.reviewer_id!==null).length:rows.length
+  const selectedAssignedIds=isAdmin
+    ? submissionIds.filter(id=>rows.some(row=>row.submission_id===id&&row.status==='submitted'&&row.reviewer_id!==null))
+    : []
   const searchTerm=participantSearch.trim().toLocaleLowerCase()
   const visible=rows.filter(row=>{
     if(filter!=='all' && (filter==='pending'?row.status==='graded':row.status!=='graded'))return false
@@ -191,6 +194,24 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
     }catch(e){setError(friendlyErrorMessage(e,'Could not assign selected grading work.'))}
     finally{setBusy(false)}
   }
+  async function unassignSelected(){
+    if(!isAdmin||!assignmentId||!selectedAssignedIds.length)return
+    if(!window.confirm('Unassign '+selectedAssignedIds.length+' selected pending submission'+(selectedAssignedIds.length===1?'':'s')+' from their Programme Staff? Grades already completed will not be changed.'))return
+    setBusy(true);setError('');setNotice('')
+    try{
+      const {data,error:unassignError}=await supabase.rpc('unassign_assignment_reviews',{
+        p_assignment_id:assignmentId,
+        p_submission_ids:selectedAssignedIds,
+      })
+      if(unassignError)throw unassignError
+      const count=Number(data?.unassigned||0)
+      setNotice(count+' pending review allocation'+(count===1?'':'s')+' unassigned.')
+      setSubmissionIds([])
+      await reload()
+    }catch(e){setError(friendlyErrorMessage(e,'Could not unassign selected reviews.'))}
+    finally{setBusy(false)}
+  }
+
   async function openSubmission(row:Review){
     setSelected(row);setAnswers([]);setDocuments([])
     setGrade({score:row.score===null?'':String(row.score),feedback:row.feedback||''})
@@ -332,11 +353,18 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
             <strong>{submissionIds.length} submissions</strong>
             <span>to {reviewerIds.length} selected reviewers</span>
           </div>
-          <button type="button" className="primary-button review-assign-button"
-            disabled={busy||queueLoading||!submissionIds.length||!reviewerIds.length}
-            onClick={()=>void assignAndShuffle()}>
-            <Shuffle size={16}/>{busy?'Assigning…':'Assign & Shuffle'}
-          </button>
+          <div className="review-allocation-action-buttons">
+            <button type="button" className="secondary-button review-unassign-button"
+              disabled={busy||queueLoading||selectedAssignedIds.length===0}
+              onClick={()=>void unassignSelected()}>
+              <X size={16}/>Unassign selected {selectedAssignedIds.length>0?'('+selectedAssignedIds.length+')':''}
+            </button>
+            <button type="button" className="primary-button review-assign-button"
+              disabled={busy||queueLoading||!submissionIds.length||!reviewerIds.length}
+              onClick={()=>void assignAndShuffle()}>
+              <Shuffle size={16}/>{busy?'Working…':'Assign & Shuffle'}
+            </button>
+          </div>
         </div>
       </section>}
       {isAdmin&&reviewerSummary.length>0&&<div style={{padding:'0 16px 16px'}}>
