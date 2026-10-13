@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Download, FileImage, FileText, Loader2, Save, Type, Upload } from 'lucide-react'
-import { PDFDocument } from 'pdf-lib'
-import JSZip from 'jszip'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
 import './CertificatesWorkspace.css'
@@ -322,6 +320,7 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
   }
 
   async function makePdfBlob(name:string){
+    const {PDFDocument}=await import('pdf-lib')
     const canvas=makeCanvas(name)
     const png=await canvasBlob(canvas)
     const pngBytes=await png.arrayBuffer()
@@ -356,6 +355,7 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     setExporting(kind==='png'?'png-all':'pdf-all');setError('');setNotice('')
     try{
       if(!settings.template_path||!templateImageRef.current)throw new Error('Upload a certificate template first.')
+      const JSZip=(await import('jszip')).default
       const zip=new JSZip()
       for(let index=0;index<names.length;index++){
         const name=names[index]
