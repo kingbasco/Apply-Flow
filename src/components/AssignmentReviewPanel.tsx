@@ -11,7 +11,7 @@ type Programme = { id: string; name: string }
 type StaffOption = { staff_id:string; staff_name:string|null; is_eligible:boolean; participant_count:number; exclusion_reason:string|null }
 type Review = {
   submission_id: string; assignment_id: string; participant_id: string | null; participant_code: string | null;
-  participant_name: string | null; blind_label: string | null; status: 'submitted' | 'graded'; submitted_at: string | null;
+  participant_name: string | null; blind_label: string | null; answer_count: number; document_count: number; status: 'submitted' | 'graded'; submitted_at: string | null;
   score: number | null; feedback: string | null; graded_at: string | null;
   reviewer_id: string | null; reviewer_name: string | null; source_group: string | null; assigned_at: string;
 }
@@ -42,6 +42,7 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
   const [answers, setAnswers] = useState<Answer[]>([])
   const [documents, setDocuments] = useState<Document[]>([])
   const [detailsLoading, setDetailsLoading] = useState(false)
+  const [detailsError, setDetailsError] = useState('')
   const [grade, setGrade] = useState({score:'',feedback:''})
   const reviewDialogRef = useRef<HTMLDivElement>(null)
   const reviewCloseRef = useRef<HTMLButtonElement>(null)
@@ -215,13 +216,18 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
   async function openSubmission(row:Review){
     setSelected(row);setAnswers([]);setDocuments([])
     setGrade({score:row.score===null?'':String(row.score),feedback:row.feedback||''})
-    setDetailsLoading(true);setError('')
-    const {data,error:detailsError}=await supabase.rpc('get_assignment_review_submission',{p_submission_id:row.submission_id})
-    if(detailsError)setError(friendlyErrorMessage(detailsError,'Could not load submission.'))
-    else {
-      const payload=(data||{}) as {answers?:Answer[];documents?:Document[]}
-      setAnswers(payload.answers||[])
-      setDocuments(payload.documents||[])
+    setDetailsLoading(true);setDetailsError('');setError('')
+    const {data,error:detailsRpcError}=await supabase.rpc('get_assignment_review_submission',{p_submission_id:row.submission_id})
+    if(detailsRpcError){
+      setDetailsError(friendlyErrorMessage(detailsRpcError,'Could not load this submission.'))
+    }else{
+      const raw=Array.isArray(data)?data[0]:data
+      const payload=(raw||{}) as {answers?:Answer[];documents?:Document[]}
+      setAnswers(Array.isArray(payload.answers)?payload.answers:[])
+      setDocuments(Array.isArray(payload.documents)?payload.documents:[])
+      if(!Array.isArray(payload.answers)&&!Array.isArray(payload.documents)){
+        setDetailsError('The submission loaded without its answers or attachments. Please close and reopen it.')
+      }
     }
     setDetailsLoading(false)
   }
@@ -403,7 +409,7 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
           {isAdmin&&<td><input type="checkbox" aria-label={'Select '+(row.participant_code||row.blind_label||'submission')}
             checked={submissionIds.includes(row.submission_id)}
             disabled={row.status!=='submitted'||busy} onChange={()=>toggleSubmission(row.submission_id)}/></td>}
-          <td>{isAdmin?<><strong>{row.participant_name||row.participant_code}</strong><span className="table-sub">{row.participant_code}</span></>:<><strong>{row.blind_label||'Anonymous submission'}</strong><span className="table-sub">Identity hidden for blind grading</span></>}</td>
+          <td>{isAdmin?<><strong>{row.participant_name||row.participant_code}</strong><span className="table-sub">{row.participant_code}</span></>:<><strong>{row.blind_label||('Submission '+String((currentReviewPage-1)*(pageSize||visible.length)+paged.indexOf(row)+1).padStart(2,'0'))}</strong><span className="table-sub">{row.answer_count||0} answer{Number(row.answer_count||0)===1?'':'s'} · {row.document_count||0} attachment{Number(row.document_count||0)===1?'':'s'}</span></>}</td>
           {isAdmin&&<td>{row.submitted_at?new Date(row.submitted_at).toLocaleString():'—'}</td>}
           {isAdmin&&<><td>{row.source_group||'No group'}</td><td>{row.reviewer_name||'Unassigned'}</td></>}
           <td><span className={'status '+(row.status==='graded'?'green':'blue')}>{row.status==='graded'?'Graded':'Awaiting grade'}</span></td>
@@ -423,7 +429,11 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
           <p id="assignment-review-dialog-description">{isAdmin?((selected.participant_code||'Participant')+' · Submitted '+(selected.submitted_at?new Date(selected.submitted_at).toLocaleString():'—')):'Participant name, ID, group and submission time are hidden while marking.'}</p></div>
           <button ref={reviewCloseRef} type="button" className="icon-button assignment-review-close" aria-label="Close submission review" onClick={()=>setSelected(null)}><X size={20}/></button></div>
         <div className="assignment-review-modal-body">
-          {detailsLoading?<div className="loading-card">Loading answers and attachments…</div>:<>
+          {detailsLoading?<div className="loading-card">Loading questions, answers and attachments…</div>:detailsError?<div className="form-error">{detailsError}</div>:<>
+            {!isAdmin&&<div className="assignment-blind-review-summary">
+              <strong>{selected.blind_label||'Anonymous submission'}</strong>
+              <span>{answers.length} submitted answer{answers.length===1?'':'s'} · {documents.length} uploaded file{documents.length===1?'':'s'}</span>
+            </div>}
             {documents.length>0&&<section className="assignment-attachments-panel"><div className="assignment-attachments-heading"><div>
               <p className="eyebrow">Attachments</p><h4>Uploaded files ({documents.length})</h4></div></div>
               <div className="assignment-attachments-list">{documents.map(file=><button type="button" key={file.id}
@@ -432,7 +442,7 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
                 <span className="assignment-attachment-copy"><strong>{file.original_name}</strong><small>{file.file_size?Math.round(file.file_size/1024)+' KB':''}</small></span>
                 <span className="assignment-attachment-action">Open</span></button>)}</div>
             </section>}
-            <div className="assignment-answer-list">{answers.slice().sort((a,b)=>(a.assignment_questions?.position||0)-(b.assignment_questions?.position||0))
+            {answers.length===0&&documents.length===0?<div className="table-empty">No submitted answers or uploaded files were returned for this submission.</div>:<div className="assignment-answer-list">{answers.slice().sort((a,b)=>(a.assignment_questions?.position||0)-(b.assignment_questions?.position||0))
               .map((answer,i)=><div className="assignment-answer-row" key={answer.id}><span>{i+1}</span><div>
                 <strong>{answer.assignment_questions?.label||'Question'}</strong>
                 {documents.some(d=>d.question_id===answer.question_id)
@@ -441,7 +451,7 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
                       <Download size={14}/> Attachment {index+1}: {file.original_name}</button>)}</div>
                   :<p>{Array.isArray(answer.value)?answer.value.map(x=>String(x)).join(', ')
                     :typeof answer.value==='object'?JSON.stringify(answer.value):String(answer.value??'—')}</p>}
-              </div></div>)}</div>
+              </div></div>)}</div>}
             {selected.status==='graded'&&!isAdmin
               ?<div className="assignment-grade-form"><h3>Grade completed</h3><p>Score: <strong>{selected.score}/{selectedAssignment?.max_score}</strong></p>
                   <p>{selected.feedback||'No feedback provided.'}</p></div>
