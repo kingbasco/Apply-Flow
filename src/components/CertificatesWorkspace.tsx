@@ -4,6 +4,7 @@ import { PDFDocument } from 'pdf-lib'
 import JSZip from 'jszip'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
+import './CertificatesWorkspace.css'
 
 type CertificateSettings = {
   organization_id:string
