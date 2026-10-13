@@ -25,7 +25,7 @@ type Application = {
 }
 type Profile = { id: string; full_name: string | null; username: string | null; birth_month: number | null; birth_day: number | null; avatar_url: string | null; organization_id: string | null; role: 'owner'|'admin'|'reviewer' }
 type Organization = { id: string; name: string; slug: string; avatar_url: string | null }
-type WorkspaceLeaderboardRow = { group_label?:string|null; staff_name?:string|null; participant_record_id:string; participant_id:string; full_name:string|null; graded_assignments:number; submitted_assignments:number; total_assignments:number; average_percentage:number|null; completion_percentage:number; assignment_points:number; attendance_points:number; bonus_points:number; total_points:number; rank:number|null }
+type WorkspaceLeaderboardRow = { group_label?:string|null; staff_name?:string|null; email?:string|null; participant_record_id:string; participant_id:string; full_name:string|null; graded_assignments:number; submitted_assignments:number; total_assignments:number; average_percentage:number|null; completion_percentage:number; assignment_points:number; attendance_points:number; bonus_points:number; total_points:number; rank:number|null }
 type LeaderboardGroup = { staff_id:string; staff_name:string; participant_count:number; group_number:number; group_label:string }
 type LeaderboardParticipantGroup = { participant_record_id:string; group_label:string|null; staff_name:string|null }
 type LeaderboardExportField = { key:keyof WorkspaceLeaderboardRow; label:string; group:'participant'|'performance' }
@@ -33,6 +33,7 @@ const LEADERBOARD_EXPORT_FIELDS:LeaderboardExportField[] = [
   {key:'rank',label:'Rank',group:'performance'},
   {key:'participant_id',label:'Participant ID',group:'participant'},
   {key:'full_name',label:'Participant Name',group:'participant'},
+  {key:'email',label:'Email',group:'participant'},
   {key:'group_label',label:'Group',group:'participant'},
   {key:'staff_name',label:'Programme Staff',group:'participant'},
   {key:'assignment_points',label:'Assignment Points',group:'performance'},
@@ -45,7 +46,7 @@ const LEADERBOARD_EXPORT_FIELDS:LeaderboardExportField[] = [
   {key:'average_percentage',label:'Average Percentage',group:'performance'},
   {key:'completion_percentage',label:'Completion Percentage',group:'performance'}
 ]
-const DEFAULT_LEADERBOARD_EXPORT_FIELDS=['rank','participant_id','full_name','group_label','staff_name','assignment_points','attendance_points','bonus_points','total_points']
+const DEFAULT_LEADERBOARD_EXPORT_FIELDS=['rank','participant_id','full_name','email','group_label','staff_name','assignment_points','attendance_points','bonus_points','total_points']
 function leaderboardCsvCell(value:unknown){
   const text=value===null||value===undefined?'':String(value)
   // Prevent spreadsheet software from treating participant-supplied names/labels as formulas.
@@ -1097,18 +1098,26 @@ function App() {
       const request=staffId
         ? supabase.rpc('get_assignment_group_leaderboard',{p_application_id:applicationId,p_staff_id:staffId})
         : supabase.rpc('get_assignment_leaderboard',{p_application_id:applicationId})
-      const [scores,groups]=await Promise.all([
+      const [scores,groups,contacts]=await Promise.all([
         request,
-        staffId ? Promise.resolve(null) : supabase.rpc('get_leaderboard_participant_groups',{p_application_id:applicationId})
+        staffId ? Promise.resolve(null) : supabase.rpc('get_leaderboard_participant_groups',{p_application_id:applicationId}),
+        (!staffId&&canManageProgrammes)
+          ? supabase.rpc('get_leaderboard_export_contacts',{p_application_id:applicationId})
+          : Promise.resolve(null)
       ])
       if(scores.error)throw scores.error
       if(groups?.error)throw groups.error
+      if(contacts?.error)throw contacts.error
       const groupByParticipant=new Map(
         ((groups?.data||[]) as LeaderboardParticipantGroup[]).map(item=>[item.participant_record_id,item])
       )
+      const emailByParticipant=new Map(
+        ((contacts?.data||[]) as {participant_record_id:string;email:string|null}[]).map(item=>[item.participant_record_id,item.email])
+      )
       setLeaderboardRows(((scores.data||[]) as WorkspaceLeaderboardRow[]).map(row=>({
         ...row,
-        ...(staffId ? {} : (groupByParticipant.get(row.participant_record_id)||{group_label:null,staff_name:null}))
+        ...(!staffId ? (groupByParticipant.get(row.participant_record_id)||{group_label:null,staff_name:null}) : {}),
+        ...(!staffId&&canManageProgrammes ? {email:emailByParticipant.get(row.participant_record_id)||null} : {})
       })))
     }catch(e){setLeaderboardRows([]);setLeaderboardError(friendlyErrorMessage(e,'Could not load the leaderboard.'))}
     finally{setLeaderboardLoading(false)}
