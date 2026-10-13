@@ -32,6 +32,53 @@ const DEFAULT_SETTINGS:Omit<CertificateSettings,'organization_id'> = {
 
 const FONT_FACE_NAME='ApplyFlowCertificateName'
 const STORAGE_BUCKET='certificate-assets'
+type ExportQuality='standard'|'high'|'ultra'
+
+function exportScale(quality:ExportQuality){
+  if(quality==='standard')return 2
+  if(quality==='high')return 4
+  return 6
+}
+
+function safeScale(width:number,height:number,requested:number){
+  const maxDimension=12000
+  const maxPixels=80_000_000
+  const dimensionScale=Math.min(maxDimension/Math.max(width,1),maxDimension/Math.max(height,1))
+  const pixelScale=Math.sqrt(maxPixels/Math.max(width*height,1))
+  return Math.max(1,Math.min(requested,dimensionScale,pixelScale))
+}
+
+function svgGeometry(svgText:string){
+  const parser=new DOMParser()
+  const document=parser.parseFromString(svgText,'image/svg+xml')
+  if(document.querySelector('parsererror'))throw new Error('The SVG template is not valid.')
+  const root=document.documentElement
+  const viewBox=(root.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number)
+  if(viewBox.length===4&&viewBox.every(Number.isFinite)&&viewBox[2]>0&&viewBox[3]>0){
+    return {minX:viewBox[0],minY:viewBox[1],width:viewBox[2],height:viewBox[3]}
+  }
+  const width=Number.parseFloat(root.getAttribute('width')||'0')
+  const height=Number.parseFloat(root.getAttribute('height')||'0')
+  if(width>0&&height>0)return{minX:0,minY:0,width,height}
+  return{minX:0,minY:0,width:1600,height:1131}
+}
+
+function sanitizeSvgDocument(document:Document){
+  document.querySelectorAll('script,foreignObject,iframe,object,embed').forEach(node=>node.remove())
+  document.querySelectorAll('*').forEach(element=>{
+    for(const attribute of Array.from(element.attributes)){
+      const name=attribute.name.toLowerCase()
+      const value=attribute.value.trim().toLowerCase()
+      if(name.startsWith('on'))element.removeAttribute(attribute.name)
+      if((name==='href'||name==='xlink:href')&&value&&!value.startsWith('#')&&!value.startsWith('data:')){
+        element.removeAttribute(attribute.name)
+      }
+      if((name==='style'||name==='filter'||name==='clip-path'||name==='mask')&&/url\(\s*['"]?https?:/i.test(attribute.value)){
+        element.removeAttribute(attribute.name)
+      }
+    }
+  })
+}
 
 function parseNames(value:string){
   const seen=new Set<string>()
@@ -99,14 +146,17 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
   const [previewIndex,setPreviewIndex]=useState(0)
   const previewName=names[previewIndex]||'Recipient Name'
   const [templateUrl,setTemplateUrl]=useState('')
+  const [rawSvgText,setRawSvgText]=useState('')
   const [fontUrl,setFontUrl]=useState('')
+  const [fontDataUrl,setFontDataUrl]=useState('')
+  const [exportQuality,setExportQuality]=useState<ExportQuality>('ultra')
   const templateImageRef=useRef<HTMLImageElement|null>(null)
   const fontFaceRef=useRef<FontFace|null>(null)
   const canvasRef=useRef<HTMLCanvasElement|null>(null)
   const [loading,setLoading]=useState(true)
   const [saving,setSaving]=useState(false)
   const [uploading,setUploading]=useState<'template'|'font'|''>('')
-  const [exporting,setExporting]=useState<'png'|'pdf'|'png-all'|'pdf-all'|''>('')
+  const [exporting,setExporting]=useState<'png'|'pdf'|'svg'|'png-all'|'pdf-all'|'svg-all'|''>('')
   const [exportProgress,setExportProgress]=useState('')
   const [error,setError]=useState('')
   const [notice,setNotice]=useState('')
@@ -138,18 +188,26 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
       if(next.template_path){
         const {data,error}=await supabase.storage.from(STORAGE_BUCKET).download(next.template_path)
         if(error)throw error
+        const svgText=next.template_mime_type==='image/svg+xml'?await data.text():''
         if(!isCancelled){
+          setRawSvgText(svgText)
           const url=URL.createObjectURL(data)
           setTemplateUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
         }
+      }else if(!isCancelled){
+        setRawSvgText('')
       }
       if(next.font_path){
         const {data,error}=await supabase.storage.from(STORAGE_BUCKET).download(next.font_path)
         if(error)throw error
+        const dataUrl=await blobToDataUrl(data)
         if(!isCancelled){
+          setFontDataUrl(dataUrl)
           const url=URL.createObjectURL(data)
           setFontUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
         }
+      }else if(!isCancelled){
+        setFontDataUrl('')
       }
     }
     void load()
@@ -197,16 +255,32 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     if(fontFaceRef.current)document.fonts.delete(fontFaceRef.current)
   },[])
 
-  function drawCertificate(name:string,canvas:HTMLCanvasElement){
+  function fittedFontSize(name:string,width:number){
+    const measure=document.createElement('canvas').getContext('2d')
+    let size=Math.max(8,Number(settings.font_size)||72)
+    if(!measure)return size
+    const family=fontFaceRef.current?`"${FONT_FACE_NAME}"`:'Georgia'
+    measure.font=`${size}px ${family}`
+    const maximum=width*(Number(settings.max_width_percent)||72)/100
+    const measured=measure.measureText(name).width
+    if(measured>maximum&&measured>0)size=Math.max(8,size*(maximum/measured))
+    return size
+  }
+
+  function drawCertificate(name:string,canvas:HTMLCanvasElement,requestedScale=1){
     const image=templateImageRef.current
     if(!image)throw new Error('Upload a certificate template first.')
     const width=image.naturalWidth||image.width
     const height=image.naturalHeight||image.height
     if(!width||!height)throw new Error('The certificate template has no valid dimensions.')
-    canvas.width=width
-    canvas.height=height
+    const scale=safeScale(width,height,requestedScale)
+    canvas.width=Math.max(1,Math.round(width*scale))
+    canvas.height=Math.max(1,Math.round(height*scale))
     const context=canvas.getContext('2d')
     if(!context)throw new Error('Your browser could not create the certificate canvas.')
+    context.imageSmoothingEnabled=true
+    context.imageSmoothingQuality='high'
+    context.setTransform(scale,0,0,scale,0,0)
     context.clearRect(0,0,width,height)
     context.drawImage(image,0,0,width,height)
     context.save()
@@ -214,16 +288,86 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     context.textBaseline='middle'
     context.fillStyle=settings.color
     const family=fontFaceRef.current?`"${FONT_FACE_NAME}"`:'Georgia'
-    let size=Math.max(8,Number(settings.font_size)||72)
+    const size=fittedFontSize(name,width)
     context.font=`${size}px ${family}`
-    const maximum=width*(Number(settings.max_width_percent)||72)/100
-    const measured=context.measureText(name).width
-    if(measured>maximum&&measured>0){
-      size=Math.max(8,size*(maximum/measured))
-      context.font=`${size}px ${family}`
-    }
     context.fillText(name,width*settings.x_percent/100,height*settings.y_percent/100)
     context.restore()
+    context.setTransform(1,0,0,1,0,0)
+  }
+
+  function buildCertificateSvg(name:string){
+    if(!rawSvgText)throw new Error('The original SVG template could not be loaded.')
+    const parser=new DOMParser()
+    const document=parser.parseFromString(rawSvgText,'image/svg+xml')
+    if(document.querySelector('parsererror'))throw new Error('The SVG template is not valid.')
+    sanitizeSvgDocument(document)
+    const root=document.documentElement
+    const geometry=svgGeometry(rawSvgText)
+    const defs=document.createElementNS('http://www.w3.org/2000/svg','defs')
+    if(fontDataUrl){
+      const style=document.createElementNS('http://www.w3.org/2000/svg','style')
+      style.textContent=`@font-face{font-family:"${FONT_FACE_NAME}";src:url("${fontDataUrl}");font-weight:normal;font-style:normal;}`
+      defs.appendChild(style)
+    }
+    root.insertBefore(defs,root.firstChild)
+    const text=document.createElementNS('http://www.w3.org/2000/svg','text')
+    const x=geometry.minX+geometry.width*settings.x_percent/100
+    const y=geometry.minY+geometry.height*settings.y_percent/100
+    const size=fittedFontSize(name,geometry.width)
+    text.setAttribute('x',String(x))
+    text.setAttribute('y',String(y))
+    text.setAttribute('fill',settings.color)
+    text.setAttribute('font-size',String(size))
+    text.setAttribute('font-family',fontDataUrl?FONT_FACE_NAME:'Georgia')
+    text.setAttribute('font-weight','normal')
+    text.setAttribute('text-anchor','middle')
+    text.setAttribute('dominant-baseline','middle')
+    text.setAttribute('class','applyflow-certificate-recipient')
+    text.textContent=name
+    root.appendChild(text)
+    if(!root.getAttribute('viewBox')){
+      root.setAttribute('viewBox',`${geometry.minX} ${geometry.minY} ${geometry.width} ${geometry.height}`)
+    }
+    return{
+      svgText:new XMLSerializer().serializeToString(document),
+      width:geometry.width,
+      height:geometry.height,
+    }
+  }
+
+  async function svgCanvas(name:string,quality:ExportQuality){
+    const finalSvg=buildCertificateSvg(name)
+    const requested=exportScale(quality)
+    const scale=safeScale(finalSvg.width,finalSvg.height,requested)
+    const targetWidth=Math.max(1,Math.round(finalSvg.width*scale))
+    const targetHeight=Math.max(1,Math.round(finalSvg.height*scale))
+    const blob=new Blob([finalSvg.svgText],{type:'image/svg+xml;charset=utf-8'})
+    const canvas=document.createElement('canvas')
+    canvas.width=targetWidth
+    canvas.height=targetHeight
+    const context=canvas.getContext('2d')
+    if(!context)throw new Error('Your browser could not create the certificate canvas.')
+    context.imageSmoothingEnabled=true
+    context.imageSmoothingQuality='high'
+    if('createImageBitmap' in window){
+      try{
+        const bitmap=await createImageBitmap(blob,{resizeWidth:targetWidth,resizeHeight:targetHeight,resizeQuality:'high'})
+        context.drawImage(bitmap,0,0,targetWidth,targetHeight)
+        bitmap.close()
+        return canvas
+      }catch{/* fall back to HTMLImageElement below */}
+    }
+    const url=URL.createObjectURL(blob)
+    try{
+      const image=new Image()
+      image.decoding='async'
+      image.src=url
+      await image.decode()
+      context.drawImage(image,0,0,targetWidth,targetHeight)
+      return canvas
+    }finally{
+      URL.revokeObjectURL(url)
+    }
   }
 
   function renderPreview(){
@@ -274,6 +418,7 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
       setSettings(next)
       const {data,error:downloadError}=await supabase.storage.from(STORAGE_BUCKET).download(path)
       if(downloadError)throw downloadError
+      setRawSvgText(next.template_mime_type==='image/svg+xml'?await data.text():'')
       const url=URL.createObjectURL(data)
       setTemplateUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
       if(previous&&previous!==path)void supabase.storage.from(STORAGE_BUCKET).remove([previous])
@@ -297,6 +442,7 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
       setSettings(next)
       const {data,error:downloadError}=await supabase.storage.from(STORAGE_BUCKET).download(path)
       if(downloadError)throw downloadError
+      setFontDataUrl(await blobToDataUrl(data))
       const url=URL.createObjectURL(data)
       setFontUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
       if(previous&&previous!==path)void supabase.storage.from(STORAGE_BUCKET).remove([previous])
@@ -313,34 +459,72 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     setSettings(current=>({...current,x_percent:Number(x.toFixed(2)),y_percent:Number(y.toFixed(2))}))
   }
 
-  function makeCanvas(name:string){
+  function makeRasterCanvas(name:string,quality:ExportQuality){
     const canvas=document.createElement('canvas')
-    drawCertificate(name,canvas)
+    drawCertificate(name,canvas,exportScale(quality))
     return canvas
   }
 
+  async function makeExportCanvas(name:string,quality:ExportQuality){
+    if(settings.template_mime_type==='image/svg+xml'&&rawSvgText)return svgCanvas(name,quality)
+    return makeRasterCanvas(name,quality)
+  }
+
   async function makePdfBlob(name:string){
+    if(settings.template_mime_type==='image/svg+xml'&&rawSvgText){
+      const [{jsPDF}]=await Promise.all([import('jspdf'),import('svg2pdf.js')])
+      const finalSvg=buildCertificateSvg(name)
+      const parser=new DOMParser()
+      const document=parser.parseFromString(finalSvg.svgText,'image/svg+xml')
+      const element=document.documentElement as unknown as SVGElement
+      const doc=new jsPDF({
+        orientation:finalSvg.width>=finalSvg.height?'landscape':'portrait',
+        unit:'pt',
+        format:[finalSvg.width,finalSvg.height],
+        compress:false,
+      })
+      if(fontDataUrl&&settings.font_path){
+        const base64=fontDataUrl.split(',')[1]||''
+        const extension=settings.font_path.toLowerCase().endsWith('.otf')?'otf':'ttf'
+        const filename=`certificate-name.${extension}`
+        doc.addFileToVFS(filename,base64)
+        doc.addFont(filename,FONT_FACE_NAME,'normal')
+        doc.setFont(FONT_FACE_NAME,'normal')
+      }
+      await (doc as unknown as {svg:(node:SVGElement,options:{x:number;y:number;width:number;height:number})=>Promise<void>}).svg(element,{
+        x:0,y:0,width:finalSvg.width,height:finalSvg.height,
+      })
+      return doc.output('blob')
+    }
     const {PDFDocument}=await import('pdf-lib')
-    const canvas=makeCanvas(name)
-    const png=await canvasBlob(canvas)
+    const canvas=await makeExportCanvas(name,exportQuality)
+    const source=templateImageRef.current
+    if(!source)throw new Error('Upload a certificate template first.')
+    const pageWidth=source.naturalWidth||source.width
+    const pageHeight=source.naturalHeight||source.height
+    const png=await canvasBlob(canvas,'image/png')
     const pngBytes=await png.arrayBuffer()
     const pdf=await PDFDocument.create()
     const image=await pdf.embedPng(pngBytes)
-    const page=pdf.addPage([canvas.width,canvas.height])
-    page.drawImage(image,{x:0,y:0,width:canvas.width,height:canvas.height})
-    const bytes=await pdf.save()
+    const page=pdf.addPage([pageWidth,pageHeight])
+    page.drawImage(image,{x:0,y:0,width:pageWidth,height:pageHeight})
+    const bytes=await pdf.save({useObjectStreams:false})
     const copy=new Uint8Array(bytes.length)
     copy.set(bytes)
     return new Blob([copy.buffer],{type:'application/pdf'})
   }
 
-  async function exportCurrent(kind:'png'|'pdf'){
+  async function exportCurrent(kind:'png'|'pdf'|'svg'){
     setExporting(kind);setError('');setNotice('')
     try{
       if(!settings.template_path||!templateImageRef.current)throw new Error('Upload a certificate template first.')
       const name=previewName
-      if(kind==='png'){
-        const blob=await canvasBlob(makeCanvas(name))
+      if(kind==='svg'){
+        if(settings.template_mime_type!=='image/svg+xml'||!rawSvgText)throw new Error('SVG export is only available when the template is SVG.')
+        const finalSvg=buildCertificateSvg(name)
+        downloadBlob(new Blob([finalSvg.svgText],{type:'image/svg+xml;charset=utf-8'}),`${safeFilename(name)}-certificate.svg`)
+      }else if(kind==='png'){
+        const blob=await canvasBlob(await makeExportCanvas(name,exportQuality),'image/png')
         downloadBlob(blob,`${safeFilename(name)}-certificate.png`)
       }else{
         const blob=await makePdfBlob(name)
@@ -350,9 +534,9 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     finally{setExporting('');setExportProgress('')}
   }
 
-  async function exportAll(kind:'png'|'pdf'){
+  async function exportAll(kind:'png'|'pdf'|'svg'){
     if(!names.length){setError('Paste at least one recipient name first.');return}
-    setExporting(kind==='png'?'png-all':'pdf-all');setError('');setNotice('')
+    setExporting(kind==='png'?'png-all':kind==='pdf'?'pdf-all':'svg-all');setError('');setNotice('')
     try{
       if(!settings.template_path||!templateImageRef.current)throw new Error('Upload a certificate template first.')
       const JSZip=(await import('jszip')).default
@@ -360,15 +544,18 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
       for(let index=0;index<names.length;index++){
         const name=names[index]
         setExportProgress(`Generating ${index+1} of ${names.length}…`)
-        if(kind==='png'){
-          zip.file(`${safeFilename(name)}-certificate.png`,await canvasBlob(makeCanvas(name)))
+        if(kind==='svg'){
+          if(settings.template_mime_type!=='image/svg+xml'||!rawSvgText)throw new Error('SVG export is only available when the template is SVG.')
+          zip.file(`${safeFilename(name)}-certificate.svg`,buildCertificateSvg(name).svgText)
+        }else if(kind==='png'){
+          zip.file(`${safeFilename(name)}-certificate.png`,await canvasBlob(await makeExportCanvas(name,exportQuality),'image/png'))
         }else{
           zip.file(`${safeFilename(name)}-certificate.pdf`,await makePdfBlob(name))
         }
         if(index%4===3)await new Promise(resolve=>window.setTimeout(resolve,0))
       }
       setExportProgress('Preparing ZIP…')
-      const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}})
+      const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:9}})
       downloadBlob(blob,`certificates-${kind}.zip`)
       setNotice(`${names.length} certificate${names.length===1?'':'s'} exported.`)
     }catch(e){setError(friendlyErrorMessage(e,'Could not export certificates.'))}
@@ -437,19 +624,22 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
             {settings.template_path?<canvas ref={canvasRef} onClick={moveNameFromPreview} aria-label="Certificate preview. Click to position the recipient name."/>:<div className="certificate-empty-preview"><FileImage size={30}/><strong>Upload your certificate artwork</strong><span>The design stays unchanged; ApplyFlow only places the recipient name over it.</span></div>}
           </div>
           <div className="certificate-current-actions">
+            {settings.template_mime_type==='image/svg+xml'&&<button type="button" className="secondary-button" disabled={!settings.template_path||exporting!==''} onClick={()=>void exportCurrent('svg')}><FileImage size={15}/> SVG master</button>}
             <button type="button" className="secondary-button" disabled={!settings.template_path||exporting!==''} onClick={()=>void exportCurrent('png')}><Download size={15}/> PNG preview</button>
             <button type="button" className="secondary-button" disabled={!settings.template_path||exporting!==''} onClick={()=>void exportCurrent('pdf')}><FileText size={15}/> PDF preview</button>
           </div>
         </div>
 
         <div className="card certificate-export-card">
-          <div><p className="eyebrow">Bulk export</p><h2>Generate certificates</h2><p>Each recipient is exported as an individual file inside a ZIP, so the files remain easy to share or print separately.</p></div>
+          <div><p className="eyebrow">Bulk export</p><h2>Generate certificates</h2><p>Each recipient is exported as an individual file inside a ZIP. SVG templates stay vector for SVG/PDF output, while PNG is rasterized at the selected high-resolution scale.</p></div>
           <div className="certificate-export-actions">
+            <label className="certificate-quality-picker"><span>PNG quality</span><select value={exportQuality} onChange={e=>setExportQuality(e.target.value as ExportQuality)} disabled={exporting!==''}><option value="standard">Standard · 2×</option><option value="high">High · 4×</option><option value="ultra">Ultra · 6×</option></select></label>
+            {settings.template_mime_type==='image/svg+xml'&&<button type="button" className="secondary-button" disabled={!names.length||!settings.template_path||exporting!==''} onClick={()=>void exportAll('svg')}>{exporting==='svg-all'?<Loader2 className="spin" size={16}/>:<FileImage size={16}/>} Export {names.length||0} SVG{names.length===1?'':'s'}</button>}
             <button type="button" className="primary-button" disabled={!names.length||!settings.template_path||exporting!==''} onClick={()=>void exportAll('png')}>{exporting==='png-all'?<Loader2 className="spin" size={16}/>:<Download size={16}/>} Export {names.length||0} PNG{names.length===1?'':'s'}</button>
             <button type="button" className="secondary-button" disabled={!names.length||!settings.template_path||exporting!==''} onClick={()=>void exportAll('pdf')}>{exporting==='pdf-all'?<Loader2 className="spin" size={16}/>:<FileText size={16}/>} Export {names.length||0} PDF{names.length===1?'':'s'}</button>
           </div>
           {exportProgress&&<div className="certificate-export-progress"><Loader2 className="spin" size={14}/><span>{exportProgress}</span></div>}
-          <div className="certificate-quality-note"><strong>Quality note</strong><span>The output uses the template’s native pixel dimensions. For print-quality certificates, upload an SVG or a high-resolution PNG/JPG instead of a screenshot.</span></div>
+          <div className="certificate-quality-note"><strong>Maximum-quality export</strong><span>Ultra PNG renders up to 6× the template dimensions with high-quality smoothing. SVG templates remain vector for SVG and PDF export, so lines, logos and text stay sharp at any zoom. Very large raster templates are automatically capped at a safe browser memory limit.</span></div>
         </div>
       </div>
     </div>
