@@ -4959,3 +4959,10 @@ html.dark-theme .bulk-awards-receipt{background:#203c2e;color:#b4e7c7;border-col
 @container(max-width:460px){.bulk-awards-intro{padding:16px}.bulk-awards-intro-icon{width:40px;height:40px;flex-basis:40px}.bulk-awards-panel-heading{padding:17px 15px}.bulk-awards-panel-body{padding:17px 15px}.bulk-awards-detail-grid{grid-template-columns:minmax(0,1fr)}.bulk-awards-history-filters{flex-direction:column}.bulk-awards-history-filters .bulk-awards-search,.bulk-awards-history-filters>select{width:100%}}
 @media(prefers-reduced-motion:reduce){.bulk-awards-panel-body :is(input,textarea,select){transition:none}}
 
+
+.assignment-blind-review-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 14px;padding:11px 12px;border:1px solid #e3e7ed;border-radius:10px;background:#fafbfc}
+.assignment-blind-review-summary strong{font-size:12px;color:#2f3744}
+.assignment-blind-review-summary span{font-size:9px;color:#858e9a}
+html.dark-theme .assignment-blind-review-summary{background:#151920;border-color:#343b47}
+html.dark-theme .assignment-blind-review-summary strong{color:#eef1f5}
+html.dark-theme .assignment-blind-review-summary span{color:#a6afbb}
