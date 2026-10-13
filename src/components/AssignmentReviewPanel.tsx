@@ -13,7 +13,7 @@ type Review = {
   submission_id: string; assignment_id: string; participant_id: string | null; participant_code: string | null;
   participant_name: string | null; blind_label: string | null; answer_count: number; document_count: number; status: 'submitted' | 'graded'; submitted_at: string | null;
   score: number | null; feedback: string | null; graded_at: string | null;
-  reviewer_id: string | null; reviewer_name: string | null; source_group: string | null; assigned_at: string;
+  reviewer_id: string | null; reviewer_name: string | null; graded_by_id: string | null; graded_by_name: string | null; source_group: string | null; assigned_at: string;
 }
 type Answer = { id: string; question_id: string; value: unknown; assignment_questions: { label: string; type: string; position: number } | null }
 type Document = { id: string; question_id: string; storage_bucket: string; storage_path: string; original_name: string; file_size: number | null }
@@ -267,9 +267,9 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
         p_submission_id:selected.submission_id,p_score:score,p_feedback:grade.feedback
       })
       if(gradeError)throw gradeError
-      const updated:Review={...selected,score,status:'graded',feedback:grade.feedback||null,graded_at:data.graded_at}
-      setRows(items=>items.map(item=>item.submission_id===selected.submission_id?updated:item))
-      setSelected(null);setNotice('Grade saved successfully.')
+      setSelected(null)
+      setNotice('Grade saved successfully.')
+      await reload()
     }catch(e){setError(friendlyErrorMessage(e,'Could not save the grade.'))}
     finally{setBusy(false)}
   }
@@ -426,22 +426,22 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
         {isAdmin&&<th><input type="checkbox" aria-label="Select all ungraded submissions"
           checked={pending>0&&pendingRows.every(row=>submissionIds.includes(row.submission_id))}
           disabled={!pending||busy} onChange={event=>setSubmissionIds(event.target.checked?pendingRows.map(row=>row.submission_id):[])} /></th>}
-        <th>{isAdmin?'Participant':'Anonymous submission'}</th>{isAdmin&&<th>Submitted</th>}{isAdmin&&<><th>Original group</th><th>Review allocated to</th></>}
+        <th>{isAdmin?'Participant':'Anonymous submission'}</th>{isAdmin&&<th>Submitted</th>}{isAdmin&&<><th>Original group</th><th>Review allocated to</th><th>Graded by</th></>}
         <th>Status</th><th>Score</th><th>Action</th>
       </tr></thead><tbody>
-        {queueLoading?<tr><td colSpan={isAdmin?8:4}><div className="loading-card">Loading review queue…</div></td></tr>
+        {queueLoading?<tr><td colSpan={isAdmin?9:4}><div className="loading-card">Loading review queue…</div></td></tr>
         :paged.length?paged.map(row=><tr key={row.submission_id}>
           {isAdmin&&<td><input type="checkbox" aria-label={'Select '+(row.participant_code||row.blind_label||'submission')}
             checked={submissionIds.includes(row.submission_id)}
             disabled={row.status!=='submitted'||busy} onChange={()=>toggleSubmission(row.submission_id)}/></td>}
           <td>{isAdmin?<><strong>{row.participant_name||row.participant_code}</strong><span className="table-sub">{row.participant_code}</span></>:<><strong>{row.blind_label||('Submission '+String((currentReviewPage-1)*(pageSize||visible.length)+paged.indexOf(row)+1).padStart(2,'0'))}</strong><span className="table-sub">{row.answer_count||0} answer{Number(row.answer_count||0)===1?'':'s'} · {row.document_count||0} attachment{Number(row.document_count||0)===1?'':'s'}</span></>}</td>
           {isAdmin&&<td>{row.submitted_at?new Date(row.submitted_at).toLocaleString():'—'}</td>}
-          {isAdmin&&<><td>{row.source_group||'No group'}</td><td>{row.reviewer_name||'Unassigned'}</td></>}
+          {isAdmin&&<><td>{row.source_group||'No group'}</td><td>{row.reviewer_name||'Unassigned'}</td><td>{row.status==='graded'?(row.graded_by_name||'Unknown grader'):'—'}</td></>}
           <td><span className={'status '+(row.status==='graded'?'green':'blue')}>{row.status==='graded'?'Graded':'Awaiting grade'}</span></td>
           <td>{row.score===null?'—':row.score+'/'+(selectedAssignment?.max_score||100)}</td>
           <td><button type="button" className="text-button" onClick={()=>void openSubmission(row)}>
             {row.status==='graded'&&!isAdmin?'View grade':'Open review'}</button></td>
-        </tr>):<tr><td colSpan={isAdmin?8:4}><div className="table-empty">{!assignmentId?'Select an assignment.':searchTerm?(isAdmin?'No participants match your search in this review view.':'No anonymous submissions match your search.'):'No submissions in this review view.'}</div></td></tr>}
+        </tr>):<tr><td colSpan={isAdmin?9:4}><div className="table-empty">{!assignmentId?'Select an assignment.':searchTerm?(isAdmin?'No participants match your search in this review view.':'No anonymous submissions match your search.'):'No submissions in this review view.'}</div></td></tr>}
       </tbody></table></div>
       {visible.length>0&&<TablePagination total={visible.length} page={currentReviewPage} pageSize={pageSize}
         pageSizes={[20,50,100,200,0]} onPageChange={setPage}
@@ -451,7 +451,8 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
       <div ref={reviewDialogRef} className="assignment-review-modal assignment-review-portal-dialog" role="dialog" aria-modal="true" aria-labelledby="shuffle-review-title" aria-describedby="assignment-review-dialog-description">
         <div className="assignment-review-modal-header"><div><p className="eyebrow">{isAdmin?'Assignment Review':'Blind Assignment Review'}</p>
           <h2 id="shuffle-review-title">{isAdmin?(selected.participant_name||selected.participant_code):(selected.blind_label||'Anonymous submission')}</h2>
-          <p id="assignment-review-dialog-description">{isAdmin?((selected.participant_code||'Participant')+' · Submitted '+(selected.submitted_at?new Date(selected.submitted_at).toLocaleString():'—')):'Participant name, ID, group and submission time are hidden while marking.'}</p></div>
+          <p id="assignment-review-dialog-description">{isAdmin?((selected.participant_code||'Participant')+' · Submitted '+(selected.submitted_at?new Date(selected.submitted_at).toLocaleString():'—')):'Participant name, ID, group and submission time are hidden while marking.'}</p>
+          {isAdmin&&selected.status==='graded'&&<p className="assignment-review-audit-line"><strong>Graded by:</strong> {selected.graded_by_name||'Unknown grader'}{selected.reviewer_name&&<><span> · </span><strong>Assigned to:</strong> {selected.reviewer_name}</>}</p>}</div>
           <button ref={reviewCloseRef} type="button" className="icon-button assignment-review-close" aria-label="Close submission review" onClick={()=>setSelected(null)}><X size={20}/></button></div>
         <div className="assignment-review-modal-body">
           {detailsLoading?<div className="loading-card">Loading questions, answers and attachments…</div>:detailsError?<div className="form-error">{detailsError}</div>:<>
