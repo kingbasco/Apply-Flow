@@ -27,6 +27,30 @@ type Organization = { id: string; name: string; slug: string; avatar_url: string
 type WorkspaceLeaderboardRow = { group_label?:string|null; staff_name?:string|null; participant_record_id:string; participant_id:string; full_name:string|null; graded_assignments:number; submitted_assignments:number; total_assignments:number; average_percentage:number|null; completion_percentage:number; assignment_points:number; attendance_points:number; bonus_points:number; total_points:number; rank:number|null }
 type LeaderboardGroup = { staff_id:string; staff_name:string; participant_count:number; group_number:number; group_label:string }
 type LeaderboardParticipantGroup = { participant_record_id:string; group_label:string|null; staff_name:string|null }
+type LeaderboardExportField = { key:keyof WorkspaceLeaderboardRow; label:string; group:'participant'|'performance' }
+const LEADERBOARD_EXPORT_FIELDS:LeaderboardExportField[] = [
+  {key:'rank',label:'Rank',group:'performance'},
+  {key:'participant_id',label:'Participant ID',group:'participant'},
+  {key:'full_name',label:'Participant Name',group:'participant'},
+  {key:'group_label',label:'Group',group:'participant'},
+  {key:'staff_name',label:'Programme Staff',group:'participant'},
+  {key:'assignment_points',label:'Assignment Points',group:'performance'},
+  {key:'attendance_points',label:'Attendance Points',group:'performance'},
+  {key:'bonus_points',label:'Bonus Points',group:'performance'},
+  {key:'total_points',label:'Total Points',group:'performance'},
+  {key:'graded_assignments',label:'Graded Assignments',group:'performance'},
+  {key:'submitted_assignments',label:'Submitted Assignments',group:'performance'},
+  {key:'total_assignments',label:'Total Assignments',group:'performance'},
+  {key:'average_percentage',label:'Average Percentage',group:'performance'},
+  {key:'completion_percentage',label:'Completion Percentage',group:'performance'}
+]
+const DEFAULT_LEADERBOARD_EXPORT_FIELDS=['rank','participant_id','full_name','group_label','staff_name','assignment_points','attendance_points','bonus_points','total_points']
+function leaderboardCsvCell(value:unknown){
+  const text=value===null||value===undefined?'':String(value)
+  // Prevent spreadsheet software from treating participant-supplied names/labels as formulas.
+  const safe=/^\s*[=+@-]/.test(text)?"'"+text:text
+  return '"'+safe.replace(/"/g,'""')+'"'
+}
 
 const nav = [
   { label: 'Dashboard', icon: LayoutDashboard }, { label: 'Applications', icon: FolderKanban },
@@ -781,6 +805,11 @@ function App() {
   const [leaderboardScope,setLeaderboardScope]=useState<'overall'|'group'>('overall')
   const [leaderboardGroups,setLeaderboardGroups]=useState<LeaderboardGroup[]>([])
   const [leaderboardGroupId,setLeaderboardGroupId]=useState('')
+  const [selectedLeaderboardIds,setSelectedLeaderboardIds]=useState<string[]>([])
+  const [leaderboardExportOpen,setLeaderboardExportOpen]=useState(false)
+  const [leaderboardExportFieldQuery,setLeaderboardExportFieldQuery]=useState('')
+  const [leaderboardExportFieldKeys,setLeaderboardExportFieldKeys]=useState<string[]>(DEFAULT_LEADERBOARD_EXPORT_FIELDS)
+  const [leaderboardExportNotice,setLeaderboardExportNotice]=useState('')
 
   useEffect(()=>{
     const frame=window.requestAnimationFrame(()=>{
@@ -956,6 +985,11 @@ function App() {
   const leaderboardPageCount=Math.max(1,Math.ceil(leaderboardRows.length/leaderboardPageSize))
   const currentLeaderboardPage=Math.min(leaderboardPage,leaderboardPageCount)
   const pagedWorkspaceLeaderboard=leaderboardRows.slice((currentLeaderboardPage-1)*leaderboardPageSize,currentLeaderboardPage*leaderboardPageSize)
+  const canExportOverallLeaderboard=canManageProgrammes&&leaderboardScope==='overall'
+  const pageLeaderboardIds=pagedWorkspaceLeaderboard.map(row=>row.participant_record_id)
+  const allPageLeaderboardSelected=pageLeaderboardIds.length>0&&pageLeaderboardIds.every(id=>selectedLeaderboardIds.includes(id))
+  const somePageLeaderboardSelected=pageLeaderboardIds.some(id=>selectedLeaderboardIds.includes(id))
+  const visibleLeaderboardExportFields=LEADERBOARD_EXPORT_FIELDS.filter(field=>field.label.toLowerCase().includes(leaderboardExportFieldQuery.trim().toLowerCase()))
 
   if (window.location.pathname === '/join') return <TeamInviteLinkSignup token={new URLSearchParams(window.location.search).get('token')||''} />
   if (window.location.pathname.startsWith('/attendance/')) return <PublicAttendanceCheckIn slug={decodeURIComponent(window.location.pathname.split('/')[2] || '')} />
@@ -1080,6 +1114,7 @@ function App() {
   }
 
   async function changeLeaderboardProgramme(applicationId:string){
+    resetLeaderboardExportSelection()
     setLeaderboardApplicationId(applicationId)
     setLeaderboardPage(1)
     setLeaderboardGroupId('')
@@ -1100,6 +1135,7 @@ function App() {
 
   async function showOverallLeaderboard(){
     if(!leaderboardApplicationId)return
+    resetLeaderboardExportSelection()
     setLeaderboardScope('overall')
     setLeaderboardGroupId('')
     setLeaderboardPage(1)
@@ -1108,10 +1144,52 @@ function App() {
 
   async function showGroupLeaderboard(group:LeaderboardGroup){
     if(!leaderboardApplicationId)return
+    resetLeaderboardExportSelection()
     setLeaderboardScope('group')
     setLeaderboardGroupId(group.staff_id)
     setLeaderboardPage(1)
     await loadWorkspaceLeaderboard(leaderboardApplicationId,group.staff_id)
+  }
+
+  function resetLeaderboardExportSelection(){
+    setSelectedLeaderboardIds([])
+    setLeaderboardExportOpen(false)
+    setLeaderboardExportNotice('')
+  }
+
+  function toggleLeaderboardParticipant(id:string,checked:boolean){
+    setSelectedLeaderboardIds(current=>checked?[...new Set([...current,id])]:current.filter(item=>item!==id))
+    setLeaderboardExportNotice('')
+  }
+
+  function toggleLeaderboardPage(checked:boolean){
+    setSelectedLeaderboardIds(current=>checked?[...new Set([...current,...pageLeaderboardIds])]:current.filter(id=>!pageLeaderboardIds.includes(id)))
+    setLeaderboardExportNotice('')
+  }
+
+  function exportOverallLeaderboard(){
+    if(!canExportOverallLeaderboard||!selectedLeaderboardIds.length||!leaderboardExportFieldKeys.length||leaderboardLoading)return
+    const selected=new Set(selectedLeaderboardIds)
+    const rows=leaderboardRows.filter(row=>selected.has(row.participant_record_id))
+    const fields=LEADERBOARD_EXPORT_FIELDS.filter(field=>leaderboardExportFieldKeys.includes(field.key))
+    if(!rows.length||!fields.length)return
+    const lines=[
+      fields.map(field=>leaderboardCsvCell(field.label)).join(','),
+      ...rows.map(row=>fields.map(field=>leaderboardCsvCell(row[field.key])).join(','))
+    ]
+    const csv='\uFEFF'+lines.join('\r\n')
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}))
+    const programmeName=applications.find(a=>a.id===leaderboardApplicationId)?.name||'programme'
+    const filename=(programmeName.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'programme')+'-overall-leaderboard-'+new Date().toISOString().slice(0,10)+'.csv'
+    const link=document.createElement('a')
+    link.href=url
+    link.download=filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+    setLeaderboardExportOpen(false)
+    setLeaderboardExportNotice(rows.length+' participant'+(rows.length===1?'':'s')+' exported with '+fields.length+' column'+(fields.length===1?'':'s')+'.')
   }
 
   async function signOut() { await supabase.auth.signOut(); setSession(null); setProfile(null); setOrganization(null); setApplications([]) }
@@ -1243,6 +1321,7 @@ function App() {
           <div className="card workspace-leaderboard-card">
             <div className="workspace-leaderboard-toolbar">
               <label className="workspace-leaderboard-programme"><span>Programme</span><div className="toolbar-select"><select value={leaderboardApplicationId} onChange={e=>void changeLeaderboardProgramme(e.target.value)}><option value="">Select programme</option>{applications.map(application=><option key={application.id} value={application.id}>{application.name}</option>)}</select><ChevronDown size={15}/></div></label>
+              {canExportOverallLeaderboard&&<button type="button" className="secondary-button workspace-leaderboard-export-button" disabled={leaderboardLoading||selectedLeaderboardIds.length===0} onClick={()=>{setLeaderboardExportFieldQuery('');setLeaderboardExportOpen(true)}}><Download size={16}/>Export selected ({selectedLeaderboardIds.length})</button>}
             </div>
             {leaderboardApplicationId&&<div className="workspace-leaderboard-group-tabs" aria-label="Leaderboard view">
               {profile?.role==='reviewer'?<>
@@ -1253,11 +1332,13 @@ function App() {
                 {leaderboardGroups.map(group=><button key={group.staff_id} type="button" className={leaderboardScope==='group'&&leaderboardGroupId===group.staff_id?'active':''} onClick={()=>void showGroupLeaderboard(group)}><strong>{group.group_label}</strong><span>{group.staff_name}</span></button>)}
               </>}
             </div>}
+            {canExportOverallLeaderboard&&leaderboardRows.length>0&&!leaderboardLoading&&<div className="workspace-leaderboard-selection-bar"><div><strong>{selectedLeaderboardIds.length} selected</strong><span>Select participants using the checkboxes to export their leaderboard results.</span></div><div className="workspace-leaderboard-selection-actions"><button type="button" className="text-button" disabled={selectedLeaderboardIds.length===leaderboardRows.length} onClick={()=>{setSelectedLeaderboardIds(leaderboardRows.map(row=>row.participant_record_id));setLeaderboardExportNotice('')}}>Select all {leaderboardRows.length}</button><button type="button" className="text-button" disabled={!selectedLeaderboardIds.length} onClick={()=>{setSelectedLeaderboardIds([]);setLeaderboardExportNotice('')}}>Clear</button></div></div>}
+            {leaderboardExportNotice&&canExportOverallLeaderboard&&<div className="workspace-leaderboard-notice" role="status">{leaderboardExportNotice}</div>}
             {leaderboardError&&<div className="form-error workspace-leaderboard-error">{leaderboardError}</div>}
             <div className="workspace-leaderboard-body">
               {!leaderboardApplicationId?<div className="table-empty">Select a programme to view its leaderboard.</div>:leaderboardLoading?<div className="loading-card">Loading leaderboard…</div>:leaderboardRows.length?<div className="table-wrap workspace-leaderboard-table"><table className={leaderboardScope==='overall'?'has-group-column':''}>
-                <thead><tr><th>Rank</th><th>Participant</th>{leaderboardScope==='overall'&&<th className="workspace-leaderboard-group-column">Group</th>}<th>Assignment points</th><th>Attendance points</th><th>Bonus points</th><th>Total points</th></tr></thead>
-                <tbody>{pagedWorkspaceLeaderboard.map(row=><tr key={row.participant_record_id} className={row.rank&&row.rank<=3?'leaderboard-podium-row podium-'+row.rank:''}><td><LeaderboardRankBadge rank={row.rank}/></td><td><strong>{row.full_name||row.participant_id}</strong><span className="table-sub">{row.participant_id}</span></td>{leaderboardScope==='overall'&&<td className="workspace-leaderboard-group-column">{row.group_label?<><span className="workspace-leaderboard-group-name">{row.group_label}</span><span className="workspace-leaderboard-staff-name">{row.staff_name||'Programme Staff'}</span></>:<span className="workspace-leaderboard-unassigned">Not assigned</span>}</td>}<td>{Number(row.assignment_points||0).toFixed(0)}</td><td>{Number(row.attendance_points||0).toFixed(0)}</td><td>{Number(row.bonus_points||0).toFixed(0)}</td><td><strong>{Number(row.total_points||0).toFixed(0)}</strong><span className="table-sub">{row.graded_assignments}/{row.total_assignments} released assignments</span></td></tr>)}</tbody>
+                <thead><tr>{canExportOverallLeaderboard&&<th className="leaderboard-select-cell"><input type="checkbox" aria-label="Select all leaderboard participants on this page" checked={allPageLeaderboardSelected} ref={input=>{if(input)input.indeterminate=somePageLeaderboardSelected&&!allPageLeaderboardSelected}} onChange={e=>toggleLeaderboardPage(e.target.checked)}/></th>}<th className="leaderboard-rank-cell">Rank</th><th className="leaderboard-text-cell">Participant</th>{leaderboardScope==='overall'&&<th className="workspace-leaderboard-group-column">Group</th>}<th>Assignment points</th><th>Attendance points</th><th>Bonus points</th><th>Total points</th></tr></thead>
+                <tbody>{pagedWorkspaceLeaderboard.map(row=><tr key={row.participant_record_id} className={[row.rank&&row.rank<=3?'leaderboard-podium-row podium-'+row.rank:'',selectedLeaderboardIds.includes(row.participant_record_id)&&canExportOverallLeaderboard?'leaderboard-selected-row':''].filter(Boolean).join(' ')}>{canExportOverallLeaderboard&&<td className="leaderboard-select-cell"><input type="checkbox" aria-label={'Select '+(row.full_name||row.participant_id)} checked={selectedLeaderboardIds.includes(row.participant_record_id)} onChange={e=>toggleLeaderboardParticipant(row.participant_record_id,e.target.checked)}/></td>}<td className="leaderboard-rank-cell"><LeaderboardRankBadge rank={row.rank}/></td><td className="leaderboard-text-cell"><strong>{row.full_name||row.participant_id}</strong><span className="table-sub">{row.participant_id}</span></td>{leaderboardScope==='overall'&&<td className="workspace-leaderboard-group-column">{row.group_label?<><span className="workspace-leaderboard-group-name">{row.group_label}</span><span className="workspace-leaderboard-staff-name">{row.staff_name||'Programme Staff'}</span></>:<span className="workspace-leaderboard-unassigned">Not assigned</span>}</td>}<td>{Number(row.assignment_points||0).toFixed(0)}</td><td>{Number(row.attendance_points||0).toFixed(0)}</td><td>{Number(row.bonus_points||0).toFixed(0)}</td><td><strong>{Number(row.total_points||0).toFixed(0)}</strong><span className="table-sub">{row.graded_assignments}/{row.total_assignments} released assignments</span></td></tr>)}</tbody>
               </table></div>:<div className="table-empty">No active participants are available in this leaderboard view.</div>}
             </div>
             {leaderboardApplicationId&&!leaderboardLoading&&leaderboardRows.length>0&&<TablePagination total={leaderboardRows.length} page={currentLeaderboardPage} pageSize={leaderboardPageSize} onPageChange={setLeaderboardPage} onPageSizeChange={size=>{setLeaderboardPageSize(size);setLeaderboardPage(1)}}/>}
@@ -1265,6 +1346,29 @@ function App() {
         </section> : active==='Analytics' ? <AnalyticsPanel applications={applications}/> : active==='Applications' ? <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>Applications</h1><p className="subtitle">Manage your application programmes.</p></div>{canManageProgrammes&&<div className="detail-actions"><button className="secondary-button" onClick={openGoogleFormImport}><Download size={16}/> Import Google Form</button><button className="primary-button" onClick={()=>openCreate()}><Plus size={17}/> New application</button></div>}</div><div className="card table-card"><div className="toolbar"><div className="search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search applications…"/></div><label className="toolbar-select" aria-label="Filter applications by status"><select value={applicationStatusFilter} onChange={e=>setApplicationStatusFilter(e.target.value as 'all'|AppStatus)}><option value="all">All status</option><option value="draft">Draft</option><option value="published">Published</option><option value="screening">Screening</option><option value="closed">Closed</option><option value="completed">Completed</option></select><ChevronDown size={15}/></label></div><div className="table-wrap"><table><thead><tr><th>Programme</th><th>Status</th><th>Target</th><th>Deadline</th><th>Action</th></tr></thead><tbody>{filtered.map(item=><tr key={item.id} onClick={()=>openApplication(item)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openApplication(item)}}} tabIndex={0} role="button" aria-label={'Open '+item.name} className="clickable-row"><td><strong>{item.name}</strong><span className="table-sub">{item.description || 'No description yet.'}</span></td><td><span className={'status '+(item.status==='published'?'blue':item.status==='screening'?'amber':item.status==='completed'?'green':'neutral')}>{statusLabel(item.status)}</span></td><td>{(item.target_count??0).toLocaleString()}</td><td>{formatDate(item.deadline)}</td><td>{canManageProgrammes&&<button type="button" className="icon-button" title="Delete application" aria-label={'Delete '+item.name} disabled={deletingApplicationId===item.id} onClick={e=>{e.stopPropagation();requestDeleteApplication(item)}}><Trash2 size={16}/></button>}</td></tr>)}</tbody></table></div></div></section> : active==='Forms' ? <FormsWorkspace applications={applications} onOpen={a=>openWorkspaceModule(a,'Form')} onCreate={canManageProgrammes?()=>openCreate('form'):undefined}/> : active==='Screening' ? <ScreeningWorkspace applications={applications} role={profile?.role} onOpen={a=>openWorkspaceModule(a,'Screening')}/> : active==='Reviews' ? <ReviewsWorkspace applications={applications} organizationId={organization!.id} role={profile?.role} onOpen={a=>openWorkspaceModule(a,'Reviews')}/> : active==='Participants' ? <ParticipantsPanel organizationId={organization!.id} applications={applications} role={profile?.role}/> : active==='Assignment Review' ? <AssignmentReviewPanel organizationId={organization!.id} applications={applications} role={profile!.role}/> : (active==='Email'||active==='Communications') ? <CommunicationsWorkspace organizationId={organization!.id} applications={applications} role={profile?.role}/> : active==='Team' ? <TeamWorkspace organizationId={organization!.id} role={profile?.role}/> : active==='Settings' ? <SettingsWorkspace organization={organization} profile={profile} onSaved={name=>setOrganization(x=>x?{...x,name}:x)} onOrganizationSaved={next=>setOrganization(x=>x?{...x,...next}:x)} onProfileSaved={next=>setProfile(p=>p?{...p,...next}:p)}/> : <section><div className="page-heading compact"><div><p className="eyebrow">Workspace</p><h1>{active}</h1><p className="subtitle">This module is ready for implementation.</p></div></div><div className="empty-state card"><div className="empty-icon"><Sparkles size={22}/></div><h2>No records yet</h2><p>Create a programme to start using this workspace.</p></div></section>}
       </div>
     </main>
+    {canExportOverallLeaderboard&&leaderboardExportOpen&&createPortal(<div className="modal-backdrop participant-export-backdrop" role="dialog" aria-modal="true" aria-label="Choose leaderboard export fields" onMouseDown={e=>{if(e.target===e.currentTarget)setLeaderboardExportOpen(false)}}>
+      <div className="modal card participant-export-modal">
+        <div className="modal-header participant-export-header">
+          <div><p className="eyebrow">Export overall leaderboard</p><h2>Choose what to export</h2><p>Choose which columns to include for the {selectedLeaderboardIds.length} selected participant{selectedLeaderboardIds.length===1?'':'s'}.</p></div>
+          <button type="button" className="icon-button" aria-label="Close export" onClick={()=>setLeaderboardExportOpen(false)}><X size={18}/></button>
+        </div>
+        <div className="participant-export-body">
+          <div className="participant-export-toolbar">
+            <div className="search participant-export-search"><Search size={16}/><input value={leaderboardExportFieldQuery} onChange={e=>setLeaderboardExportFieldQuery(e.target.value)} placeholder="Search leaderboard fields…" aria-label="Search export columns"/></div>
+            <div className="participant-export-toolbar-actions"><button type="button" className="text-button" onClick={()=>setLeaderboardExportFieldKeys(LEADERBOARD_EXPORT_FIELDS.map(field=>field.key))}>Select all</button><button type="button" className="text-button" onClick={()=>setLeaderboardExportFieldKeys([])}>Clear</button></div>
+          </div>
+          <div className="participant-export-summary"><strong>{leaderboardExportFieldKeys.length} field{leaderboardExportFieldKeys.length===1?'':'s'} selected</strong><span>{selectedLeaderboardIds.length} participant{selectedLeaderboardIds.length===1?'':'s'} will be exported.</span></div>
+          <div className="participant-export-groups">
+            {(['participant','performance'] as const).map(group=>{
+              const fields=visibleLeaderboardExportFields.filter(field=>field.group===group)
+              return fields.length>0&&<section className="participant-export-group" key={group}><div className="participant-export-group-heading"><div><p className="eyebrow">{group==='participant'?'Participant details':'Leaderboard scores'}</p><h3>{group==='participant'?'Identity and group':'Performance and ranking'}</h3></div><span>{fields.length}</span></div><div className="participant-export-field-list">{fields.map(field=><label className="participant-export-field" key={field.key}><input type="checkbox" checked={leaderboardExportFieldKeys.includes(field.key)} onChange={e=>setLeaderboardExportFieldKeys(current=>e.target.checked?[...new Set([...current,field.key])]:current.filter(key=>key!==field.key))}/><span><strong>{field.label}</strong><small>{group==='participant'?'Participant record':'Programme results'}</small></span></label>)}</div></section>
+            })}
+            {!visibleLeaderboardExportFields.length&&<div className="table-empty">No export fields match your search.</div>}
+          </div>
+        </div>
+        <div className="modal-footer participant-export-footer"><div className="participant-export-footer-copy"><strong>{leaderboardExportFieldKeys.length} columns</strong><span>CSV export</span></div><div className="participant-export-footer-actions"><button type="button" className="secondary-button" onClick={()=>setLeaderboardExportOpen(false)}>Cancel</button><button type="button" className="primary-button" disabled={!leaderboardExportFieldKeys.length||!selectedLeaderboardIds.length} onClick={exportOverallLeaderboard}><Download size={16}/>Export CSV</button></div></div>
+      </div>
+    </div>,document.body)}
     {canManageProgrammes && importOpen && <GoogleFormImport applications={applications} organizationId={organization!.id} onClose={()=>setImportOpen(false)} />}
     {canManageProgrammes && deleteCandidate && <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setDeleteCandidate(null)}}>
       <div className="modal card" role="dialog" aria-modal="true" aria-labelledby="delete-application-title">
