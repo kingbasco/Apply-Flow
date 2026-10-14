@@ -4966,3 +4966,7 @@ html.dark-theme .bulk-awards-receipt{background:#203c2e;color:#b4e7c7;border-col
 html.dark-theme .assignment-blind-review-summary{background:#151920;border-color:#343b47}
 html.dark-theme .assignment-blind-review-summary strong{color:#eef1f5}
 html.dark-theme .assignment-blind-review-summary span{color:#a6afbb}
+
+.team-member-role-select{min-width:150px;height:36px;padding:0 34px 0 11px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.team-member-role-select:disabled{opacity:.6;cursor:not-allowed}
+html.dark-theme .team-member-role-select{background:#151920;border-color:#343b47;color:#eef1f5}
