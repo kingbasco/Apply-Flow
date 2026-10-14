@@ -1782,7 +1782,7 @@ function AnalyticsPanel({applications}:{applications:Application[]}){
   for(const p of selectedParticipants){
    const lb=leaderboardByParticipant.get(p.id) as any
    const label=lb?.group_label||'Unassigned'
-   const current=map.get(label)||{group_label:label,staff_name:lb?.staff_name||null,members:[],attendance:0,submissions:0,points:0,engaged:0}
+   const current:{group_label:string;staff_name:string|null;members:any[];attendance:number;submissions:number;points:number;engaged:number}=map.get(label)||{group_label:label,staff_name:lb?.staff_name||null,members:[],attendance:0,submissions:0,points:0,engaged:0}
    const att=attendanceCountByParticipant.get(p.id)||0
    const subs=submissionCountByParticipant.get(p.id)||0
    const pts=Number(lb?.total_points||0)
