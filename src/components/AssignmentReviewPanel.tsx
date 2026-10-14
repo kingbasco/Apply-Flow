@@ -143,7 +143,7 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
   const visible=rows.filter(row=>{
     if(filter!=='all' && (filter==='pending'?row.status==='graded':row.status!=='graded'))return false
     if(!searchTerm)return true
-    return (isAdmin?[row.participant_name,row.participant_code]:[row.blind_label])
+    return [row.participant_name,row.participant_code,row.source_group]
       .some(value=>(value||'').toLocaleLowerCase().includes(searchTerm))
   })
   const maxReviewPage=pageSize===0?1:Math.max(1,Math.ceil(visible.length/pageSize))
@@ -278,7 +278,7 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
     <div className="page-heading compact"><div><p className="eyebrow">Independent marking</p><h1>Assignment Review</h1>
       <p className="subtitle">{isAdmin
         ? 'Select submitted work, choose eligible Programme Staff, then Assign & Shuffle. Admin and Owner retain the full identity and reviewer audit trail.'
-        : 'Blind grading is enabled. Participant identity is hidden while you review allocated work; only the submission content needed for marking is shown.'}</p></div>
+        : 'Review the submissions assigned to you. Participant name, ID, group, submitted answers and uploaded files are visible while marking.'}</p></div>
       <ClipboardCheck size={25}/></div>
     {error&&<div className="form-error">{error}</div>}
     {notice&&<div className="form-message">{notice}</div>}
@@ -408,12 +408,12 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
           onClick={()=>{setFilter(value);setPage(1)}}><strong>{value==='pending'?'Awaiting grade':value==='graded'?'Graded':'All'}</strong>
           <span>{value==='pending'?pending:value==='graded'?completed:rows.length} submissions</span></button>)}
       </div>
-      <div className="review-participant-search-toolbar" role="search" aria-label={isAdmin?'Search assignment review participants':'Search anonymous submissions'}>
+      <div className="review-participant-search-toolbar" role="search" aria-label="Search assignment review participants">
         <label className="review-participant-search-field" htmlFor="assignment-review-participant-search">
           <Search size={17} aria-hidden="true"/>
           <input id="assignment-review-participant-search" type="search" autoComplete="off"
-            placeholder={isAdmin?'Search participant name or ID…':'Search submission label…'}
-            aria-label={isAdmin?'Search participant name or Participant ID':'Search anonymous submission label'}
+            placeholder="Search participant name, ID or group…"
+            aria-label="Search participant name, Participant ID or group"
             value={participantSearch} onChange={event=>{setParticipantSearch(event.target.value);setPage(1)}}/>
         </label>
         {participantSearch.trim()&&<button type="button" className="review-participant-search-clear"
@@ -426,22 +426,22 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
         {isAdmin&&<th><input type="checkbox" aria-label="Select all ungraded submissions"
           checked={pending>0&&pendingRows.every(row=>submissionIds.includes(row.submission_id))}
           disabled={!pending||busy} onChange={event=>setSubmissionIds(event.target.checked?pendingRows.map(row=>row.submission_id):[])} /></th>}
-        <th>{isAdmin?'Participant':'Anonymous submission'}</th>{isAdmin&&<th>Submitted</th>}{isAdmin&&<><th>Original group</th><th>Review allocated to</th><th>Graded by</th></>}
+        <th>Participant</th><th>Submitted</th>{isAdmin?<><th>Original group</th><th>Review allocated to</th><th>Graded by</th></>:<th>Group</th>}
         <th>Status</th><th>Score</th><th>Action</th>
       </tr></thead><tbody>
-        {queueLoading?<tr><td colSpan={isAdmin?9:4}><div className="loading-card">Loading review queue…</div></td></tr>
+        {queueLoading?<tr><td colSpan={isAdmin?9:6}><div className="loading-card">Loading review queue…</div></td></tr>
         :paged.length?paged.map(row=><tr key={row.submission_id}>
           {isAdmin&&<td><input type="checkbox" aria-label={'Select '+(row.participant_code||row.blind_label||'submission')}
             checked={submissionIds.includes(row.submission_id)}
             disabled={row.status!=='submitted'||busy} onChange={()=>toggleSubmission(row.submission_id)}/></td>}
-          <td>{isAdmin?<><strong>{row.participant_name||row.participant_code}</strong><span className="table-sub">{row.participant_code}</span></>:<><strong>{row.blind_label||('Submission '+String((currentReviewPage-1)*(pageSize||visible.length)+paged.indexOf(row)+1).padStart(2,'0'))}</strong><span className="table-sub">{row.answer_count||0} answer{Number(row.answer_count||0)===1?'':'s'} · {row.document_count||0} attachment{Number(row.document_count||0)===1?'':'s'}</span></>}</td>
-          {isAdmin&&<td>{row.submitted_at?new Date(row.submitted_at).toLocaleString():'—'}</td>}
-          {isAdmin&&<><td>{row.source_group||'No group'}</td><td>{row.reviewer_name||'Unassigned'}</td><td>{row.status==='graded'?(row.graded_by_name||'Unknown grader'):'—'}</td></>}
+          <td><strong>{row.participant_name||row.participant_code||'Participant'}</strong><span className="table-sub">{row.participant_code||'No participant ID'} · {row.answer_count||0} answer{Number(row.answer_count||0)===1?'':'s'} · {row.document_count||0} attachment{Number(row.document_count||0)===1?'':'s'}</span></td>
+          <td>{row.submitted_at?new Date(row.submitted_at).toLocaleString():'—'}</td>
+          {isAdmin?<><td>{row.source_group||'No group'}</td><td>{row.reviewer_name||'Unassigned'}</td><td>{row.status==='graded'?(row.graded_by_name||'Unknown grader'):'—'}</td></>:<td>{row.source_group||'No group'}</td>}
           <td><span className={'status '+(row.status==='graded'?'green':'blue')}>{row.status==='graded'?'Graded':'Awaiting grade'}</span></td>
           <td>{row.score===null?'—':row.score+'/'+(selectedAssignment?.max_score||100)}</td>
           <td><button type="button" className="text-button" onClick={()=>void openSubmission(row)}>
             {row.status==='graded'&&!isAdmin?'View grade':'Open review'}</button></td>
-        </tr>):<tr><td colSpan={isAdmin?9:4}><div className="table-empty">{!assignmentId?'Select an assignment.':searchTerm?(isAdmin?'No participants match your search in this review view.':'No anonymous submissions match your search.'):'No submissions in this review view.'}</div></td></tr>}
+        </tr>):<tr><td colSpan={isAdmin?9:6}><div className="table-empty">{!assignmentId?'Select an assignment.':searchTerm?'No participants match your search in this review view.':'No submissions in this review view.'}</div></td></tr>}
       </tbody></table></div>
       {visible.length>0&&<TablePagination total={visible.length} page={currentReviewPage} pageSize={pageSize}
         pageSizes={[20,50,100,200,0]} onPageChange={setPage}
@@ -449,16 +449,16 @@ export default function AssignmentReviewPanel({ organizationId, applications, ro
     </div>
     {selected&&createPortal(<div className="modal-backdrop assignment-review-backdrop assignment-review-portal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSelected(null)}}>
       <div ref={reviewDialogRef} className="assignment-review-modal assignment-review-portal-dialog" role="dialog" aria-modal="true" aria-labelledby="shuffle-review-title" aria-describedby="assignment-review-dialog-description">
-        <div className="assignment-review-modal-header"><div><p className="eyebrow">{isAdmin?'Assignment Review':'Blind Assignment Review'}</p>
-          <h2 id="shuffle-review-title">{isAdmin?(selected.participant_name||selected.participant_code):(selected.blind_label||'Anonymous submission')}</h2>
-          <p id="assignment-review-dialog-description">{isAdmin?((selected.participant_code||'Participant')+' · Submitted '+(selected.submitted_at?new Date(selected.submitted_at).toLocaleString():'—')):'Participant name, ID, group and submission time are hidden while marking.'}</p>
+        <div className="assignment-review-modal-header"><div><p className="eyebrow">Assignment Review</p>
+          <h2 id="shuffle-review-title">{selected.participant_name||selected.participant_code||'Participant submission'}</h2>
+          <p id="assignment-review-dialog-description">{(selected.participant_code||'Participant')+' · '+(selected.source_group||'No group')+' · Submitted '+(selected.submitted_at?new Date(selected.submitted_at).toLocaleString():'—')}</p>
           {isAdmin&&selected.status==='graded'&&<p className="assignment-review-audit-line"><strong>Graded by:</strong> {selected.graded_by_name||'Unknown grader'}{selected.reviewer_name&&<><span> · </span><strong>Assigned to:</strong> {selected.reviewer_name}</>}</p>}</div>
           <button ref={reviewCloseRef} type="button" className="icon-button assignment-review-close" aria-label="Close submission review" onClick={()=>setSelected(null)}><X size={20}/></button></div>
         <div className="assignment-review-modal-body">
           {detailsLoading?<div className="loading-card">Loading questions, answers and attachments…</div>:detailsError?<div className="form-error">{detailsError}</div>:<>
             {!isAdmin&&<div className="assignment-blind-review-summary">
-              <strong>{selected.blind_label||'Anonymous submission'}</strong>
-              <span>{answers.length} submitted answer{answers.length===1?'':'s'} · {documents.length} uploaded file{documents.length===1?'':'s'}</span>
+              <strong>{selected.participant_name||selected.participant_code||'Participant submission'}</strong>
+              <span>{selected.participant_code||'No participant ID'} · {selected.source_group||'No group'} · {answers.length} submitted answer{answers.length===1?'':'s'} · {documents.length} uploaded file{documents.length===1?'':'s'}</span>
             </div>}
             {documents.length>0&&<section className="assignment-attachments-panel"><div className="assignment-attachments-heading"><div>
               <p className="eyebrow">Attachments</p><h4>Uploaded files ({documents.length})</h4></div></div>
