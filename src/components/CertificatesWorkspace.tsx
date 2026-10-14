@@ -434,8 +434,11 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
   }
 
   async function persistSettings(next=settings){
+    if(!next.id)throw new Error('Select or create a certificate template first.')
     const payload={
+      id:next.id,
       organization_id:organizationId,
+      name:(next.name||'Certificate Template').trim()||'Certificate Template',
       template_path:next.template_path,
       template_mime_type:next.template_mime_type,
       font_path:next.font_path,
@@ -445,18 +448,83 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
       font_size:Number(next.font_size),
       max_width_percent:Number(next.max_width_percent),
       color:next.color,
+      created_at:next.created_at,
       updated_at:new Date().toISOString(),
     }
-    const {error}=await supabase.from('certificate_settings').upsert(payload,{onConflict:'organization_id'})
+    const {data,error}=await supabase
+      .from('certificate_settings')
+      .upsert(payload,{onConflict:'id'})
+      .select('id,organization_id,name,template_path,template_mime_type,font_path,font_family,x_percent,y_percent,font_size,max_width_percent,color,created_at,updated_at')
+      .single()
     if(error)throw error
+    const saved=normalizeTemplate(data)
+    setSettings(saved)
+    setTemplates(current=>[saved,...current.filter(item=>item.id!==saved.id)])
+    return saved
+  }
+
+  async function selectTemplate(template:CertificateSettings){
+    if(template.id===activeTemplateId)return
+    setError('');setNotice('');setActiveTemplateId(template.id);setSettings(template);setPreviewIndex(0)
+    try{await loadAssets(template)}catch(e){setError(friendlyErrorMessage(e,'Could not load this certificate template.'))}
+  }
+
+  async function createTemplate(){
+    setSaving(true);setError('');setNotice('')
+    try{
+      const nextNumber=templates.length+1
+      const {data,error}=await supabase
+        .from('certificate_settings')
+        .insert({organization_id:organizationId,name:`Certificate Template ${nextNumber}`,...DEFAULT_SETTINGS})
+        .select('id,organization_id,name,template_path,template_mime_type,font_path,font_family,x_percent,y_percent,font_size,max_width_percent,color,created_at,updated_at')
+        .single()
+      if(error)throw error
+      const created=normalizeTemplate(data)
+      setTemplates(current=>[created,...current])
+      setActiveTemplateId(created.id)
+      setSettings(created)
+      setRawSvgText('')
+      setTemplateUrl(current=>{if(current)URL.revokeObjectURL(current);return ''})
+      setFontDataUrl('')
+      setFontUrl(current=>{if(current)URL.revokeObjectURL(current);return ''})
+      templateImageRef.current=null
+      setNotice('New certificate template created. Upload its artwork and font.')
+    }catch(e){setError(friendlyErrorMessage(e,'Could not create a certificate template.'))}
+    finally{setSaving(false)}
+  }
+
+  async function deleteTemplate(template:CertificateSettings){
+    if(!window.confirm(`Delete “${template.name}”? The saved artwork, font and placement settings for this template will be removed.`))return
+    setSaving(true);setError('');setNotice('')
+    try{
+      const paths=[template.template_path,template.font_path].filter(Boolean) as string[]
+      if(paths.length){
+        const {error:storageError}=await supabase.storage.from(STORAGE_BUCKET).remove(paths)
+        if(storageError)throw storageError
+      }
+      const {error}=await supabase.from('certificate_settings').delete().eq('id',template.id).eq('organization_id',organizationId)
+      if(error)throw error
+      const remaining=templates.filter(item=>item.id!==template.id)
+      if(remaining.length){
+        setTemplates(remaining)
+        const next=remaining[0]
+        setActiveTemplateId(next.id)
+        setSettings(next)
+        await loadAssets(next)
+      }else{
+        await loadTemplateList()
+      }
+      setNotice('Certificate template deleted.')
+    }catch(e){setError(friendlyErrorMessage(e,'Could not delete this certificate template.'))}
+    finally{setSaving(false)}
   }
 
   async function savePlacement(){
     setSaving(true);setError('');setNotice('')
     try{
       await persistSettings()
-      setNotice('Certificate placement and style saved.')
-    }catch(e){setError(friendlyErrorMessage(e,'Could not save certificate settings.'))}
+      setNotice('Certificate template saved.')
+    }catch(e){setError(friendlyErrorMessage(e,'Could not save certificate template.'))}
     finally{setSaving(false)}
   }
 
@@ -464,22 +532,22 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     const ext=extensionOf(file.name)
     if(!['png','jpg','jpeg','svg'].includes(ext)){setError('Template must be PNG, JPG, JPEG or SVG.');return}
     if(file.size>20*1024*1024){setError('Template must be 20 MB or smaller.');return}
+    if(!settings.id){setError('Create a certificate template first.');return}
     setUploading('template');setError('');setNotice('')
     try{
-      const path=`${organizationId}/template.${ext==='jpeg'?'jpg':ext}`
+      const path=`${organizationId}/${settings.id}/template.${ext==='jpeg'?'jpg':ext}`
       const {error:uploadError}=await supabase.storage.from(STORAGE_BUCKET).upload(path,file,{upsert:true,contentType:templateContentType(file)})
       if(uploadError)throw uploadError
       const previous=settings.template_path
       const next={...settings,template_path:path,template_mime_type:templateContentType(file)}
-      await persistSettings(next)
-      setSettings(next)
+      const saved=await persistSettings(next)
       const {data,error:downloadError}=await supabase.storage.from(STORAGE_BUCKET).download(path)
       if(downloadError)throw downloadError
-      setRawSvgText(next.template_mime_type==='image/svg+xml'?await data.text():'')
+      setRawSvgText(saved.template_mime_type==='image/svg+xml'?await data.text():'')
       const url=URL.createObjectURL(data)
       setTemplateUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
       if(previous&&previous!==path)void supabase.storage.from(STORAGE_BUCKET).remove([previous])
-      setNotice('Certificate template uploaded.')
+      setNotice('Certificate artwork saved to this template.')
     }catch(e){setError(friendlyErrorMessage(e,'Could not upload certificate template.'))}
     finally{setUploading('')}
   }
@@ -488,22 +556,22 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     const ext=extensionOf(file.name)
     if(!['ttf','otf'].includes(ext)){setError('Name font must be a TTF or OTF file.');return}
     if(file.size>10*1024*1024){setError('Font must be 10 MB or smaller.');return}
+    if(!settings.id){setError('Create a certificate template first.');return}
     setUploading('font');setError('');setNotice('')
     try{
-      const path=`${organizationId}/name-font.${ext}`
+      const path=`${organizationId}/${settings.id}/name-font.${ext}`
       const {error:uploadError}=await supabase.storage.from(STORAGE_BUCKET).upload(path,file,{upsert:true,contentType:fontContentType(file)})
       if(uploadError)throw uploadError
       const previous=settings.font_path
       const next={...settings,font_path:path,font_family:file.name.replace(/\.(ttf|otf)$/i,'')||'CertificateName'}
-      await persistSettings(next)
-      setSettings(next)
+      const saved=await persistSettings(next)
       const {data,error:downloadError}=await supabase.storage.from(STORAGE_BUCKET).download(path)
       if(downloadError)throw downloadError
       setFontDataUrl(await blobToDataUrl(data))
       const url=URL.createObjectURL(data)
       setFontUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
       if(previous&&previous!==path)void supabase.storage.from(STORAGE_BUCKET).remove([previous])
-      setNotice('Name font uploaded.')
+      setNotice('Name font saved to this template.')
     }catch(e){setError(friendlyErrorMessage(e,'Could not upload name font.'))}
     finally{setUploading('')}
   }
