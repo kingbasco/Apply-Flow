@@ -166,6 +166,74 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
   const [error,setError]=useState('')
   const [notice,setNotice]=useState('')
 
+  function normalizeTemplate(row:any):CertificateSettings{
+    return {
+      ...row,
+      id:String(row.id),
+      organization_id:String(row.organization_id),
+      name:String(row.name||'Certificate Template'),
+      created_at:String(row.created_at||new Date().toISOString()),
+      x_percent:Number(row.x_percent),
+      y_percent:Number(row.y_percent),
+      font_size:Number(row.font_size),
+      max_width_percent:Number(row.max_width_percent),
+    }
+  }
+
+  async function loadAssets(next:CertificateSettings,isCancelled=false){
+    templateImageRef.current=null
+    if(next.template_path){
+      const {data,error}=await supabase.storage.from(STORAGE_BUCKET).download(next.template_path)
+      if(error)throw error
+      const svgText=next.template_mime_type==='image/svg+xml'?await data.text():''
+      if(!isCancelled){
+        setRawSvgText(svgText)
+        const url=URL.createObjectURL(data)
+        setTemplateUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
+      }
+    }else if(!isCancelled){
+      setRawSvgText('')
+      setTemplateUrl(current=>{if(current)URL.revokeObjectURL(current);return ''})
+    }
+    if(next.font_path){
+      const {data,error}=await supabase.storage.from(STORAGE_BUCKET).download(next.font_path)
+      if(error)throw error
+      const dataUrl=await blobToDataUrl(data)
+      if(!isCancelled){
+        setFontDataUrl(dataUrl)
+        const url=URL.createObjectURL(data)
+        setFontUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
+      }
+    }else if(!isCancelled){
+      setFontDataUrl('')
+      setFontUrl(current=>{if(current)URL.revokeObjectURL(current);return ''})
+    }
+  }
+
+  async function loadTemplateList(preferredId=''){
+    const {data,error:settingsError}=await supabase
+      .from('certificate_settings')
+      .select('id,organization_id,name,template_path,template_mime_type,font_path,font_family,x_percent,y_percent,font_size,max_width_percent,color,created_at,updated_at')
+      .eq('organization_id',organizationId)
+      .order('updated_at',{ascending:false})
+    if(settingsError)throw settingsError
+    let list=(data||[]).map(normalizeTemplate)
+    if(!list.length){
+      const {data:created,error:createError}=await supabase
+        .from('certificate_settings')
+        .insert({organization_id:organizationId,name:'Certificate Template',...DEFAULT_SETTINGS})
+        .select('id,organization_id,name,template_path,template_mime_type,font_path,font_family,x_percent,y_percent,font_size,max_width_percent,color,created_at,updated_at')
+        .single()
+      if(createError)throw createError
+      list=[normalizeTemplate(created)]
+    }
+    setTemplates(list)
+    const next=list.find(item=>item.id===preferredId)||list[0]
+    setActiveTemplateId(next.id)
+    setSettings(next)
+    await loadAssets(next)
+  }
+
   useEffect(()=>{
     let cancelled=false
     async function load(){
@@ -173,46 +241,30 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
       try{
         const {data,error:settingsError}=await supabase
           .from('certificate_settings')
-          .select('organization_id,template_path,template_mime_type,font_path,font_family,x_percent,y_percent,font_size,max_width_percent,color,updated_at')
+          .select('id,organization_id,name,template_path,template_mime_type,font_path,font_family,x_percent,y_percent,font_size,max_width_percent,color,created_at,updated_at')
           .eq('organization_id',organizationId)
-          .maybeSingle()
+          .order('updated_at',{ascending:false})
         if(settingsError)throw settingsError
-        const next:CertificateSettings=data
-          ? {...data,x_percent:Number(data.x_percent),y_percent:Number(data.y_percent),font_size:Number(data.font_size),max_width_percent:Number(data.max_width_percent)}
-          : {organization_id:organizationId,...DEFAULT_SETTINGS}
+        let list=(data||[]).map(normalizeTemplate)
+        if(!list.length){
+          const {data:created,error:createError}=await supabase
+            .from('certificate_settings')
+            .insert({organization_id:organizationId,name:'Certificate Template',...DEFAULT_SETTINGS})
+            .select('id,organization_id,name,template_path,template_mime_type,font_path,font_family,x_percent,y_percent,font_size,max_width_percent,color,created_at,updated_at')
+            .single()
+          if(createError)throw createError
+          list=[normalizeTemplate(created)]
+        }
         if(cancelled)return
+        setTemplates(list)
+        const next=list[0]
+        setActiveTemplateId(next.id)
         setSettings(next)
         await loadAssets(next,cancelled)
       }catch(e){
-        if(!cancelled)setError(friendlyErrorMessage(e,'Could not load certificate settings.'))
+        if(!cancelled)setError(friendlyErrorMessage(e,'Could not load certificate templates.'))
       }finally{
         if(!cancelled)setLoading(false)
-      }
-    }
-    async function loadAssets(next:CertificateSettings,isCancelled:boolean){
-      if(next.template_path){
-        const {data,error}=await supabase.storage.from(STORAGE_BUCKET).download(next.template_path)
-        if(error)throw error
-        const svgText=next.template_mime_type==='image/svg+xml'?await data.text():''
-        if(!isCancelled){
-          setRawSvgText(svgText)
-          const url=URL.createObjectURL(data)
-          setTemplateUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
-        }
-      }else if(!isCancelled){
-        setRawSvgText('')
-      }
-      if(next.font_path){
-        const {data,error}=await supabase.storage.from(STORAGE_BUCKET).download(next.font_path)
-        if(error)throw error
-        const dataUrl=await blobToDataUrl(data)
-        if(!isCancelled){
-          setFontDataUrl(dataUrl)
-          const url=URL.createObjectURL(data)
-          setFontUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
-        }
-      }else if(!isCancelled){
-        setFontDataUrl('')
       }
     }
     void load()
