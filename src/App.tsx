@@ -1744,9 +1744,22 @@ function AnalyticsPanel({applications}:{applications:Application[]}){
  }
  useEffect(()=>{load()},[applications])
  const selectedRows=useMemo(()=>selectedApplicationId==='all'?rows:rows.filter(r=>r.application_id===selectedApplicationId),[rows,selectedApplicationId])
- const selectedParticipants=useMemo(()=>selectedApplicationId==='all'?participants:participants.filter(p=>p.application_id===selectedApplicationId),[participants,selectedApplicationId])
+ const analyticsExcludedParticipantIds=useMemo(()=>{
+   const excluded=new Set<string>()
+   for(const row of groupRows){
+     if(String(row.group_label||'').trim().toLowerCase()==='test')excluded.add(row.participant_record_id)
+   }
+   for(const row of leaderboardRows){
+     if(String(row.group_label||'').trim().toLowerCase()==='test'||row.participant_id==='EC-2026-00402')excluded.add(row.participant_record_id)
+   }
+   for(const participant of participants){
+     if(participant.participant_id==='EC-2026-00402')excluded.add(participant.id)
+   }
+   return excluded
+ },[groupRows,leaderboardRows,participants])
+ const selectedParticipants=useMemo(()=>(selectedApplicationId==='all'?participants:participants.filter(p=>p.application_id===selectedApplicationId)).filter(p=>!analyticsExcludedParticipantIds.has(p.id)),[participants,selectedApplicationId,analyticsExcludedParticipantIds])
  const selectedAssignments=useMemo(()=>selectedApplicationId==='all'?assignments:assignments.filter(a=>a.application_id===selectedApplicationId),[assignments,selectedApplicationId])
- const selectedLeaderboard=useMemo(()=>selectedApplicationId==='all'?leaderboardRows:leaderboardRows.filter(r=>r.application_id===selectedApplicationId),[leaderboardRows,selectedApplicationId])
+ const selectedLeaderboard=useMemo(()=>(selectedApplicationId==='all'?leaderboardRows:leaderboardRows.filter(r=>r.application_id===selectedApplicationId)).filter(r=>!analyticsExcludedParticipantIds.has(r.participant_record_id)),[leaderboardRows,selectedApplicationId,analyticsExcludedParticipantIds])
  const selectedParticipantIds=useMemo(()=>new Set(selectedParticipants.map(p=>p.id)),[selectedParticipants])
  const selectedAttendance=useMemo(()=>attendance.filter(r=>selectedParticipantIds.has(r.participant_id)),[attendance,selectedParticipantIds])
  const selectedAssignmentSubmissions=useMemo(()=>assignmentSubmissions.filter(r=>selectedParticipantIds.has(r.participant_id)&&selectedAssignments.some(a=>a.id===r.assignment_id)),[assignmentSubmissions,selectedParticipantIds,selectedAssignments])
@@ -1790,11 +1803,17 @@ function AnalyticsPanel({applications}:{applications:Application[]}){
    if(p.status==='active'&&(att>0||subs>0||pts>0))current.engaged+=1
    map.set(label,current)
   }
-  return Array.from(map.values()).map(group=>{
+  return Array.from(map.values()).filter(group=>group.group_label!=='Unassigned'&&group.group_label.trim().toLowerCase()!=='test').map(group=>{
     const ranked=group.members.map(p=>({participant:p,row:leaderboardByParticipant.get(p.id) as any})).sort((a,b)=>Number(b.row?.total_points||0)-Number(a.row?.total_points||0))
     return {...group,avg_points:group.members.length?group.points/group.members.length:0,engagement_rate:group.members.length?group.engaged/group.members.length*100:0,top:ranked[0]||null}
   }).sort((a,b)=>b.avg_points-a.avg_points||b.engagement_rate-a.engagement_rate)
  },[selectedParticipants,leaderboardByParticipant,attendanceCountByParticipant,submissionCountByParticipant])
+ const groupHighlights=useMemo(()=>{
+   const strongest=groupPerformance[0]||null
+   const mostEngaged=groupPerformance.slice().sort((a,b)=>b.engagement_rate-a.engagement_rate||b.avg_points-a.avg_points)[0]||null
+   const attendanceLeader=groupPerformance.slice().sort((a,b)=>b.attendance-a.attendance||b.avg_points-a.avg_points)[0]||null
+   return{strongest,mostEngaged,attendanceLeader}
+ },[groupPerformance])
  const assignmentStats=useMemo(()=>selectedAssignments.filter(a=>a.status!=='draft').map(a=>{const subs=selectedAssignmentSubmissions.filter(s=>s.assignment_id===a.id);const graded=subs.filter(s=>s.status==='graded');return{...a,submitted:subs.length,graded:graded.length,submission_rate:selectedParticipants.length?subs.length/selectedParticipants.length*100:0,avg_score:graded.length?graded.reduce((sum,s)=>sum+Number(s.score||0),0)/graded.length:0}}).sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime()).slice(0,8),[selectedAssignments,selectedAssignmentSubmissions,selectedParticipants])
  const programmeRows=useMemo(()=>applications.map(application=>{const ps=rows.filter(r=>r.application_id===application.id),pp=participants.filter(p=>p.application_id===application.id),lb=leaderboardRows.filter((r:any)=>r.application_id===application.id);const ids=new Set(pp.map(p=>p.id));const att=attendance.filter(r=>ids.has(r.participant_id)&&r.status==='present').length;const subs=assignmentSubmissions.filter(r=>ids.has(r.participant_id)).length;return{application,submitted:ps.length,approved:ps.filter(r=>r.decision==='approved').length,rejected:ps.filter(r=>r.decision==='rejected').length,enrolled:pp.length,active:pp.filter(p=>p.status==='active').length,completed:pp.filter(p=>p.status==='completed').length,withdrawn:pp.filter(p=>p.status==='withdrawn').length,attendance:att,assignment_submissions:subs,avg_points:lb.length?lb.reduce((sum:number,r:any)=>sum+Number(r.total_points||0),0)/lb.length:0}}).filter(r=>r.submitted>0||r.enrolled>0),[applications,rows,participants,attendance,assignmentSubmissions,leaderboardRows])
  if(loading)return <div className="loading-card card">Loading analytics…</div>
@@ -1830,7 +1849,12 @@ function AnalyticsPanel({applications}:{applications:Application[]}){
     <div className="card analytics-card"><div className="analytics-card-header"><div><p className="eyebrow">Application trend</p><h2>Last 14 days</h2><p>Daily application submission volume.</p></div><TrendingUp size={19}/></div><div className="analytics-chart"><div className="analytics-chart-bars">{trend.map(d=><div className="analytics-bar-column" key={d.key}><div className="analytics-bar-track"><span style={{height:d.count?Math.max(8,d.count/maxTrend*100)+'%':'0%'}} title={String(d.count)}/></div><small>{d.label}</small></div>)}</div></div></div>
    </div>
 
-   <div className="card analytics-card analytics-groups-card"><div className="analytics-card-header"><div><p className="eyebrow">Group analytics</p><h2>Performance by group</h2><p>Compare engagement, attendance, assignment activity and the strongest participant in each group.</p></div><Users size={19}/></div><div className="analytics-group-grid">{groupPerformance.length?groupPerformance.map(group=><article className="analytics-group-card" key={group.group_label}><div className="analytics-group-head"><div><strong>{group.group_label}</strong><small>{group.staff_name||'No Programme Staff assigned'}</small></div><span>{group.members.length} members</span></div><div className="analytics-group-metrics"><div><span>Engaged</span><strong>{group.engagement_rate.toFixed(0)}%</strong></div><div><span>Avg points</span><strong>{group.avg_points.toFixed(1)}</strong></div><div><span>Attendance</span><strong>{group.attendance}</strong></div><div><span>Submissions</span><strong>{group.submissions}</strong></div></div><div className="analytics-group-top"><span>Top performer</span><strong>{group.top?.participant?.full_name||group.top?.participant?.participant_id||'No activity yet'}</strong><small>{group.top?.row?Number(group.top.row.total_points||0).toFixed(0)+' points':'—'}</small></div></article>):<div className="table-empty">No group assignments are available yet.</div>}</div></div>
+   {groupPerformance.length>0&&<div className="analytics-group-highlights">
+     <div className="card analytics-highlight-stat"><span>Strongest group</span><strong>{groupHighlights.strongest?.group_label||'—'}</strong><small>{groupHighlights.strongest?groupHighlights.strongest.avg_points.toFixed(1)+' average points':'No group data yet'}</small></div>
+     <div className="card analytics-highlight-stat"><span>Most engaged group</span><strong>{groupHighlights.mostEngaged?.group_label||'—'}</strong><small>{groupHighlights.mostEngaged?groupHighlights.mostEngaged.engagement_rate.toFixed(0)+'% engaged':'No group data yet'}</small></div>
+     <div className="card analytics-highlight-stat"><span>Attendance leader</span><strong>{groupHighlights.attendanceLeader?.group_label||'—'}</strong><small>{groupHighlights.attendanceLeader?groupHighlights.attendanceLeader.attendance+' present check-ins':'No group data yet'}</small></div>
+   </div>}
+   <div className="card analytics-card analytics-groups-card"><div className="analytics-card-header"><div><p className="eyebrow">Group analytics</p><h2>Performance by group</h2><p>Compare engagement, attendance, assignment activity and the strongest participant in each active group.</p></div><Users size={19}/></div><div className="analytics-group-grid">{groupPerformance.length?groupPerformance.map((group,index)=><article className="analytics-group-card" key={group.group_label}><div className="analytics-group-head"><div><strong>{group.group_label}</strong><small>{group.staff_name||'Programme Staff'}</small></div><div className="analytics-group-head-meta"><span>#{index+1}</span><small>{group.members.length} members</small></div></div><div className="analytics-group-engagement"><div><span>Engagement</span><strong>{group.engagement_rate.toFixed(0)}%</strong></div><div className="analytics-group-engagement-track"><span style={{width:Math.min(100,group.engagement_rate)+'%'}}/></div></div><div className="analytics-group-metrics"><div><span>Avg points</span><strong>{group.avg_points.toFixed(1)}</strong></div><div><span>Attendance</span><strong>{group.attendance}</strong></div><div><span>Submissions</span><strong>{group.submissions}</strong></div><div><span>Engaged members</span><strong>{group.engaged}/{group.members.length}</strong></div></div><div className="analytics-group-top"><span>Top performer</span><strong>{group.top?.participant?.full_name||group.top?.participant?.participant_id||'No activity yet'}</strong><small>{group.top?.row?Number(group.top.row.total_points||0).toFixed(0)+' points':'—'}</small></div></article>):<div className="table-empty">No assigned groups have analytics activity yet.</div>}</div></div>
 
    <div className="analytics-grid analytics-grid-bottom">
     <div className="card analytics-card"><div className="analytics-card-header"><div><p className="eyebrow">Participant lifecycle</p><h2>Programme status</h2><p>Current participant status across the selected programme.</p></div><Users size={19}/></div><div className="analytics-rate-list"><div><span>Active enrolled</span><strong>{metrics.active}</strong><small>Currently enrolled and active</small></div><div><span>Completed</span><strong>{metrics.completed}</strong><small>{metrics.completionRate.toFixed(1)}% of all participants</small></div><div><span>Withdrawn</span><strong>{metrics.withdrawn}</strong><small>{metrics.withdrawalRate.toFixed(1)}% of all participants</small></div></div></div>
