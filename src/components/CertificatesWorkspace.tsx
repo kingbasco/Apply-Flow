@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Download, FileImage, FileText, Loader2, Save, Type, Upload } from 'lucide-react'
+import { Download, FileImage, FileText, Loader2, Plus, Save, Trash2, Type, Upload } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
 import './CertificatesWorkspace.css'
 
 type CertificateSettings = {
+  id:string
   organization_id:string
+  name:string
   template_path:string|null
   template_mime_type:string|null
   font_path:string|null
@@ -15,10 +17,11 @@ type CertificateSettings = {
   font_size:number
   max_width_percent:number
   color:string
+  created_at:string
   updated_at?:string
 }
 
-const DEFAULT_SETTINGS:Omit<CertificateSettings,'organization_id'> = {
+const DEFAULT_SETTINGS:Omit<CertificateSettings,'id'|'organization_id'|'name'|'created_at'> = {
   template_path:null,
   template_mime_type:null,
   font_path:null,
@@ -140,7 +143,9 @@ function blobToDataUrl(blob:Blob){
 }
 
 export default function CertificatesWorkspace({organizationId}:{organizationId:string}){
-  const [settings,setSettings]=useState<CertificateSettings>({organization_id:organizationId,...DEFAULT_SETTINGS})
+  const [templates,setTemplates]=useState<CertificateSettings[]>([])
+  const [activeTemplateId,setActiveTemplateId]=useState('')
+  const [settings,setSettings]=useState<CertificateSettings>({id:'',organization_id:organizationId,name:'Certificate Template',created_at:new Date().toISOString(),...DEFAULT_SETTINGS})
   const [namesText,setNamesText]=useState('')
   const names=useMemo(()=>parseNames(namesText),[namesText])
   const [previewIndex,setPreviewIndex]=useState(0)
