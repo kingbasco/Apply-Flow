@@ -1709,7 +1709,7 @@ function ScreeningPanel({applicationId}:{applicationId:string}){
  </div>
 }
 function AnalyticsPanel({applications}:{applications:Application[]}){
- const [loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[rows,setRows]=useState<any[]>([]),[participants,setParticipants]=useState<any[]>([]),[attendance,setAttendance]=useState<any[]>([]),[assignmentSubmissions,setAssignmentSubmissions]=useState<any[]>([]),[assignments,setAssignments]=useState<any[]>([]),[leaderboardRows,setLeaderboardRows]=useState<any[]>([]),[groupRows,setGroupRows]=useState<any[]>([]),[notice,setNotice]=useState(''),[selectedApplicationId,setSelectedApplicationId]=useState('all'),[lastUpdated,setLastUpdated]=useState<Date|null>(null)
+ const [loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[rows,setRows]=useState<any[]>([]),[participants,setParticipants]=useState<any[]>([]),[attendance,setAttendance]=useState<any[]>([]),[assignmentSubmissions,setAssignmentSubmissions]=useState<any[]>([]),[assignments,setAssignments]=useState<any[]>([]),[leaderboardRows,setLeaderboardRows]=useState<any[]>([]),[groupRows,setGroupRows]=useState<any[]>([]),[notice,setNotice]=useState(''),[exportNotice,setExportNotice]=useState(''),[selectedApplicationId,setSelectedApplicationId]=useState('all'),[lastUpdated,setLastUpdated]=useState<Date|null>(null)
  async function load(options:{silent?:boolean}={}){
   if(options.silent)setRefreshing(true);else setLoading(true);setNotice('')
   try{
@@ -1815,11 +1815,105 @@ function AnalyticsPanel({applications}:{applications:Application[]}){
    return{strongest,mostEngaged,attendanceLeader}
  },[groupPerformance])
  const assignmentStats=useMemo(()=>selectedAssignments.filter(a=>a.status!=='draft').map(a=>{const subs=selectedAssignmentSubmissions.filter(s=>s.assignment_id===a.id);const graded=subs.filter(s=>s.status==='graded');return{...a,submitted:subs.length,graded:graded.length,submission_rate:selectedParticipants.length?subs.length/selectedParticipants.length*100:0,avg_score:graded.length?graded.reduce((sum,s)=>sum+Number(s.score||0),0)/graded.length:0}}).sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime()).slice(0,8),[selectedAssignments,selectedAssignmentSubmissions,selectedParticipants])
- const programmeRows=useMemo(()=>applications.map(application=>{const ps=rows.filter(r=>r.application_id===application.id),pp=participants.filter(p=>p.application_id===application.id),lb=leaderboardRows.filter((r:any)=>r.application_id===application.id);const ids=new Set(pp.map(p=>p.id));const att=attendance.filter(r=>ids.has(r.participant_id)&&r.status==='present').length;const subs=assignmentSubmissions.filter(r=>ids.has(r.participant_id)).length;return{application,submitted:ps.length,approved:ps.filter(r=>r.decision==='approved').length,rejected:ps.filter(r=>r.decision==='rejected').length,enrolled:pp.length,active:pp.filter(p=>p.status==='active').length,completed:pp.filter(p=>p.status==='completed').length,withdrawn:pp.filter(p=>p.status==='withdrawn').length,attendance:att,assignment_submissions:subs,avg_points:lb.length?lb.reduce((sum:number,r:any)=>sum+Number(r.total_points||0),0)/lb.length:0}}).filter(r=>r.submitted>0||r.enrolled>0),[applications,rows,participants,attendance,assignmentSubmissions,leaderboardRows])
+ const programmeRows=useMemo(()=>applications.map(application=>{const ps=rows.filter(r=>r.application_id===application.id),pp=participants.filter(p=>p.application_id===application.id&&!analyticsExcludedParticipantIds.has(p.id)),lb=leaderboardRows.filter((r:any)=>r.application_id===application.id&&!analyticsExcludedParticipantIds.has(r.participant_record_id));const ids=new Set(pp.map(p=>p.id));const att=attendance.filter(r=>ids.has(r.participant_id)&&r.status==='present').length;const subs=assignmentSubmissions.filter(r=>ids.has(r.participant_id)).length;return{application,submitted:ps.length,approved:ps.filter(r=>r.decision==='approved').length,rejected:ps.filter(r=>r.decision==='rejected').length,enrolled:pp.length,active:pp.filter(p=>p.status==='active').length,completed:pp.filter(p=>p.status==='completed').length,withdrawn:pp.filter(p=>p.status==='withdrawn').length,attendance:att,assignment_submissions:subs,avg_points:lb.length?lb.reduce((sum:number,r:any)=>sum+Number(r.total_points||0),0)/lb.length:0}}).filter(r=>r.submitted>0||r.enrolled>0),[applications,rows,participants,attendance,assignmentSubmissions,leaderboardRows,analyticsExcludedParticipantIds])
+
+ function exportAnalyticsCsv(){
+  const programmeLabel=selectedApplicationId==='all'?'All programmes':applications.find(a=>a.id===selectedApplicationId)?.name||'Programme'
+  const exportedAt=new Date()
+  const csvRows:string[][]=[
+    ['Analytics Export'],
+    ['Programme',programmeLabel],
+    ['Generated',exportedAt.toLocaleString()],
+    [],
+    ['SUMMARY STATISTICS'],
+    ['Metric','Value','Detail'],
+    ['Active enrolled',String(metrics.active),'Currently active participants'],
+    ['Engaged participants',String(metrics.engaged),metrics.engagementRate.toFixed(1)+'% of active participants'],
+    ['Inactive / at risk',String(metrics.atRisk),'Active participants with no recorded engagement'],
+    ['Assignment submissions',String(metrics.submittedAssignmentCount),metrics.gradedSubmissions+' graded · '+metrics.releasedAssignments+' results released'],
+    ['Attendance check-ins',String(metrics.totalAttendance),'Recorded present attendance'],
+    ['Average points',metrics.avgPoints.toFixed(1),'Average leaderboard points'],
+    ['Average assignment score',metrics.avgScore.toFixed(1)+'%','Across participants with graded work'],
+    ['Completed',String(metrics.completed),metrics.completionRate.toFixed(1)+'% of enrolled participants'],
+    [],
+    ['TOP PERFORMERS'],
+    ['Rank','Participant','Participant ID','Group','Total points','Average score'],
+    ...topPerformers.map((row:any,index:number)=>[
+      String(index+1),
+      row.full_name||'',
+      row.participant_id||'',
+      row.group_label||'',
+      Number(row.total_points||0).toFixed(0),
+      row.average_percentage===null||row.average_percentage===undefined?'':Number(row.average_percentage).toFixed(1)+'%'
+    ]),
+    [],
+    ['TOP ATTENDERS'],
+    ['Rank','Participant','Participant ID','Group','Present sessions'],
+    ...topAttenders.map((row:any,index:number)=>[
+      String(index+1),
+      row.full_name||'',
+      row.participant_id||'',
+      (row.leaderboard as any)?.group_label||'',
+      String(row.attendance_count||0)
+    ]),
+    [],
+    ['GROUP ANALYTICS'],
+    ['Rank','Group','Programme Staff','Members','Engaged members','Engagement rate','Average points','Attendance','Submissions','Top performer','Top performer points'],
+    ...groupPerformance.map((group,index)=>[
+      String(index+1),
+      group.group_label,
+      group.staff_name||'',
+      String(group.members.length),
+      String(group.engaged),
+      group.engagement_rate.toFixed(1)+'%',
+      group.avg_points.toFixed(1),
+      String(group.attendance),
+      String(group.submissions),
+      group.top?.participant?.full_name||group.top?.participant?.participant_id||'',
+      group.top?.row?Number(group.top.row.total_points||0).toFixed(0):''
+    ]),
+    [],
+    ['ASSIGNMENT HEALTH'],
+    ['Assignment','Status','Submitted','Submission rate','Graded','Average score','Results released'],
+    ...assignmentStats.map(a=>[
+      a.title,
+      a.status,
+      String(a.submitted),
+      a.submission_rate.toFixed(1)+'%',
+      String(a.graded),
+      a.graded?a.avg_score.toFixed(1):'',
+      a.results_released?'Yes':'No'
+    ]),
+    [],
+    ['PROGRAMME SUMMARY'],
+    ['Programme','Applications','Enrolled','Active','Attendance','Assignment submissions','Average points'],
+    ...programmeRows.map(r=>[
+      r.application.name,
+      String(r.submitted),
+      String(r.enrolled),
+      String(r.active),
+      String(r.attendance),
+      String(r.assignment_submissions),
+      r.avg_points.toFixed(1)
+    ])
+  ]
+  const csv='\uFEFF'+csvRows.map(row=>row.map(leaderboardCsvCell).join(',')).join('\r\n')
+  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}))
+  const slug=programmeLabel.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'programme'
+  const link=document.createElement('a')
+  link.href=url
+  link.download=slug+'-analytics-'+exportedAt.toISOString().slice(0,10)+'.csv'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+  setExportNotice('Analytics exported successfully.')
+ }
  if(loading)return <div className="loading-card card">Loading analytics…</div>
  return <section className="analytics-page analytics-rich-page">
-  <div className="analytics-header"><div><p className="eyebrow">Analytics</p><h1>Programme intelligence</h1><p className="subtitle">A live view of enrolment, engagement, attendance, assignments, groups and participant performance.</p></div><div className="analytics-actions"><label className="analytics-select-wrap"><span>Programme</span><select value={selectedApplicationId} onChange={e=>setSelectedApplicationId(e.target.value)}><option value="all">All programmes</option>{applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><button className="secondary-button" onClick={()=>load({silent:true})} disabled={refreshing}>{refreshing?'Refreshing…':'Refresh'} <TrendingUp size={15}/></button></div></div>
+  <div className="analytics-header"><div><p className="eyebrow">Analytics</p><h1>Programme intelligence</h1><p className="subtitle">A live view of enrolment, engagement, attendance, assignments, groups and participant performance.</p></div><div className="analytics-actions"><label className="analytics-select-wrap"><span>Programme</span><select value={selectedApplicationId} onChange={e=>{setSelectedApplicationId(e.target.value);setExportNotice('')}}><option value="all">All programmes</option>{applications.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><button className="secondary-button" type="button" onClick={exportAnalyticsCsv} disabled={!selectedParticipants.length}><Download size={15}/>Export analytics</button><button className="secondary-button" onClick={()=>load({silent:true})} disabled={refreshing}>{refreshing?'Refreshing…':'Refresh'} <TrendingUp size={15}/></button></div></div>
   {notice&&<div className="form-error page-error">{notice}</div>}
+  {exportNotice&&<div className="analytics-export-notice" role="status">{exportNotice}</div>}
   {!selectedRows.length&&!selectedParticipants.length?<div className="card analytics-empty"><div className="empty-icon"><BarChart3 size={22}/></div><h2>No analytics data yet</h2><p>Once participants begin applying, attending and submitting assignments, this dashboard will populate automatically.</p></div>:
   <>
    <div className="analytics-kpi-grid analytics-kpi-grid-rich">
