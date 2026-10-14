@@ -304,7 +304,7 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     return()=>{cancelled=true}
   },[fontUrl])
 
-  useEffect(()=>{renderPreview()},[previewName,settings.x_percent,settings.y_percent,settings.font_size,settings.max_width_percent,settings.color])
+  useEffect(()=>{renderPreview()},[previewName,namesText,settings.x_percent,settings.y_percent,settings.font_size,settings.max_width_percent,settings.color])
 
   useEffect(()=>()=>{
     if(templateUrl)URL.revokeObjectURL(templateUrl)
@@ -312,16 +312,22 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     if(fontFaceRef.current)document.fonts.delete(fontFaceRef.current)
   },[])
 
-  function fittedFontSize(name:string,width:number){
+  function fittedFontSize(width:number){
     const measure=document.createElement('canvas').getContext('2d')
-    let size=Math.max(8,Number(settings.font_size)||72)
-    if(!measure)return size
+    const baseSize=Math.max(8,Number(settings.font_size)||72)
+    if(!measure)return baseSize
     const family=fontFaceRef.current?`"${FONT_FACE_NAME}"`:'Georgia'
-    measure.font=`${size}px ${family}`
+    measure.font=`${baseSize}px ${family}`
     const maximum=width*(Number(settings.max_width_percent)||72)/100
-    const measured=measure.measureText(name).width
-    if(measured>maximum&&measured>0)size=Math.max(8,size*(maximum/measured))
-    return size
+    const fittingNames=names.length?names:[previewName]
+    let widest=0
+    for(const name of fittingNames){
+      widest=Math.max(widest,measure.measureText(name).width)
+    }
+    if(widest>maximum&&widest>0){
+      return Math.max(8,baseSize*(maximum/widest))
+    }
+    return baseSize
   }
 
   function drawCertificate(name:string,canvas:HTMLCanvasElement,requestedScale=1){
@@ -345,7 +351,7 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     context.textBaseline='middle'
     context.fillStyle=settings.color
     const family=fontFaceRef.current?`"${FONT_FACE_NAME}"`:'Georgia'
-    const size=fittedFontSize(name,width)
+    const size=fittedFontSize(width)
     context.font=`${size}px ${family}`
     context.fillText(name,width*settings.x_percent/100,height*settings.y_percent/100)
     context.restore()
@@ -370,7 +376,7 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     const text=document.createElementNS('http://www.w3.org/2000/svg','text')
     const x=geometry.minX+geometry.width*settings.x_percent/100
     const y=geometry.minY+geometry.height*settings.y_percent/100
-    const size=fittedFontSize(name,geometry.width)
+    const size=fittedFontSize(geometry.width)
     text.setAttribute('x',String(x))
     text.setAttribute('y',String(y))
     text.setAttribute('fill',settings.color)
