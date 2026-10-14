@@ -770,7 +770,7 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
 
       <div className="certificate-main">
         <div className="card certificate-preview-card">
-          <div className="card-header"><div><p className="eyebrow">Live preview · {settings.name}</p><h2>{previewName}</h2><p>Names automatically shrink when they exceed the configured maximum width.</p></div>{settings.template_path&&<span className="status green">Template ready</span>}</div>
+          <div className="card-header"><div><p className="eyebrow">Live preview · {settings.name}</p><h2>{previewName}</h2><p>All recipients use one consistent name size. ApplyFlow only shrinks the batch when the widest name would exceed your configured maximum width.</p></div>{settings.template_path&&<span className="status green">Template ready</span>}</div>
           <div className={settings.template_path?'certificate-canvas-shell ready':'certificate-canvas-shell'}>
             {settings.template_path?<canvas ref={canvasRef} onClick={moveNameFromPreview} aria-label="Certificate preview. Click to position the recipient name."/>:<div className="certificate-empty-preview"><FileImage size={30}/><strong>Upload your certificate artwork</strong><span>The design stays unchanged; ApplyFlow only places the recipient name over it.</span></div>}
           </div>
