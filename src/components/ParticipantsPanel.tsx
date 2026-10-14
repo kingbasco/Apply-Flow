@@ -26,6 +26,10 @@ type AssignmentQuestion = { id:string; assignment_id:string; type:'short_text'|'
 const isInstructionBlock = (question:AssignmentQuestion):boolean => question.config?.display_only===true
 
 type AssignmentSubmission = { id:string; assignment_id:string; participant_id:string; status:'submitted'|'graded'; submitted_at:string; score:number|null; feedback:string|null; graded_at:string|null; participants?:{participant_id:string;applicants?:{full_name:string|null;email:string|null}|null}|null }
+type ParticipantAssignmentHistoryRow = {
+  assignment: Assignment
+  submission: AssignmentSubmission | null
+}
 type AssignmentAnswer = { id:string; question_id:string; value:any; assignment_questions?:{label:string;type:string;position:number}|null }
 type AssignmentDocument = { id:string; question_id:string; storage_bucket:string; storage_path:string; original_name:string; mime_type:string|null; file_size:number|null }
 type LeaderboardRow = { participant_record_id:string; participant_id:string; full_name:string|null; graded_assignments:number; submitted_assignments:number; total_assignments:number; average_percentage:number|null; completion_percentage:number; assignment_points:number; attendance_points:number; bonus_points:number; total_points:number; rank:number|null }
@@ -98,6 +102,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const participantProfileScrollRef=useRef<HTMLDivElement>(null)
   const [participantAttendance,setParticipantAttendance]=useState<ParticipantAttendance[]>([])
   const [participantAttendanceLoading,setParticipantAttendanceLoading]=useState(false)
+  const [participantAssignmentHistory,setParticipantAssignmentHistory]=useState<ParticipantAssignmentHistoryRow[]>([])
+  const [participantAssignmentHistoryLoading,setParticipantAssignmentHistoryLoading]=useState(false)
   const [pointAwards,setPointAwards]=useState<PointAward[]>([])
   const [pointAwardsLoading,setPointAwardsLoading]=useState(false)
   const [pointAwardSaving,setPointAwardSaving]=useState(false)
@@ -615,7 +621,15 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   }
 
   async function openParticipant(participant:Participant){
-    setSelectedParticipant({...participant,trade:undefined});setParticipantAttendance([]);setPointAwards([]);setParticipantAttendanceLoading(true);setPointAwardsLoading(canManagePoints);setError('');loadLeaderboard(participant.application_id)
+    setSelectedParticipant({...participant,trade:undefined})
+    setParticipantAttendance([])
+    setParticipantAssignmentHistory([])
+    setPointAwards([])
+    setParticipantAttendanceLoading(true)
+    setParticipantAssignmentHistoryLoading(true)
+    setPointAwardsLoading(canManagePoints)
+    setError('')
+    loadLeaderboard(participant.application_id)
     try{
       const attendancePromise=supabase.from('attendance_records')
         .select('id,status,marked_at,attendance_sessions!inner(title,session_date,application_id)')
@@ -638,19 +652,37 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           .order('created_at',{ascending:false})
         : Promise.resolve({data:[],error:null})
 
-      const [attendanceResult,tradeResult,awardsResult]=await Promise.all([attendancePromise,tradePromise,awardsPromise])
+      const assignmentHistoryPromise=supabase.from('assignment_submissions')
+        .select('id,assignment_id,participant_id,status,submitted_at,score,feedback,graded_at')
+        .eq('participant_id',participant.id)
+
+      const [attendanceResult,tradeResult,awardsResult,assignmentHistoryResult]=await Promise.all([attendancePromise,tradePromise,awardsPromise,assignmentHistoryPromise])
       if(attendanceResult.error)throw attendanceResult.error
       if(tradeResult.error)throw tradeResult.error
       if(awardsResult.error)throw awardsResult.error
+      if(assignmentHistoryResult.error)throw assignmentHistoryResult.error
+
+      const submissions=(assignmentHistoryResult.data||[]) as AssignmentSubmission[]
+      const submissionByAssignment=new Map(submissions.map(submission=>[submission.assignment_id,submission]))
+      const history=assignments
+        .filter(assignment=>assignment.application_id===participant.application_id&&assignment.status!=='draft')
+        .slice()
+        .sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())
+        .map(assignment=>({assignment,submission:submissionByAssignment.get(assignment.id)||null}))
 
       setParticipantAttendance((attendanceResult.data||[]) as ParticipantAttendance[])
+      setParticipantAssignmentHistory(history)
       setPointAwards((awardsResult.data||[]) as PointAward[])
       const tradeValue=answerText((tradeResult.data?.[0] as {value?:unknown}|undefined)?.value).trim()
       setSelectedParticipant(current=>current?.id===participant.id?{...current,trade:tradeValue||null}:current)
     }catch(e){
       setSelectedParticipant(current=>current?.id===participant.id?{...current,trade:null}:current)
       setError(friendlyErrorMessage(e,'Could not load participant profile details.'))
-    }finally{setParticipantAttendanceLoading(false);setPointAwardsLoading(false)}
+    }finally{
+      setParticipantAttendanceLoading(false)
+      setParticipantAssignmentHistoryLoading(false)
+      setPointAwardsLoading(false)
+    }
   }
 
   const pointCategoryLabel=(value:string)=>({
@@ -1543,6 +1575,22 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
           <section className="participant-profile-section">
             <div className="participant-section-heading"><div><p className="eyebrow">Assignments</p><h3>Performance</h3><p>Graded assignment performance for this participant.</p></div><ClipboardList size={19}/></div>
             {leaderboardLoading?<div className="loading-card">Loading performance…</div>:(()=>{const performance=leaderboard.find(row=>row.participant_record_id===selectedParticipant.id);return performance?<div className="participant-profile-stats"><div><span>Total points</span><strong>{Number(performance.total_points||0).toFixed(0)}</strong><small>{Number(performance.assignment_points||0).toFixed(0)} assignment + {Number(performance.attendance_points||0).toFixed(0)} attendance + {Number(performance.bonus_points||0).toFixed(0)} bonus</small></div><div><span>Average score</span><strong>{performance.average_percentage===null?'—':Number(performance.average_percentage).toFixed(1)+'%'}</strong><small>{performance.graded_assignments}/{performance.total_assignments} released assignments</small></div><div><span>Programme leaderboard</span><div className="participant-profile-rank"><LeaderboardRankBadge rank={performance.rank}/></div><small>running position across the full programme</small></div></div>:<div className="table-empty">No assignment performance yet.</div>})()}
+            <div className="participant-section-heading" style={{marginTop:20}}><div><p className="eyebrow">Assignment history</p><h3>Submission record</h3><p>See every published or closed assignment and whether this participant submitted it.</p></div><ClipboardList size={19}/></div>
+            {participantAssignmentHistoryLoading
+              ?<div className="loading-card">Loading assignment history…</div>
+              :participantAssignmentHistory.length
+                ?<div className="table-wrap participant-profile-table"><table><thead><tr><th>Assignment</th><th>Submission</th><th>Submitted</th><th>Score</th><th>Result</th></tr></thead><tbody>
+                  {participantAssignmentHistory.map(({assignment,submission})=><tr key={assignment.id}>
+                    <td><strong>{assignment.title}</strong><span className="table-sub">{assignment.deadline?'Deadline '+formatAssignmentDeadline(assignment.deadline):assignment.status==='closed'?'Closed':'Published'}</span></td>
+                    <td>{submission?<span className={'status '+(submission.status==='graded'?'green':'blue')}>{submission.status==='graded'?'Submitted & graded':'Submitted'}</span>:<span className="status neutral">Not submitted</span>}</td>
+                    <td>{submission?.submitted_at?new Date(submission.submitted_at).toLocaleString():'—'}</td>
+                    <td>{submission?.score===null||submission?.score===undefined?'—':Number(submission.score).toFixed(2)+' / '+Number(assignment.max_score).toFixed(0)}</td>
+                    <td>{submission?.status==='graded'
+                      ?<><strong>{Number(submission.score||0)>=Number(assignment.pass_mark)?'Pass':'Below pass mark'}</strong><span className="table-sub">{submission.feedback||'No feedback provided'}</span></>
+                      :submission?<span className="table-sub">Awaiting grade</span>:<span className="table-sub">No submission recorded</span>}</td>
+                  </tr>)}
+                </tbody></table></div>
+                :<div className="table-empty">No published or closed assignments found for this participant's programme.</div>}
           </section>
           {canManagePoints&&<section className="participant-profile-section">
             <div className="participant-section-heading"><div><p className="eyebrow">Bonus points</p><h3>Award extra points</h3><p>Recognise activity, participation, leadership or other contributions. Bonus awards are added to the running leaderboard.</p></div><Gift size={19}/></div>
