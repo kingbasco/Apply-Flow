@@ -5293,3 +5293,6 @@ html.dark-theme .analytics-group-engagement-track{background:#2a3039}
   .analytics-group-card{padding:15px}
   .analytics-group-metrics{gap:10px}
 }
+
+.analytics-export-notice{margin-top:-2px;padding:10px 12px;border:1px solid #d9eadf;border-radius:10px;background:#f4fbf7;color:#2f7a4b;font-size:10px;font-weight:600}
+html.dark-theme .analytics-export-notice{background:#132019;border-color:#294536;color:#9bd1ae}
