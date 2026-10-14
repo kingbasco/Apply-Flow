@@ -1834,10 +1834,10 @@ function AnalyticsPanel({applications}:{applications:Application[]}){
    </div>
 
    <div className="analytics-highlight-grid">
-    <div className="card analytics-card analytics-leader-card"><div className="analytics-card-header"><div><p className="eyebrow">Top performers</p><h2>Overall leaderboard</h2><p>Participants leading by total points, then average assignment score.</p></div><Award size={19}/></div>
+    <div className="card analytics-card analytics-leader-card analytics-performers-card"><div className="analytics-card-header"><div><p className="eyebrow">Top performers</p><h2>Overall leaderboard</h2><p>Participants leading by total points, then average assignment score.</p></div><Award size={19}/></div>
       <div className="analytics-ranking-list">{topPerformers.length?topPerformers.map((row:any,index:number)=><div className="analytics-ranking-row" key={row.participant_record_id}><span className="analytics-rank-number">{index+1}</span><div><strong>{row.full_name||row.participant_id}</strong><small>{row.participant_id} · {row.group_label||'Unassigned'}</small></div><div className="analytics-rank-score"><strong>{Number(row.total_points||0).toFixed(0)}</strong><small>{row.average_percentage===null?'No score yet':Number(row.average_percentage||0).toFixed(1)+'% avg'}</small></div></div>):<div className="table-empty">No leaderboard activity yet.</div>}</div>
     </div>
-    <div className="card analytics-card analytics-leader-card"><div className="analytics-card-header"><div><p className="eyebrow">Attendance leaders</p><h2>Top attenders</h2><p>Participants with the highest number of recorded present sessions.</p></div><CheckCircle2 size={19}/></div>
+    <div className="card analytics-card analytics-leader-card analytics-attenders-card"><div className="analytics-card-header"><div><p className="eyebrow">Attendance leaders</p><h2>Top attenders</h2><p>Participants with the highest number of recorded present sessions.</p></div><CheckCircle2 size={19}/></div>
       <div className="analytics-ranking-list">{topAttenders.length?topAttenders.map((p:any,index:number)=><div className="analytics-ranking-row" key={p.id}><span className="analytics-rank-number">{index+1}</span><div><strong>{p.full_name||p.participant_id}</strong><small>{p.participant_id} · {(p.leaderboard as any)?.group_label||'Unassigned'}</small></div><div className="analytics-rank-score"><strong>{p.attendance_count}</strong><small>sessions present</small></div></div>):<div className="table-empty">No attendance has been recorded yet.</div>}</div>
     </div>
    </div>
