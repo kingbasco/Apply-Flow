@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Download, FileImage, FileText, Loader2, Save, Type, Upload } from 'lucide-react'
+import { Download, FileImage, FileText, Loader2, Plus, Save, Trash2, Type, Upload } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
 import './CertificatesWorkspace.css'
 
 type CertificateSettings = {
+  id:string
   organization_id:string
+  name:string
   template_path:string|null
   template_mime_type:string|null
   font_path:string|null
@@ -15,10 +17,11 @@ type CertificateSettings = {
   font_size:number
   max_width_percent:number
   color:string
+  created_at:string
   updated_at?:string
 }
 
-const DEFAULT_SETTINGS:Omit<CertificateSettings,'organization_id'> = {
+const DEFAULT_SETTINGS:Omit<CertificateSettings,'id'|'organization_id'|'name'|'created_at'> = {
   template_path:null,
   template_mime_type:null,
   font_path:null,
@@ -140,7 +143,9 @@ function blobToDataUrl(blob:Blob){
 }
 
 export default function CertificatesWorkspace({organizationId}:{organizationId:string}){
-  const [settings,setSettings]=useState<CertificateSettings>({organization_id:organizationId,...DEFAULT_SETTINGS})
+  const [templates,setTemplates]=useState<CertificateSettings[]>([])
+  const [activeTemplateId,setActiveTemplateId]=useState('')
+  const [settings,setSettings]=useState<CertificateSettings>({id:'',organization_id:organizationId,name:'Certificate Template',created_at:new Date().toISOString(),...DEFAULT_SETTINGS})
   const [namesText,setNamesText]=useState('')
   const names=useMemo(()=>parseNames(namesText),[namesText])
   const [previewIndex,setPreviewIndex]=useState(0)
@@ -161,6 +166,74 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
   const [error,setError]=useState('')
   const [notice,setNotice]=useState('')
 
+  function normalizeTemplate(row:any):CertificateSettings{
+    return {
+      ...row,
+      id:String(row.id),
+      organization_id:String(row.organization_id),
+      name:String(row.name||'Certificate Template'),
+      created_at:String(row.created_at||new Date().toISOString()),
+      x_percent:Number(row.x_percent),
+      y_percent:Number(row.y_percent),
+      font_size:Number(row.font_size),
+      max_width_percent:Number(row.max_width_percent),
+    }
+  }
+
+  async function loadAssets(next:CertificateSettings,isCancelled=false){
+    templateImageRef.current=null
+    if(next.template_path){
+      const {data,error}=await supabase.storage.from(STORAGE_BUCKET).download(next.template_path)
+      if(error)throw error
+      const svgText=next.template_mime_type==='image/svg+xml'?await data.text():''
+      if(!isCancelled){
+        setRawSvgText(svgText)
+        const url=URL.createObjectURL(data)
+        setTemplateUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
+      }
+    }else if(!isCancelled){
+      setRawSvgText('')
+      setTemplateUrl(current=>{if(current)URL.revokeObjectURL(current);return ''})
+    }
+    if(next.font_path){
+      const {data,error}=await supabase.storage.from(STORAGE_BUCKET).download(next.font_path)
+      if(error)throw error
+      const dataUrl=await blobToDataUrl(data)
+      if(!isCancelled){
+        setFontDataUrl(dataUrl)
+        const url=URL.createObjectURL(data)
+        setFontUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
+      }
+    }else if(!isCancelled){
+      setFontDataUrl('')
+      setFontUrl(current=>{if(current)URL.revokeObjectURL(current);return ''})
+    }
+  }
+
+  async function loadTemplateList(preferredId=''){
+    const {data,error:settingsError}=await supabase
+      .from('certificate_settings')
+      .select('id,organization_id,name,template_path,template_mime_type,font_path,font_family,x_percent,y_percent,font_size,max_width_percent,color,created_at,updated_at')
+      .eq('organization_id',organizationId)
+      .order('updated_at',{ascending:false})
+    if(settingsError)throw settingsError
+    let list=(data||[]).map(normalizeTemplate)
+    if(!list.length){
+      const {data:created,error:createError}=await supabase
+        .from('certificate_settings')
+        .insert({organization_id:organizationId,name:'Certificate Template',...DEFAULT_SETTINGS})
+        .select('id,organization_id,name,template_path,template_mime_type,font_path,font_family,x_percent,y_percent,font_size,max_width_percent,color,created_at,updated_at')
+        .single()
+      if(createError)throw createError
+      list=[normalizeTemplate(created)]
+    }
+    setTemplates(list)
+    const next=list.find(item=>item.id===preferredId)||list[0]
+    setActiveTemplateId(next.id)
+    setSettings(next)
+    await loadAssets(next)
+  }
+
   useEffect(()=>{
     let cancelled=false
     async function load(){
@@ -168,46 +241,30 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
       try{
         const {data,error:settingsError}=await supabase
           .from('certificate_settings')
-          .select('organization_id,template_path,template_mime_type,font_path,font_family,x_percent,y_percent,font_size,max_width_percent,color,updated_at')
+          .select('id,organization_id,name,template_path,template_mime_type,font_path,font_family,x_percent,y_percent,font_size,max_width_percent,color,created_at,updated_at')
           .eq('organization_id',organizationId)
-          .maybeSingle()
+          .order('updated_at',{ascending:false})
         if(settingsError)throw settingsError
-        const next:CertificateSettings=data
-          ? {...data,x_percent:Number(data.x_percent),y_percent:Number(data.y_percent),font_size:Number(data.font_size),max_width_percent:Number(data.max_width_percent)}
-          : {organization_id:organizationId,...DEFAULT_SETTINGS}
+        let list=(data||[]).map(normalizeTemplate)
+        if(!list.length){
+          const {data:created,error:createError}=await supabase
+            .from('certificate_settings')
+            .insert({organization_id:organizationId,name:'Certificate Template',...DEFAULT_SETTINGS})
+            .select('id,organization_id,name,template_path,template_mime_type,font_path,font_family,x_percent,y_percent,font_size,max_width_percent,color,created_at,updated_at')
+            .single()
+          if(createError)throw createError
+          list=[normalizeTemplate(created)]
+        }
         if(cancelled)return
+        setTemplates(list)
+        const next=list[0]
+        setActiveTemplateId(next.id)
         setSettings(next)
         await loadAssets(next,cancelled)
       }catch(e){
-        if(!cancelled)setError(friendlyErrorMessage(e,'Could not load certificate settings.'))
+        if(!cancelled)setError(friendlyErrorMessage(e,'Could not load certificate templates.'))
       }finally{
         if(!cancelled)setLoading(false)
-      }
-    }
-    async function loadAssets(next:CertificateSettings,isCancelled:boolean){
-      if(next.template_path){
-        const {data,error}=await supabase.storage.from(STORAGE_BUCKET).download(next.template_path)
-        if(error)throw error
-        const svgText=next.template_mime_type==='image/svg+xml'?await data.text():''
-        if(!isCancelled){
-          setRawSvgText(svgText)
-          const url=URL.createObjectURL(data)
-          setTemplateUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
-        }
-      }else if(!isCancelled){
-        setRawSvgText('')
-      }
-      if(next.font_path){
-        const {data,error}=await supabase.storage.from(STORAGE_BUCKET).download(next.font_path)
-        if(error)throw error
-        const dataUrl=await blobToDataUrl(data)
-        if(!isCancelled){
-          setFontDataUrl(dataUrl)
-          const url=URL.createObjectURL(data)
-          setFontUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
-        }
-      }else if(!isCancelled){
-        setFontDataUrl('')
       }
     }
     void load()
@@ -377,8 +434,11 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
   }
 
   async function persistSettings(next=settings){
+    if(!next.id)throw new Error('Select or create a certificate template first.')
     const payload={
+      id:next.id,
       organization_id:organizationId,
+      name:(next.name||'Certificate Template').trim()||'Certificate Template',
       template_path:next.template_path,
       template_mime_type:next.template_mime_type,
       font_path:next.font_path,
@@ -388,18 +448,83 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
       font_size:Number(next.font_size),
       max_width_percent:Number(next.max_width_percent),
       color:next.color,
+      created_at:next.created_at,
       updated_at:new Date().toISOString(),
     }
-    const {error}=await supabase.from('certificate_settings').upsert(payload,{onConflict:'organization_id'})
+    const {data,error}=await supabase
+      .from('certificate_settings')
+      .upsert(payload,{onConflict:'id'})
+      .select('id,organization_id,name,template_path,template_mime_type,font_path,font_family,x_percent,y_percent,font_size,max_width_percent,color,created_at,updated_at')
+      .single()
     if(error)throw error
+    const saved=normalizeTemplate(data)
+    setSettings(saved)
+    setTemplates(current=>[saved,...current.filter(item=>item.id!==saved.id)])
+    return saved
+  }
+
+  async function selectTemplate(template:CertificateSettings){
+    if(template.id===activeTemplateId)return
+    setError('');setNotice('');setActiveTemplateId(template.id);setSettings(template);setPreviewIndex(0)
+    try{await loadAssets(template)}catch(e){setError(friendlyErrorMessage(e,'Could not load this certificate template.'))}
+  }
+
+  async function createTemplate(){
+    setSaving(true);setError('');setNotice('')
+    try{
+      const nextNumber=templates.length+1
+      const {data,error}=await supabase
+        .from('certificate_settings')
+        .insert({organization_id:organizationId,name:`Certificate Template ${nextNumber}`,...DEFAULT_SETTINGS})
+        .select('id,organization_id,name,template_path,template_mime_type,font_path,font_family,x_percent,y_percent,font_size,max_width_percent,color,created_at,updated_at')
+        .single()
+      if(error)throw error
+      const created=normalizeTemplate(data)
+      setTemplates(current=>[created,...current])
+      setActiveTemplateId(created.id)
+      setSettings(created)
+      setRawSvgText('')
+      setTemplateUrl(current=>{if(current)URL.revokeObjectURL(current);return ''})
+      setFontDataUrl('')
+      setFontUrl(current=>{if(current)URL.revokeObjectURL(current);return ''})
+      templateImageRef.current=null
+      setNotice('New certificate template created. Upload its artwork and font.')
+    }catch(e){setError(friendlyErrorMessage(e,'Could not create a certificate template.'))}
+    finally{setSaving(false)}
+  }
+
+  async function deleteTemplate(template:CertificateSettings){
+    if(!window.confirm(`Delete “${template.name}”? The saved artwork, font and placement settings for this template will be removed.`))return
+    setSaving(true);setError('');setNotice('')
+    try{
+      const paths=[template.template_path,template.font_path].filter(Boolean) as string[]
+      if(paths.length){
+        const {error:storageError}=await supabase.storage.from(STORAGE_BUCKET).remove(paths)
+        if(storageError)throw storageError
+      }
+      const {error}=await supabase.from('certificate_settings').delete().eq('id',template.id).eq('organization_id',organizationId)
+      if(error)throw error
+      const remaining=templates.filter(item=>item.id!==template.id)
+      if(remaining.length){
+        setTemplates(remaining)
+        const next=remaining[0]
+        setActiveTemplateId(next.id)
+        setSettings(next)
+        await loadAssets(next)
+      }else{
+        await loadTemplateList()
+      }
+      setNotice('Certificate template deleted.')
+    }catch(e){setError(friendlyErrorMessage(e,'Could not delete this certificate template.'))}
+    finally{setSaving(false)}
   }
 
   async function savePlacement(){
     setSaving(true);setError('');setNotice('')
     try{
       await persistSettings()
-      setNotice('Certificate placement and style saved.')
-    }catch(e){setError(friendlyErrorMessage(e,'Could not save certificate settings.'))}
+      setNotice('Certificate template saved.')
+    }catch(e){setError(friendlyErrorMessage(e,'Could not save certificate template.'))}
     finally{setSaving(false)}
   }
 
@@ -407,22 +532,22 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     const ext=extensionOf(file.name)
     if(!['png','jpg','jpeg','svg'].includes(ext)){setError('Template must be PNG, JPG, JPEG or SVG.');return}
     if(file.size>20*1024*1024){setError('Template must be 20 MB or smaller.');return}
+    if(!settings.id){setError('Create a certificate template first.');return}
     setUploading('template');setError('');setNotice('')
     try{
-      const path=`${organizationId}/template.${ext==='jpeg'?'jpg':ext}`
+      const path=`${organizationId}/${settings.id}/template.${ext==='jpeg'?'jpg':ext}`
       const {error:uploadError}=await supabase.storage.from(STORAGE_BUCKET).upload(path,file,{upsert:true,contentType:templateContentType(file)})
       if(uploadError)throw uploadError
       const previous=settings.template_path
       const next={...settings,template_path:path,template_mime_type:templateContentType(file)}
-      await persistSettings(next)
-      setSettings(next)
+      const saved=await persistSettings(next)
       const {data,error:downloadError}=await supabase.storage.from(STORAGE_BUCKET).download(path)
       if(downloadError)throw downloadError
-      setRawSvgText(next.template_mime_type==='image/svg+xml'?await data.text():'')
+      setRawSvgText(saved.template_mime_type==='image/svg+xml'?await data.text():'')
       const url=URL.createObjectURL(data)
       setTemplateUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
       if(previous&&previous!==path)void supabase.storage.from(STORAGE_BUCKET).remove([previous])
-      setNotice('Certificate template uploaded.')
+      setNotice('Certificate artwork saved to this template.')
     }catch(e){setError(friendlyErrorMessage(e,'Could not upload certificate template.'))}
     finally{setUploading('')}
   }
@@ -431,22 +556,22 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     const ext=extensionOf(file.name)
     if(!['ttf','otf'].includes(ext)){setError('Name font must be a TTF or OTF file.');return}
     if(file.size>10*1024*1024){setError('Font must be 10 MB or smaller.');return}
+    if(!settings.id){setError('Create a certificate template first.');return}
     setUploading('font');setError('');setNotice('')
     try{
-      const path=`${organizationId}/name-font.${ext}`
+      const path=`${organizationId}/${settings.id}/name-font.${ext}`
       const {error:uploadError}=await supabase.storage.from(STORAGE_BUCKET).upload(path,file,{upsert:true,contentType:fontContentType(file)})
       if(uploadError)throw uploadError
       const previous=settings.font_path
       const next={...settings,font_path:path,font_family:file.name.replace(/\.(ttf|otf)$/i,'')||'CertificateName'}
-      await persistSettings(next)
-      setSettings(next)
+      const saved=await persistSettings(next)
       const {data,error:downloadError}=await supabase.storage.from(STORAGE_BUCKET).download(path)
       if(downloadError)throw downloadError
       setFontDataUrl(await blobToDataUrl(data))
       const url=URL.createObjectURL(data)
       setFontUrl(current=>{if(current)URL.revokeObjectURL(current);return url})
       if(previous&&previous!==path)void supabase.storage.from(STORAGE_BUCKET).remove([previous])
-      setNotice('Name font uploaded.')
+      setNotice('Name font saved to this template.')
     }catch(e){setError(friendlyErrorMessage(e,'Could not upload name font.'))}
     finally{setUploading('')}
   }
@@ -569,15 +694,35 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
 
   return <section className="certificates-page">
     <div className="page-heading compact">
-      <div><p className="eyebrow">Admin tools</p><h1>Certificates</h1><p className="subtitle">Upload the certificate artwork and name font, paste recipient names, preview the placement, and export print-ready certificates.</p></div>
-      <div className="certificate-name-count"><strong>{names.length}</strong><span>recipient{names.length===1?'':'s'}</span></div>
+      <div><p className="eyebrow">Admin tools</p><h1>Certificates</h1><p className="subtitle">Create and save reusable certificate templates, then pick any design whenever you need to generate certificates.</p></div>
+      <div className="certificate-heading-actions"><div className="certificate-name-count"><strong>{names.length}</strong><span>recipient{names.length===1?'':'s'}</span></div><button type="button" className="primary-button" onClick={()=>void createTemplate()} disabled={saving}><Plus size={16}/>New template</button></div>
     </div>
 
     {error&&<div className="form-error">{error}</div>}
     {notice&&<div className="form-success">{notice}</div>}
 
-    <div className="certificate-workspace">
+    <div className="certificate-library-layout">
+      <aside className="card certificate-template-library">
+        <div className="certificate-template-library-head"><div><p className="eyebrow">Template library</p><h2>Saved templates</h2><p>Choose a saved design or create a new certificate template.</p></div><span>{templates.length}</span></div>
+        <div className="certificate-template-list">
+          {templates.map(template=><div key={template.id} className={template.id===activeTemplateId?'certificate-template-item active':'certificate-template-item'}>
+            <button type="button" className="certificate-template-select" onClick={()=>void selectTemplate(template)}>
+              <span className="certificate-template-icon"><FileImage size={17}/></span>
+              <span><strong>{template.name}</strong><small>{template.template_path?'Artwork ready':'No artwork yet'} · {template.font_path?template.font_family:'Default font'}</small></span>
+            </button>
+            <button type="button" className="icon-button certificate-template-delete" title="Delete template" aria-label={'Delete '+template.name} onClick={()=>void deleteTemplate(template)} disabled={saving}><Trash2 size={14}/></button>
+          </div>)}
+        </div>
+        <button type="button" className="secondary-button certificate-library-new" onClick={()=>void createTemplate()} disabled={saving}><Plus size={15}/>Create new template</button>
+      </aside>
+
+      <div className="certificate-template-editor">
+      <div className="certificate-workspace">
       <aside className="card certificate-controls">
+        <div className="certificate-control-section certificate-template-details">
+          <div className="certificate-section-heading"><div><strong>Template details</strong><small>Name this design so you can find it later.</small></div></div>
+          <label className="certificate-template-name-field"><span>Template name</span><input value={settings.name} maxLength={80} onChange={e=>setSettings(current=>({...current,name:e.target.value}))} placeholder="Completion Certificate"/></label>
+        </div>
         <div className="certificate-control-section">
           <div className="certificate-section-heading"><span className="certificate-step">1</span><div><strong>Certificate artwork</strong><small>PNG, JPG or SVG · up to 20 MB</small></div></div>
           <label className="certificate-upload-box">
@@ -613,13 +758,13 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
             <label><span>Max width</span><input type="number" min="10" max="100" step="1" value={settings.max_width_percent} onChange={e=>setSettings(current=>({...current,max_width_percent:Number(e.target.value)}))}/><small>%</small></label>
             <label className="certificate-color-field"><span>Name colour</span><input type="color" value={settings.color} onChange={e=>setSettings(current=>({...current,color:e.target.value}))}/><input type="text" value={settings.color} maxLength={7} onChange={e=>/^#[0-9A-Fa-f]{0,6}$/.test(e.target.value)&&setSettings(current=>({...current,color:e.target.value}))}/></label>
           </div>
-          <button type="button" className="secondary-button certificate-save-settings" onClick={()=>void savePlacement()} disabled={saving}>{saving?<Loader2 className="spin" size={15}/>:<Save size={15}/>} {saving?'Saving…':'Save placement'}</button>
+          <button type="button" className="primary-button certificate-save-settings" onClick={()=>void savePlacement()} disabled={saving}>{saving?<Loader2 className="spin" size={15}/>:<Save size={15}/>} {saving?'Saving…':'Save template'}</button>
         </div>
       </aside>
 
       <div className="certificate-main">
         <div className="card certificate-preview-card">
-          <div className="card-header"><div><p className="eyebrow">Live preview</p><h2>{previewName}</h2><p>Names automatically shrink when they exceed the configured maximum width.</p></div>{settings.template_path&&<span className="status green">Template ready</span>}</div>
+          <div className="card-header"><div><p className="eyebrow">Live preview · {settings.name}</p><h2>{previewName}</h2><p>Names automatically shrink when they exceed the configured maximum width.</p></div>{settings.template_path&&<span className="status green">Template ready</span>}</div>
           <div className={settings.template_path?'certificate-canvas-shell ready':'certificate-canvas-shell'}>
             {settings.template_path?<canvas ref={canvasRef} onClick={moveNameFromPreview} aria-label="Certificate preview. Click to position the recipient name."/>:<div className="certificate-empty-preview"><FileImage size={30}/><strong>Upload your certificate artwork</strong><span>The design stays unchanged; ApplyFlow only places the recipient name over it.</span></div>}
           </div>
@@ -641,6 +786,8 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
           {exportProgress&&<div className="certificate-export-progress"><Loader2 className="spin" size={14}/><span>{exportProgress}</span></div>}
           <div className="certificate-quality-note"><strong>Maximum-quality export</strong><span>Ultra PNG renders up to 6× the template dimensions with high-quality smoothing. SVG templates remain vector for SVG and PDF export, so lines, logos and text stay sharp at any zoom. Very large raster templates are automatically capped at a safe browser memory limit.</span></div>
         </div>
+      </div>
+      </div>
       </div>
     </div>
   </section>
