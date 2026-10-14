@@ -694,15 +694,35 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
 
   return <section className="certificates-page">
     <div className="page-heading compact">
-      <div><p className="eyebrow">Admin tools</p><h1>Certificates</h1><p className="subtitle">Upload the certificate artwork and name font, paste recipient names, preview the placement, and export print-ready certificates.</p></div>
-      <div className="certificate-name-count"><strong>{names.length}</strong><span>recipient{names.length===1?'':'s'}</span></div>
+      <div><p className="eyebrow">Admin tools</p><h1>Certificates</h1><p className="subtitle">Create and save reusable certificate templates, then pick any design whenever you need to generate certificates.</p></div>
+      <div className="certificate-heading-actions"><div className="certificate-name-count"><strong>{names.length}</strong><span>recipient{names.length===1?'':'s'}</span></div><button type="button" className="primary-button" onClick={()=>void createTemplate()} disabled={saving}><Plus size={16}/>New template</button></div>
     </div>
 
     {error&&<div className="form-error">{error}</div>}
     {notice&&<div className="form-success">{notice}</div>}
 
-    <div className="certificate-workspace">
+    <div className="certificate-library-layout">
+      <aside className="card certificate-template-library">
+        <div className="certificate-template-library-head"><div><p className="eyebrow">Template library</p><h2>Saved templates</h2><p>Choose a saved design or create a new certificate template.</p></div><span>{templates.length}</span></div>
+        <div className="certificate-template-list">
+          {templates.map(template=><div key={template.id} className={template.id===activeTemplateId?'certificate-template-item active':'certificate-template-item'}>
+            <button type="button" className="certificate-template-select" onClick={()=>void selectTemplate(template)}>
+              <span className="certificate-template-icon"><FileImage size={17}/></span>
+              <span><strong>{template.name}</strong><small>{template.template_path?'Artwork ready':'No artwork yet'} · {template.font_path?template.font_family:'Default font'}</small></span>
+            </button>
+            <button type="button" className="icon-button certificate-template-delete" title="Delete template" aria-label={'Delete '+template.name} onClick={()=>void deleteTemplate(template)} disabled={saving}><Trash2 size={14}/></button>
+          </div>)}
+        </div>
+        <button type="button" className="secondary-button certificate-library-new" onClick={()=>void createTemplate()} disabled={saving}><Plus size={15}/>Create new template</button>
+      </aside>
+
+      <div className="certificate-template-editor">
+      <div className="certificate-workspace">
       <aside className="card certificate-controls">
+        <div className="certificate-control-section certificate-template-details">
+          <div className="certificate-section-heading"><div><strong>Template details</strong><small>Name this design so you can find it later.</small></div></div>
+          <label className="certificate-template-name-field"><span>Template name</span><input value={settings.name} maxLength={80} onChange={e=>setSettings(current=>({...current,name:e.target.value}))} placeholder="Completion Certificate"/></label>
+        </div>
         <div className="certificate-control-section">
           <div className="certificate-section-heading"><span className="certificate-step">1</span><div><strong>Certificate artwork</strong><small>PNG, JPG or SVG · up to 20 MB</small></div></div>
           <label className="certificate-upload-box">
@@ -738,13 +758,13 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
             <label><span>Max width</span><input type="number" min="10" max="100" step="1" value={settings.max_width_percent} onChange={e=>setSettings(current=>({...current,max_width_percent:Number(e.target.value)}))}/><small>%</small></label>
             <label className="certificate-color-field"><span>Name colour</span><input type="color" value={settings.color} onChange={e=>setSettings(current=>({...current,color:e.target.value}))}/><input type="text" value={settings.color} maxLength={7} onChange={e=>/^#[0-9A-Fa-f]{0,6}$/.test(e.target.value)&&setSettings(current=>({...current,color:e.target.value}))}/></label>
           </div>
-          <button type="button" className="secondary-button certificate-save-settings" onClick={()=>void savePlacement()} disabled={saving}>{saving?<Loader2 className="spin" size={15}/>:<Save size={15}/>} {saving?'Saving…':'Save placement'}</button>
+          <button type="button" className="primary-button certificate-save-settings" onClick={()=>void savePlacement()} disabled={saving}>{saving?<Loader2 className="spin" size={15}/>:<Save size={15}/>} {saving?'Saving…':'Save template'}</button>
         </div>
       </aside>
 
       <div className="certificate-main">
         <div className="card certificate-preview-card">
-          <div className="card-header"><div><p className="eyebrow">Live preview</p><h2>{previewName}</h2><p>Names automatically shrink when they exceed the configured maximum width.</p></div>{settings.template_path&&<span className="status green">Template ready</span>}</div>
+          <div className="card-header"><div><p className="eyebrow">Live preview · {settings.name}</p><h2>{previewName}</h2><p>Names automatically shrink when they exceed the configured maximum width.</p></div>{settings.template_path&&<span className="status green">Template ready</span>}</div>
           <div className={settings.template_path?'certificate-canvas-shell ready':'certificate-canvas-shell'}>
             {settings.template_path?<canvas ref={canvasRef} onClick={moveNameFromPreview} aria-label="Certificate preview. Click to position the recipient name."/>:<div className="certificate-empty-preview"><FileImage size={30}/><strong>Upload your certificate artwork</strong><span>The design stays unchanged; ApplyFlow only places the recipient name over it.</span></div>}
           </div>
@@ -766,6 +786,8 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
           {exportProgress&&<div className="certificate-export-progress"><Loader2 className="spin" size={14}/><span>{exportProgress}</span></div>}
           <div className="certificate-quality-note"><strong>Maximum-quality export</strong><span>Ultra PNG renders up to 6× the template dimensions with high-quality smoothing. SVG templates remain vector for SVG and PDF export, so lines, logos and text stay sharp at any zoom. Very large raster templates are automatically capped at a safe browser memory limit.</span></div>
         </div>
+      </div>
+      </div>
       </div>
     </div>
   </section>
