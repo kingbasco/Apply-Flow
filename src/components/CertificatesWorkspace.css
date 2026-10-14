@@ -171,3 +171,50 @@ html.dark-theme .certificate-template-name-field input{background:#151920;border
   .certificate-export-actions{grid-template-columns:1fr}
   .certificate-export-actions button{white-space:normal}
 }
+
+
+/* Certificate preview and placement refinement */
+.certificate-library-layout{
+  grid-template-columns:220px minmax(0,1fr);
+}
+.certificate-template-editor .certificate-workspace{
+  grid-template-columns:minmax(280px,320px) minmax(0,1fr);
+  gap:20px;
+}
+.certificate-preview-card{
+  min-width:0;
+}
+.certificate-canvas-shell{
+  min-height:560px;
+  margin:0 16px 16px;
+  padding:18px;
+}
+.certificate-canvas-shell.ready{
+  padding:18px;
+}
+.certificate-canvas-shell canvas{
+  width:100%;
+  max-width:none;
+  height:auto;
+  object-fit:contain;
+}
+.certificate-current-actions{
+  padding:0 16px 18px;
+}
+@media(max-width:1280px){
+  .certificate-library-layout{grid-template-columns:200px minmax(0,1fr)}
+  .certificate-template-editor .certificate-workspace{grid-template-columns:minmax(260px,290px) minmax(0,1fr)}
+  .certificate-canvas-shell{min-height:500px}
+}
+@media(max-width:1080px){
+  .certificate-library-layout{grid-template-columns:1fr}
+  .certificate-template-library{position:static;max-height:none}
+  .certificate-template-editor .certificate-workspace{grid-template-columns:1fr}
+  .certificate-main{order:1}
+  .certificate-controls{order:2}
+  .certificate-canvas-shell{min-height:480px}
+}
+@media(max-width:620px){
+  .certificate-canvas-shell{min-height:300px;padding:10px;margin:0 10px 10px}
+  .certificate-canvas-shell.ready{padding:10px}
+}
