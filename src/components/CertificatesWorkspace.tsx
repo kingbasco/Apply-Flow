@@ -158,6 +158,7 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
   const templateImageRef=useRef<HTMLImageElement|null>(null)
   const fontFaceRef=useRef<FontFace|null>(null)
   const canvasRef=useRef<HTMLCanvasElement|null>(null)
+  const previewShellRef=useRef<HTMLDivElement|null>(null)
   const [loading,setLoading]=useState(true)
   const [saving,setSaving]=useState(false)
   const [uploading,setUploading]=useState<'template'|'font'|''>('')
@@ -304,7 +305,15 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     return()=>{cancelled=true}
   },[fontUrl])
 
-  useEffect(()=>{renderPreview()},[previewName,namesText,settings.x_percent,settings.y_percent,settings.font_size,settings.max_width_percent,settings.color])
+  useEffect(()=>{renderPreview()},[previewName,settings.x_percent,settings.y_percent,settings.font_size,settings.max_width_percent,settings.color])
+
+  useEffect(()=>{
+    const shell=previewShellRef.current
+    if(!shell||typeof ResizeObserver==='undefined')return
+    const observer=new ResizeObserver(()=>renderPreview())
+    observer.observe(shell)
+    return()=>observer.disconnect()
+  },[templateUrl,fontUrl,previewName,settings.x_percent,settings.y_percent,settings.font_size,settings.max_width_percent,settings.color])
 
   useEffect(()=>()=>{
     if(templateUrl)URL.revokeObjectURL(templateUrl)
@@ -312,20 +321,16 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     if(fontFaceRef.current)document.fonts.delete(fontFaceRef.current)
   },[])
 
-  function fittedFontSize(width:number){
+  function fittedFontSize(name:string,width:number){
     const measure=document.createElement('canvas').getContext('2d')
     const baseSize=Math.max(8,Number(settings.font_size)||72)
     if(!measure)return baseSize
     const family=fontFaceRef.current?`"${FONT_FACE_NAME}"`:'Georgia'
     measure.font=`${baseSize}px ${family}`
     const maximum=width*(Number(settings.max_width_percent)||72)/100
-    const fittingNames=names.length?names:[previewName]
-    let widest=0
-    for(const name of fittingNames){
-      widest=Math.max(widest,measure.measureText(name).width)
-    }
-    if(widest>maximum&&widest>0){
-      return Math.max(8,baseSize*(maximum/widest))
+    const measured=measure.measureText(name).width
+    if(measured>maximum&&measured>0){
+      return Math.max(8,baseSize*(maximum/measured))
     }
     return baseSize
   }
@@ -351,7 +356,7 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     context.textBaseline='middle'
     context.fillStyle=settings.color
     const family=fontFaceRef.current?`"${FONT_FACE_NAME}"`:'Georgia'
-    const size=fittedFontSize(width)
+    const size=fittedFontSize(name,width)
     context.font=`${size}px ${family}`
     context.fillText(name,width*settings.x_percent/100,height*settings.y_percent/100)
     context.restore()
@@ -376,7 +381,7 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
     const text=document.createElementNS('http://www.w3.org/2000/svg','text')
     const x=geometry.minX+geometry.width*settings.x_percent/100
     const y=geometry.minY+geometry.height*settings.y_percent/100
-    const size=fittedFontSize(geometry.width)
+    const size=fittedFontSize(name,geometry.width)
     text.setAttribute('x',String(x))
     text.setAttribute('y',String(y))
     text.setAttribute('fill',settings.color)
@@ -435,8 +440,16 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
 
   function renderPreview(){
     const canvas=canvasRef.current
-    if(!canvas||!templateImageRef.current)return
-    try{drawCertificate(previewName,canvas)}catch{/* handled by setup state */}
+    const image=templateImageRef.current
+    if(!canvas||!image)return
+    try{
+      const logicalWidth=image.naturalWidth||image.width
+      const shellWidth=previewShellRef.current?.clientWidth||logicalWidth
+      const usableCssWidth=Math.max(1,shellWidth-36)
+      const dpr=Math.min(3,Math.max(1,window.devicePixelRatio||1))
+      const previewScale=Math.max(1,(usableCssWidth*dpr)/Math.max(1,logicalWidth))
+      drawCertificate(previewName,canvas,previewScale)
+    }catch{/* handled by setup state */}
   }
 
   async function persistSettings(next=settings){
@@ -770,8 +783,8 @@ export default function CertificatesWorkspace({organizationId}:{organizationId:s
 
       <div className="certificate-main">
         <div className="card certificate-preview-card">
-          <div className="card-header"><div><p className="eyebrow">Live preview · {settings.name}</p><h2>{previewName}</h2><p>All recipients use one consistent name size. ApplyFlow only shrinks the batch when the widest name would exceed your configured maximum width.</p></div>{settings.template_path&&<span className="status green">Template ready</span>}</div>
-          <div className={settings.template_path?'certificate-canvas-shell ready':'certificate-canvas-shell'}>
+          <div className="card-header"><div><p className="eyebrow">Live preview · {settings.name}</p><h2>{previewName}</h2><p>Every name starts at the font size you set. Only a name that exceeds the maximum width is reduced; shorter names are never enlarged.</p></div>{settings.template_path&&<span className="status green">Template ready</span>}</div>
+          <div ref={previewShellRef} className={settings.template_path?'certificate-canvas-shell ready':'certificate-canvas-shell'}>
             {settings.template_path?<canvas ref={canvasRef} onClick={moveNameFromPreview} aria-label="Certificate preview. Click to position the recipient name."/>:<div className="certificate-empty-preview"><FileImage size={30}/><strong>Upload your certificate artwork</strong><span>The design stays unchanged; ApplyFlow only places the recipient name over it.</span></div>}
           </div>
           <div className="certificate-current-actions">
