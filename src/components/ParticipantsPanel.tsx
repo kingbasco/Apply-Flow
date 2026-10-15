@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { BadgeCheck, CalendarCheck2, Gift, Upload, Download, Plus, Search, X, Users, CheckCircle2, ChevronDown, Mail, Phone, Hash, ClipboardList, Link2, Pencil, Trash2 } from 'lucide-react'
+import { BadgeCheck, CalendarCheck2, UserX, Gift, Upload, Download, Plus, Search, X, Users, CheckCircle2, ChevronDown, Mail, Phone, Hash, ClipboardList, Link2, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
 import { assignmentDeadlineForInput, assignmentDeadlineToISO, formatAssignmentDeadline } from '../lib/assignmentDeadline'
@@ -96,6 +96,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const [gradeForm,setGradeForm]=useState({score:'',feedback:''})
   const [leaderboard,setLeaderboard]=useState<LeaderboardRow[]>([])
   const [leaderboardLoading,setLeaderboardLoading]=useState(false)
+  const [activityLeaderboard,setActivityLeaderboard]=useState<{applicationId:string;rows:LeaderboardRow[]}|null>(null)
+  const [activityLoading,setActivityLoading]=useState(false)
   const [assignmentSubmissionPage,setAssignmentSubmissionPage]=useState(1)
   const [assignmentSubmissionPageSize,setAssignmentSubmissionPageSize]=useState(20)
   const [selectedParticipant,setSelectedParticipant]=useState<Participant|null>(null)
@@ -284,6 +286,26 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
 
   useEffect(()=>{load()},[organizationId])
 
+  // Enrollment status is not the same as programme participation.
+  // Reuse the authorized leaderboard figures, then include attendance recorded
+  // even for sessions that award zero points.
+  useEffect(()=>{
+    if(!applicationFilter){setActivityLeaderboard(null);setActivityLoading(false);return}
+    let cancelled=false
+    setActivityLeaderboard(null)
+    setActivityLoading(true)
+    void (async()=>{
+      const {data,error}=await supabase.rpc('get_assignment_leaderboard',{p_application_id:applicationFilter})
+      if(cancelled)return
+      if(error){
+        setActivityLeaderboard(null)
+        setError(friendlyErrorMessage(error,'Could not load participant activity.'))
+      }else setActivityLeaderboard({applicationId:applicationFilter,rows:(data||[]) as LeaderboardRow[]})
+      setActivityLoading(false)
+    })()
+    return ()=>{cancelled=true}
+  },[applicationFilter,organizationId])
+
   async function loadLoanInterest(){
     if(!isAdmin||!applicationFilter){setLoanInterestParticipantIds([]);return}
     setLoanInterestLoading(true);setError('')
@@ -397,17 +419,31 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
   const scopedSessions=useMemo(()=>sessions.filter(s=>!applicationFilter||s.application_id===applicationFilter),[sessions,applicationFilter])
   const scopedBenefits=useMemo(()=>benefits.filter(b=>!applicationFilter||b.application_id===applicationFilter),[benefits,applicationFilter])
   const scopedAssignments=useMemo(()=>assignments.filter(a=>!applicationFilter||a.application_id===applicationFilter),[assignments,applicationFilter])
-  const stats=useMemo(()=>({
-    total:scopedParticipants.length,
-    active:scopedParticipants.filter(p=>p.status==='active').length,
-    completed:scopedParticipants.filter(p=>p.status==='completed').length
-  }),[scopedParticipants])
+  const stats=useMemo(()=>{
+    const total=scopedParticipants.length
+    const rows=activityLeaderboard?.applicationId===applicationFilter?activityLeaderboard.rows:null
+    // Do not label everyone inactive if activity data fails to load.
+    if(!rows)return {total,active:null as number|null,inactive:null as number|null}
+    const participated=new Set(rows.filter(row=>
+      Number(row.submitted_assignments||0)>0||
+      Number(row.graded_assignments||0)>0||
+      Number(row.assignment_points||0)>0||
+      Number(row.attendance_points||0)>0||
+      Number(row.bonus_points||0)>0
+    ).map(row=>row.participant_record_id))
+    const active=scopedParticipants.filter(p=>(p.attendance_count||0)>0||participated.has(p.id)).length
+    return {total,active,inactive:total-active}
+  },[scopedParticipants,activityLeaderboard,applicationFilter])
 
   async function loadLeaderboard(applicationId:string){
     if(!applicationId||applicationId==='all'){setLeaderboard([]);return}
     setLeaderboardLoading(true)
     const {data,error}=await supabase.rpc('get_assignment_leaderboard',{p_application_id:applicationId})
-    if(error)setError(friendlyErrorMessage(error));else setLeaderboard((data||[]) as LeaderboardRow[])
+    if(error)setError(friendlyErrorMessage(error));else {
+      const rows=(data||[]) as LeaderboardRow[]
+      setLeaderboard(rows)
+      if(applicationId===applicationFilter)setActivityLeaderboard({applicationId,rows})
+    }
     setLeaderboardLoading(false)
   }
 
@@ -1294,8 +1330,8 @@ export default function ParticipantsPanel({organizationId,applications,role}:{or
     {tab==='participants'&&<>
       <div className="participant-stats-grid">
         <div className="card stat-card"><div className="stat-icon"><Users size={18}/></div><div><p className="eyebrow">Total</p><div className="stat-value">{stats.total}</div><p className="muted">Total participants</p></div></div>
-        <div className="card stat-card"><div className="stat-icon"><BadgeCheck size={18}/></div><div><p className="eyebrow">Active</p><div className="stat-value">{stats.active}</div><p className="muted">Currently enrolled</p></div></div>
-        <div className="card stat-card"><div className="stat-icon"><CheckCircle2 size={18}/></div><div><p className="eyebrow">Completed</p><div className="stat-value">{stats.completed}</div><p className="muted">Finished programme</p></div></div>
+        <div className="card stat-card"><div className="stat-icon"><BadgeCheck size={18}/></div><div><p className="eyebrow">Active participants</p><div className="stat-value" aria-live="polite">{stats.active??'—'}</div><p className="muted">{activityLoading?'Checking participation…':stats.active===null?'Activity data unavailable':'Attendance or scored activity'}</p></div></div>
+        <div className="card stat-card"><div className="stat-icon"><UserX size={18}/></div><div><p className="eyebrow">Inactive participants</p><div className="stat-value" aria-live="polite">{stats.inactive??'—'}</div><p className="muted">{activityLoading?'Checking participation…':stats.inactive===null?'Activity data unavailable':'No recorded participation yet'}</p></div></div>
       </div>
 
       <div className="card table-card">
