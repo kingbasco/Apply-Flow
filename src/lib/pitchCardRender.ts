@@ -35,6 +35,18 @@ export function normalizedLayout(raw:unknown):PitchLayout{
     name:text('name'),trade:text('trade')
   }
 }
+// Use the same text-width calculation in the admin editor, participant preview, and exports.
+export function measurePitchCardText(ctx:CanvasRenderingContext2D,value:string,field:PitchTextField,width:number){
+  const label=value.trim().replace(/\s+/g,' ')
+  const baseSize=field.size*(width/1920)
+  const fontFamily=field.font.replace(/[^a-zA-Z0-9 _-]/g,'')||'Arial'
+  ctx.font=`${field.weight} ${baseSize}px "${fontFamily}", Arial, sans-serif`
+  const originalWidth=ctx.measureText(label).width
+  const maxWidth=width*field.maxWidth/100
+  const fittedSize=originalWidth>maxWidth&&originalWidth>0?Math.max(5,baseSize*maxWidth/originalWidth):baseSize
+  ctx.font=`${field.weight} ${fittedSize}px "${fontFamily}", Arial, sans-serif`
+  return {label,maxWidth,originalWidth,drawnWidth:ctx.measureText(label).width,baseSize,fittedSize,shrunk:originalWidth>maxWidth}
+}
 export function paintPitchCard(canvas:HTMLCanvasElement,template:HTMLImageElement,photo:HTMLImageElement|null,name:string,trade:string,layout:PitchLayout,width:number){
   const naturalWidth=template.naturalWidth||template.width
   const naturalHeight=template.naturalHeight||template.height
@@ -60,19 +72,13 @@ export function paintPitchCard(canvas:HTMLCanvasElement,template:HTMLImageElemen
     }
   }
   const draw=(value:string,field:PitchTextField)=>{
-    const label=value.trim().replace(/\s+/g,' ')
-    if(!label)return
+    if(!value.trim())return
     ctx.save()
-    const base=field.size*(width/1920)
-    const family=field.font.replace(/[^a-zA-Z0-9 _-]/g,'')||'Arial'
-    ctx.font=`${field.weight} ${base}px "${family}", Arial, sans-serif`
-    const textWidth=ctx.measureText(label).width
-    const max=width*field.maxWidth/100
-    const adjusted=textWidth>max?base*max/textWidth:base
-    ctx.font=`${field.weight} ${Math.max(5,adjusted)}px "${family}", Arial, sans-serif`
+    const metrics=measurePitchCardText(ctx,value,field,width)
     ctx.textAlign=field.align;ctx.textBaseline='middle'
     ctx.fillStyle=field.color
-    ctx.fillText(label,width*field.x/100,height*field.y/100)
+    // The maxWidth argument keeps even extremely long text inside its allocated line.
+    ctx.fillText(metrics.label,width*field.x/100,height*field.y/100,metrics.maxWidth)
     ctx.restore()
   }
   draw(name,layout.name);draw(trade,layout.trade)
