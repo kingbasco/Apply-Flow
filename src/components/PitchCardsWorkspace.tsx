@@ -77,9 +77,27 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
   },[active?.id,active?.template_path])
   useEffect(()=>{
     if(!template||!editing||!canvasRef.current)return
-    try{paintPitchCard(canvasRef.current,template,samplePhoto,'SEYI TYTLER','Fashion Design',layout,Math.min(1400,template.naturalWidth||1400))}
-    catch(e){setError(friendlyErrorMessage(e,'Could not preview artwork.'))}
-  },[template,samplePhoto,editing])
+    try{
+      const canvas=canvasRef.current
+      paintPitchCard(canvas,template,samplePhoto,'SEYI TYTLER','Fashion Design',layout,Math.min(1400,template.naturalWidth||1400))
+      if(field==='photo'){
+        const ctx=canvas.getContext('2d')
+        if(ctx){
+          const area=layout.photo
+          const x=canvas.width*area.x/100,y=canvas.height*area.y/100
+          const w=canvas.width*area.width/100,h=canvas.height*area.height/100
+          ctx.save();ctx.strokeStyle='#69a7f5';ctx.lineWidth=Math.max(2,canvas.width/500)
+          ctx.setLineDash([12,8]);ctx.strokeRect(x,y,w,h);ctx.setLineDash([])
+          if(!samplePhoto){
+            ctx.fillStyle='rgba(42,96,170,.16)';ctx.fillRect(x,y,w,h)
+            ctx.fillStyle='#ffffff';ctx.textAlign='center';ctx.font='bold '+Math.max(13,canvas.width/50)+'px Arial'
+            ctx.fillText('PHOTO AREA',x+w/2,y+h/2)
+          }
+          ctx.restore()
+        }
+      }
+    }catch(e){setError(friendlyErrorMessage(e,'Could not preview artwork.'))}
+  },[template,samplePhoto,editing,field])
 
   function updateLayout<K extends SelectedField>(key:K,update:Partial<PitchLayout[K]>){
     setEditing(current=>current?{...current,layout:{...current.layout,[key]:{...current.layout[key],...update}}}:current)
@@ -146,10 +164,21 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
     if(!editing||!window.confirm('Delete this pitch card event and its submission records?'))return
     setBusy('delete');setError('')
     try{
+      const photos=submissions.map(row=>row.photo_path)
+      const artwork=editing.template_path
       const {error}=await supabase.from('pitch_card_events').delete().eq('id',editing.id)
       if(error)throw error
+      let cleanupFailed=false
+      for(let i=0;i<photos.length;i+=100){
+        const {error:storageError}=await supabase.storage.from('pitch-card-photos').remove(photos.slice(i,i+100))
+        if(storageError)cleanupFailed=true
+      }
+      if(artwork){
+        const {error:storageError}=await supabase.storage.from('pitch-card-templates').remove([artwork])
+        if(storageError)cleanupFailed=true
+      }
       await refresh()
-      setNotice('Event deleted. Previously uploaded files should be cleaned up by an administrator.')
+      setNotice(cleanupFailed?'Event deleted, but some uploaded files could not be removed. Check storage cleanup.':'Pitch event and uploaded files deleted.')
     }catch(e){setError(friendlyErrorMessage(e,'Could not delete event.'))}
     finally{setBusy('')}
   }
