@@ -107,3 +107,13 @@ html.dark-theme .pitch-preview-tester,html.dark-theme .pitch-preview-width-item{
 html.dark-theme .pitch-preview-tester-fields input{background:#151b25;color:#f0f3f8;border-color:#394458}
 html.dark-theme .pitch-preview-width-track{background:#30394b}
 @media(max-width:570px){.pitch-preview-tester-fields,.pitch-preview-width-report{grid-template-columns:1fr}}
+
+/* Participant-edited name and trade fields. Preview and final export share these values. */
+.pitch-participant-details{display:grid;gap:13px;padding:18px;border:1px solid #e1e7f1;border-radius:13px;background:#f9fbff}
+.pitch-participant-details h2{font-size:16px;margin:0 0 5px}
+.pitch-participant-details p:not(.pitch-hint){font-size:12px;color:#7b879c;line-height:1.55;margin:0}
+.pitch-participant-details label{display:grid;gap:6px;font-size:12px;font-weight:700;color:#31415d}
+.pitch-participant-details input{width:100%;min-width:0;height:43px;border:1px solid #cdd7e8;border-radius:9px;padding:10px 12px;font-size:14px;color:#202b42;background:#fff;outline-offset:2px}
+.pitch-participant-details input:focus{border-color:#5368bb;outline:2px solid #5368bb24}
+.pitch-participant-details .pitch-hint{margin-top:2px}
+@media(max-width:550px){.pitch-participant-details{padding:13px}}
