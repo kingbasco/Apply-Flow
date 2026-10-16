@@ -961,7 +961,7 @@ function App() {
     if (!sessionReady || !session || !routeRestored) return
     const nextHash = selectedApplication
       ? `#/application/${encodeURIComponent(selectedApplication.id)}/${encodeURIComponent(detailTab.toLowerCase())}`
-      : `#/${active.toLowerCase()}`
+      : `#/${active.toLowerCase().replace(/\s+/g,'-')}`
     if (window.location.hash !== nextHash) window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}${nextHash}`)
   }, [active, detailTab, selectedApplication, routeRestored, sessionReady, session])
 
