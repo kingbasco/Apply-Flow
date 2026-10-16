@@ -150,6 +150,7 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
       if(error)throw error
       const {error:dbError}=await supabase.from('pitch_card_events').update({template_path:path,updated_at:new Date().toISOString()}).eq('id',editing.id)
       if(dbError){await supabase.storage.from('pitch-card-templates').remove([path]);throw dbError}
+      setEditing(current=>current?.id===editing.id?{...current,template_path:path}:current)
       await refresh(editing.id)
       setNotice('Artwork uploaded. Click the preview to position a selected field.')
     }catch(e){setError(friendlyErrorMessage(e,'Could not upload artwork.'))}
