@@ -25,8 +25,11 @@ serve(async request=>{
     const form=await request.formData()
     const slug=String(form.get('slug')||'')
     const token=String(form.get('token')||'')
+    const name=String(form.get('name')||'')
+    const trade=String(form.get('trade')||'')
     const upload=form.get('photo')
     if(!/^[a-z0-9-]{8,100}$/.test(slug)||!/^[a-f0-9]{64}$/i.test(token))return json({error:'Invalid upload session'},400)
+    if(!name.trim()||!trade.trim()||name.length>120||trade.length>120||/[\u0000-\u001f\u007f]/.test(name+trade))return json({error:'Enter your name and trade (up to 120 characters each)'},400)
     if(!(upload instanceof File))return json({error:'Choose a photo to upload'},400)
     if(upload.size<1024||upload.size>15*1024*1024)return json({error:'Photo must be between 1 KB and 15 MB'},400)
     const bytes=new Uint8Array(await upload.arrayBuffer())
@@ -42,8 +45,8 @@ serve(async request=>{
       contentType:format.type,upsert:false,cacheControl:'3600'
     })
     if(uploadError)return json({error:'Could not save this photograph. Please retry.'},500)
-    const {data:committed,error:commitError}=await db.rpc('commit_pitch_card_photo',{
-      p_slug:slug,p_token:token,p_path:path
+    const {data:committed,error:commitError}=await db.rpc('commit_pitch_card_photo_details',{
+      p_slug:slug,p_token:token,p_path:path,p_name:name,p_trade:trade
     })
     if(commitError||!committed?.ok){
       await db.storage.from('pitch-card-photos').remove([path])
