@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
 import { normalizedLayout, paintPitchCard, readImage } from '../lib/pitchCardRender'
 import type { PitchLayout } from '../lib/pitchCardRender'
+import { formatPitchName, formatPitchTrade, validPitchDetails } from '../lib/pitchCardText'
 import './PitchCards.css'
 
 type PublicEvent={title:string;slug:string;layout:PitchLayout;template_path:string}
@@ -14,6 +15,8 @@ export default function PublicPitchCard({slug}:{slug:string}){
   const [email,setEmail]=useState('')
   const [participantId,setParticipantId]=useState('')
   const [verified,setVerified]=useState<Verified|null>(null)
+  const [cardName,setCardName]=useState('')
+  const [cardTrade,setCardTrade]=useState('')
   const [photo,setPhoto]=useState<HTMLImageElement|null>(null)
   const [photoFile,setPhotoFile]=useState<File|null>(null)
   const [tooSmall,setTooSmall]=useState(false)
@@ -45,9 +48,9 @@ export default function PublicPitchCard({slug}:{slug:string}){
   },[slug])
   useEffect(()=>{
     if(!template||!event||!verified||!canvasRef.current)return
-    try{paintPitchCard(canvasRef.current,template,photo,verified.participant_name,verified.trade,event.layout,Math.min(1400,template.naturalWidth||1400))}
+    try{paintPitchCard(canvasRef.current,template,photo,formatPitchName(cardName),formatPitchTrade(cardTrade),event.layout,Math.min(1400,template.naturalWidth||1400))}
     catch(e){setError(friendlyErrorMessage(e,'Could not render your pitch card.'))}
-  },[template,event,verified,photo])
+  },[template,event,verified,photo,cardName,cardTrade])
   useEffect(()=>()=>{if(blobUrl.current)URL.revokeObjectURL(blobUrl.current)},[])
 
   async function verify(e:React.FormEvent){
@@ -59,7 +62,11 @@ export default function PublicPitchCard({slug}:{slug:string}){
       if(error)throw error
       if(data?.error)throw new Error(data.error)
       if(!data?.token||!data?.participant_name)throw new Error('Your details could not be verified.')
-      setVerified({token:data.token,participant_name:data.participant_name,trade:data.trade||''})
+      const name=formatPitchName(data.participant_name)
+      const trade=formatPitchTrade(data.trade||'')
+      setCardName(name)
+      setCardTrade(trade)
+      setVerified({token:data.token,participant_name:name,trade})
     }catch(e){setError(friendlyErrorMessage(e,'Could not verify your identity.'))}
     finally{setBusy('')}
   }
@@ -79,11 +86,19 @@ export default function PublicPitchCard({slug}:{slug:string}){
   }
   async function submit(){
     if(!verified||!photoFile)return
+    const name=formatPitchName(cardName)
+    const trade=formatPitchTrade(cardTrade)
+    if(!validPitchDetails(name,trade)){
+      setError('Please enter your name and trade, up to 120 characters each.');return
+    }
+    setCardName(name);setCardTrade(trade)
     setBusy('submit');setError('')
     try{
       const body=new FormData()
       body.append('slug',slug)
       body.append('token',verified.token)
+      body.append('name',name)
+      body.append('trade',trade)
       body.append('photo',photoFile)
       const {data,error}=await supabase.functions.invoke('submit-pitch-card',{body})
       if(error)throw error
@@ -110,7 +125,19 @@ export default function PublicPitchCard({slug}:{slug:string}){
         <button type="submit" className="primary-button" disabled={!!busy}>{busy==='verify'?'Verifying…':'Continue to my pitch card'}</button>
         <p className="pitch-hint">Your registered email and participant ID must match the programme's records.</p>
       </form>:<>
-        <div className="pitch-verified"><CheckCircle2 size={21}/><div><strong>{verified.participant_name}</strong><small>{verified.trade||'Trade information not available in your registration'}</small></div></div>
+        <div className="pitch-verified"><CheckCircle2 size={21}/><div><strong>Identity verified</strong><small>Check the details below. You can correct them for your pitch card without changing your registration.</small></div></div>
+        <div className="pitch-participant-details">
+          <div><h2>Your pitch card details</h2><p>We filled these from your registration. Edit either field if needed, or leave them as they are.</p></div>
+          <label>Full name
+            <input required type="text" maxLength={120} autoComplete="name" value={cardName} placeholder="Enter your name"
+              onChange={e=>setCardName(e.target.value)} onBlur={()=>setCardName(name=>formatPitchName(name))}/>
+          </label>
+          <label>Trade
+            <input required type="text" maxLength={120} value={cardTrade} placeholder="Enter your trade"
+              onChange={e=>setCardTrade(e.target.value)} onBlur={()=>setCardTrade(trade=>formatPitchTrade(trade))}/>
+          </label>
+          <p className="pitch-hint">Names are formatted with capital initials; trades are sentence case. Your edits appear immediately in the preview.</p>
+        </div>
         <label className="pitch-public-upload"><FileImage size={25}/><strong>{photoFile?'Change photograph':'Upload your portrait photograph'}</strong><small>PNG, JPG or WebP · up to 15 MB · clear, high-resolution photo recommended</small>
           <input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{const file=e.target.files?.[0];if(file)void choosePhoto(file);e.currentTarget.value=''}}/>
           <span className="secondary-button"><Upload size={15}/> Choose photo</span>
@@ -122,7 +149,7 @@ export default function PublicPitchCard({slug}:{slug:string}){
         </div>
         <div className="pitch-public-actions"><button className="primary-button" type="button" disabled={!photoFile||!!busy} onClick={()=>void submit()}>
           {busy==='submit'?<><Loader2 className="spin" size={16}/> Submitting…</>:<>Submit my pitch card</>}</button>
-          <button type="button" className="secondary-button" onClick={()=>{setVerified(null);setPhoto(null);setPhotoFile(null);setError('')}} disabled={!!busy}>Back</button>
+          <button type="button" className="secondary-button" onClick={()=>{setVerified(null);setCardName('');setCardTrade('');setPhoto(null);setPhotoFile(null);setError('')}} disabled={!!busy}>Back</button>
         </div>
       </>}
     </main>
