@@ -117,3 +117,13 @@ html.dark-theme .pitch-preview-width-track{background:#30394b}
 .pitch-participant-details input:focus{border-color:#5368bb;outline:2px solid #5368bb24}
 .pitch-participant-details .pitch-hint{margin-top:2px}
 @media(max-width:550px){.pitch-participant-details{padding:13px}}
+
+/* Reusable attendee-generated event flyer sharing. */
+.pitch-controls textarea{width:100%;min-height:90px;padding:10px 12px;border:1px solid #dbe1ea;border-radius:9px;background:var(--card,#fff);color:inherit;resize:vertical;font:inherit;font-size:12px;line-height:1.5}
+.pitch-social-caption{display:grid;justify-items:start;gap:9px;padding:16px;border:1px solid #dce5f1;border-radius:12px;background:#f6f9ff}
+.pitch-social-caption strong{font-size:13px;color:#263859}
+.pitch-social-caption p{font-size:13px;color:#546178;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.pitch-social-caption .secondary-button{min-height:36px}
+.pitch-share-note{flex-basis:100%;max-width:670px}
+html.dark-theme .pitch-controls textarea{background:#171b24;border-color:#394252;color:#fff}
+@media(max-width:550px){.pitch-public-actions>button{width:100%}.pitch-social-caption{padding:12px}}
