@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Download, FileImage, ImagePlus, Loader2, Plus, Save, Share2, Trash2, Upload, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
-import { DEFAULT_PITCH_LAYOUT, normalizedLayout, paintPitchCard, readImage, canvasPng, downloadPitchBlob, safePitchFileName, bounded } from '../lib/pitchCardRender'
+import { DEFAULT_PITCH_LAYOUT, normalizedLayout, paintPitchCard, measurePitchCardText, readImage, canvasPng, downloadPitchBlob, safePitchFileName, bounded } from '../lib/pitchCardRender'
 import type { PitchLayout } from '../lib/pitchCardRender'
 import './PitchCards.css'
 
@@ -14,6 +14,8 @@ type PitchEvent={
 type Submission={id:string;event_id:string;participant_id:string;participant_name:string;trade:string;photo_path:string;submitted_at:string}
 type SelectedField='photo'|'name'|'trade'
 type ExportQuality='full'|'ultra'
+type PreviewMetrics={usedPx:number;maxPx:number;fontPx:number;shrunk:boolean;usage:number}
+type PreviewMeasurements={name:PreviewMetrics;trade:PreviewMetrics}
 
 export default function PitchCardsWorkspace({organizationId,applications}:{organizationId:string;applications:Programme[]}){
   const [events,setEvents]=useState<PitchEvent[]>([])
@@ -22,6 +24,10 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
   const [submissions,setSubmissions]=useState<Submission[]>([])
   const [template,setTemplate]=useState<HTMLImageElement|null>(null)
   const [samplePhoto,setSamplePhoto]=useState<HTMLImageElement|null>(null)
+  const [previewName,setPreviewName]=useState('SEYI TYTLER')
+  const [previewTrade,setPreviewTrade]=useState('Fashion Design')
+  const [showGuides,setShowGuides]=useState(true)
+  const [previewMeasurements,setPreviewMeasurements]=useState<PreviewMeasurements|null>(null)
   const [field,setField]=useState<SelectedField>('photo')
   const [quality,setQuality]=useState<ExportQuality>('ultra')
   const [creating,setCreating]=useState(false)
@@ -76,28 +82,67 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
     return()=>{cancelled=true}
   },[active?.id,active?.template_path])
   useEffect(()=>{
-    if(!template||!editing||!canvasRef.current)return
+    if(!template||!editing||!canvasRef.current){setPreviewMeasurements(null);return}
     try{
       const canvas=canvasRef.current
-      paintPitchCard(canvas,template,samplePhoto,'SEYI TYTLER','Fashion Design',layout,Math.min(1400,template.naturalWidth||1400))
-      if(field==='photo'){
-        const ctx=canvas.getContext('2d')
-        if(ctx){
-          const area=layout.photo
-          const x=canvas.width*area.x/100,y=canvas.height*area.y/100
-          const w=canvas.width*area.width/100,h=canvas.height*area.height/100
-          ctx.save();ctx.strokeStyle='#69a7f5';ctx.lineWidth=Math.max(2,canvas.width/500)
-          ctx.setLineDash([12,8]);ctx.strokeRect(x,y,w,h);ctx.setLineDash([])
-          if(!samplePhoto){
-            ctx.fillStyle='rgba(42,96,170,.16)';ctx.fillRect(x,y,w,h)
-            ctx.fillStyle='#ffffff';ctx.textAlign='center';ctx.font='bold '+Math.max(13,canvas.width/50)+'px Arial'
-            ctx.fillText('PHOTO AREA',x+w/2,y+h/2)
-          }
-          ctx.restore()
-        }
+      paintPitchCard(canvas,template,samplePhoto,previewName,previewTrade,layout,Math.min(1400,template.naturalWidth||1400))
+      const ctx=canvas.getContext('2d')
+      if(!ctx)return
+      const nameMeasurement=measurePitchCardText(ctx,previewName,layout.name,canvas.width)
+      const tradeMeasurement=measurePitchCardText(ctx,previewTrade,layout.trade,canvas.width)
+      const makeMetrics=(measurement:typeof nameMeasurement):PreviewMetrics=>({
+        usedPx:Math.round(Math.min(measurement.drawnWidth,measurement.maxWidth)*1920/canvas.width),
+        maxPx:Math.round(measurement.maxWidth*1920/canvas.width),
+        fontPx:Math.round(measurement.fittedSize*1920/canvas.width),
+        shrunk:measurement.shrunk,
+        usage:measurement.maxWidth>0?Math.min(100,Math.round(measurement.drawnWidth/measurement.maxWidth*100)):0
+      })
+      setPreviewMeasurements({name:makeMetrics(nameMeasurement),trade:makeMetrics(tradeMeasurement)})
+      if(!showGuides)return
+      // Guidelines exist only on the admin preview, never on exported or participant cards.
+      const drawTextGuide=(key:'name'|'trade',measurement:typeof nameMeasurement)=>{
+        const part=layout[key]
+        const centreY=canvas.height*part.y/100
+        const anchorX=canvas.width*part.x/100
+        const left=part.align==='left'?anchorX:part.align==='right'?anchorX-measurement.maxWidth:anchorX-measurement.maxWidth/2
+        const guideHeight=Math.max(measurement.fittedSize*1.6,canvas.width/35)
+        const top=centreY-guideHeight/2
+        const colour=key==='name'?'#27b6dc':'#e49b2c'
+        ctx.save()
+        ctx.lineWidth=Math.max(2,canvas.width/600)
+        ctx.strokeStyle=colour
+        ctx.setLineDash([Math.max(6,canvas.width/120),Math.max(4,canvas.width/220)])
+        ctx.strokeRect(left,top,measurement.maxWidth,guideHeight)
+        ctx.setLineDash([])
+        const label=key.toUpperCase()+' · MAX '+part.maxWidth+'%'
+        ctx.font='bold '+Math.max(12,canvas.width/82)+'px Arial'
+        const labelWidth=ctx.measureText(label).width+16
+        const labelHeight=Math.max(18,canvas.width/55)
+        const labelTop=top-labelHeight>=0?top-labelHeight:top+guideHeight
+        ctx.fillStyle=colour
+        ctx.fillRect(left,labelTop,labelWidth,labelHeight)
+        ctx.fillStyle='#ffffff'
+        ctx.textBaseline='middle';ctx.textAlign='left'
+        ctx.fillText(label,left+8,labelTop+labelHeight/2)
+        ctx.restore()
       }
+      if(field==='photo'){
+        const area=layout.photo
+        const x=canvas.width*area.x/100,y=canvas.height*area.y/100
+        const w=canvas.width*area.width/100,h=canvas.height*area.height/100
+        ctx.save();ctx.strokeStyle='#69a7f5';ctx.lineWidth=Math.max(2,canvas.width/500)
+        ctx.setLineDash([12,8]);ctx.strokeRect(x,y,w,h);ctx.setLineDash([])
+        if(!samplePhoto){
+          ctx.fillStyle='rgba(42,96,170,.16)';ctx.fillRect(x,y,w,h)
+          ctx.fillStyle='#ffffff';ctx.textAlign='center';ctx.font='bold '+Math.max(13,canvas.width/50)+'px Arial'
+          ctx.fillText('PHOTO AREA',x+w/2,y+h/2)
+        }
+        ctx.restore()
+      }
+      drawTextGuide('name',nameMeasurement)
+      drawTextGuide('trade',tradeMeasurement)
     }catch(e){setError(friendlyErrorMessage(e,'Could not preview artwork.'))}
-  },[template,samplePhoto,editing,field])
+  },[template,samplePhoto,editing,field,previewName,previewTrade,showGuides])
 
   function updateLayout<K extends SelectedField>(key:K,update:Partial<PitchLayout[K]>){
     setEditing(current=>current?{...current,layout:{...current.layout,[key]:{...current.layout[key],...update}}}:current)
@@ -160,6 +205,15 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
     if(!['image/png','image/jpeg','image/webp'].includes(file.type)){setError('Choose a PNG, JPG or WebP photograph.');return}
     const url=URL.createObjectURL(file);urls.current.push(url)
     try{setSamplePhoto(await readImage(url))}catch(e){setError(friendlyErrorMessage(e,'Could not load sample photograph.'))}
+  }
+  async function downloadTestPreview(){
+    if(!template||!editing)return
+    setError('')
+    try{
+      const canvas=document.createElement('canvas')
+      paintPitchCard(canvas,template,samplePhoto,previewName,previewTrade,layout,1920)
+      downloadPitchBlob(await canvasPng(canvas),'pitch-card-test-preview.png')
+    }catch(e){setError(friendlyErrorMessage(e,'Could not download the test preview.'))}
   }
   async function deleteEvent(){
     if(!editing||!window.confirm('Delete this pitch card event and its submission records?'))return
@@ -279,10 +333,34 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
             <button className="primary-button pitch-save" disabled={!!busy} onClick={()=>void saveEvent()}><Save size={16}/>{busy==='save'?'Saving…':'Save template'}</button>
           </div>
           <div className="card pitch-preview">
-            <div className="pitch-section-title"><div><h2>Live template preview</h2><p>Showing sample name and trade. Upload a sample photo to test the placement.</p></div></div>
-            <div className="pitch-artboard">{template?<canvas ref={canvasRef} onClick={handleCanvasClick} title={'Click to position '+field}/>:<div className="pitch-empty"><ImagePlus size={38}/><strong>Upload your blank artwork to start</strong></div>}</div>
-            <label className="secondary-button pitch-sample-button"><Upload size={15}/> Sample photo for preview<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{const f=e.target.files?.[0];if(f)void previewPhoto(f);e.currentTarget.value=''}}/></label>
-            <p className="pitch-hint">Use a transparent-background PNG for a cut-out speaker portrait, or choose “Crop to fill” for a regular photograph.</p>
+            <div className="pitch-section-title"><div><h2>Live template preview</h2><p>Type any name or trade to test your exact font sizes and text-width limits before publishing.</p></div></div>
+            <div className="pitch-preview-tester">
+              <div className="pitch-preview-tester-heading"><strong>Test participant details</strong><small>Preview only — these values will not replace registered participant details.</small></div>
+              <div className="pitch-preview-tester-fields">
+                <label>Preview name<input type="text" maxLength={120} value={previewName} onChange={e=>setPreviewName(e.target.value)} placeholder="Enter a sample full name"/></label>
+                <label>Preview trade<input type="text" maxLength={120} value={previewTrade} onChange={e=>setPreviewTrade(e.target.value)} placeholder="Enter a sample trade"/></label>
+              </div>
+              <div className="pitch-preview-tester-tools">
+                <label className="pitch-guide-toggle"><input type="checkbox" checked={showGuides} onChange={e=>setShowGuides(e.target.checked)}/> Show maximum-width guides</label>
+                <button type="button" className="pitch-preview-reset" onClick={()=>{setPreviewName('SEYI TYTLER');setPreviewTrade('Fashion Design')}}>Reset examples</button>
+              </div>
+            </div>
+            <div className="pitch-artboard">{template?<canvas ref={canvasRef} onClick={handleCanvasClick} title={"Click to position "+field}/>:<div className="pitch-empty"><ImagePlus size={38}/><strong>Upload your blank artwork to start</strong></div>}</div>
+            {template&&previewMeasurements&&<div className="pitch-preview-width-report" aria-label="Live name and trade width measurements">
+              {(['name','trade'] as const).map(key=>{
+                const metrics=previewMeasurements[key]
+                return <div className="pitch-preview-width-item" key={key}>
+                  <div className="pitch-preview-width-line"><strong>{key==="name"?"Name":"Trade"} width</strong><span>{metrics.usedPx.toLocaleString()} / {metrics.maxPx.toLocaleString()} px</span></div>
+                  <div className="pitch-preview-width-track"><span className={key} style={{width:metrics.usage+"%"}}/></div>
+                  <small>{metrics.shrunk?("Long text: reduced to "+metrics.fontPx+"px to fit the limit."):("Fits at your configured "+metrics.fontPx+"px size.")} Measurements are based on a 1920px-wide card.</small>
+                </div>
+              })}
+            </div>}
+            <div className="pitch-preview-footer">
+              <label className="secondary-button pitch-sample-button"><Upload size={15}/> Sample photo for preview<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{const f=e.target.files?.[0];if(f)void previewPhoto(f);e.currentTarget.value=""}}/></label>
+              <button type="button" className="secondary-button" disabled={!template} onClick={()=>void downloadTestPreview()}><Download size={15}/> Download test PNG</button>
+            </div>
+            <p className="pitch-hint">The coloured outlines show each field’s maximum allowed width. Click the artwork to reposition your selected field. The guides do not appear on final cards.</p>
           </div>
         </div>
         <div className="card pitch-sharing">
