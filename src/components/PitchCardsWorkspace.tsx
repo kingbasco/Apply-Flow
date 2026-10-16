@@ -273,3 +273,4 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
       </div>}
     </div>
   </section>
+}
