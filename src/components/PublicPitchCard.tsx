@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, CheckCircle2, FileImage, Loader2, Upload } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Copy, Download, FileImage, Loader2, Share2, Upload } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { friendlyErrorMessage } from '../lib/errors'
-import { normalizedLayout, paintPitchCard, readImage } from '../lib/pitchCardRender'
+import { normalizedLayout, paintPitchCard, readImage, canvasPng, downloadPitchBlob, safePitchFileName } from '../lib/pitchCardRender'
 import type { PitchLayout } from '../lib/pitchCardRender'
 import { formatPitchName, formatPitchTrade, validPitchDetails } from '../lib/pitchCardText'
 import './PitchCards.css'
 
-type PublicEvent={title:string;slug:string;layout:PitchLayout;template_path:string}
+type PublicEvent={title:string;slug:string;layout:PitchLayout;template_path:string;card_mode?:'pitch'|'flyer';share_caption?:string}
 type Verified={token:string;participant_name:string;trade:string}
 export default function PublicPitchCard({slug}:{slug:string}){
   const [event,setEvent]=useState<PublicEvent|null>(null)
@@ -24,8 +24,11 @@ export default function PublicPitchCard({slug}:{slug:string}){
   const [loading,setLoading]=useState(true)
   const [finished,setFinished]=useState(false)
   const [error,setError]=useState('')
+  const [feedback,setFeedback]=useState('')
   const canvasRef=useRef<HTMLCanvasElement|null>(null)
   const blobUrl=useRef('')
+  const isFlyer=event?.card_mode==='flyer'
+  const caption=event?.share_caption?.trim()||(`I'm attending ${event?.title||'the final event'}!`)
 
   useEffect(()=>{
     let cancelled=false
@@ -71,7 +74,7 @@ export default function PublicPitchCard({slug}:{slug:string}){
     finally{setBusy('')}
   }
   async function choosePhoto(file:File){
-    setError('')
+    setError('');setFeedback('')
     if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>15*1024*1024||file.size<1024){
       setError('Upload a PNG, JPG or WebP photograph between 1 KB and 15 MB.');return
     }
@@ -108,26 +111,77 @@ export default function PublicPitchCard({slug}:{slug:string}){
     finally{setBusy('')}
   }
 
-  if(loading)return <div className="pitch-public"><div className="pitch-public-box"><Loader2 className="spin" size={30}/><h2>Loading pitch card…</h2></div></div>
+  async function buildFlyer(){
+    if(!isFlyer||!verified||!template||!photoFile||!photo)return null
+    const name=formatPitchName(cardName),trade=formatPitchTrade(cardTrade)
+    if(!validPitchDetails(name,trade)){
+      setError('Enter your name and trade before downloading.');return null
+    }
+    const canvas=document.createElement('canvas')
+    paintPitchCard(canvas,template,photo,name,trade,event!.layout,Math.min(3840,Math.max(1920,template.naturalWidth||1920)))
+    const blob=await canvasPng(canvas)
+    const filename=safePitchFileName(event!.title)+'-'+safePitchFileName(name)+'.png'
+    return new File([blob],filename,{type:'image/png'})
+  }
+  async function downloadFlyer(){
+    setBusy('download');setError('');setFeedback('')
+    try{
+      const file=await buildFlyer()
+      if(!file)return
+      downloadPitchBlob(file,file.name)
+      setFeedback('Your flyer is downloaded. You can post the image to your social media accounts.')
+    }catch(e){setError(friendlyErrorMessage(e,'Could not download the flyer.'))}
+    finally{setBusy('')}
+  }
+  async function copyCaption(){
+    try{await navigator.clipboard.writeText(caption);setFeedback('Caption copied. Paste it when posting your flyer.')}
+    catch{setFeedback('To share, copy this caption: '+caption)}
+  }
+  async function shareFlyer(){
+    setBusy('share');setError('');setFeedback('')
+    try{
+      const file=await buildFlyer()
+      if(!file)return
+      if(navigator.share&&navigator.canShare?.({files:[file]})){
+        try{
+          await navigator.share({files:[file],title:event?.title||'Event flyer',text:caption})
+          setFeedback('Flyer shared or handed off to your chosen app.')
+          return
+        }catch(e){
+          if(e instanceof Error&&e.name==='AbortError')return
+        }
+      }
+      downloadPitchBlob(file,file.name)
+      try{await navigator.clipboard.writeText(caption)
+        setFeedback('Your device cannot share this image directly here. The flyer has downloaded and your caption was copied. Open Instagram, WhatsApp or another app to post it.')
+      }catch{
+        setFeedback('Your flyer has downloaded. Open your social app to post it, and copy the caption below if needed.')
+      }
+    }catch(e){setError(friendlyErrorMessage(e,'Could not prepare the flyer for sharing.'))}
+    finally{setBusy('')}
+  }
+
+  if(loading)return <div className="pitch-public"><div className="pitch-public-box"><Loader2 className="spin" size={30}/><h2>Loading your event flyer…</h2></div></div>
   return <div className="pitch-public">
-    <header className="pitch-public-header"><a href="/"><ArrowLeft size={17}/> ApplyFlow</a><span>Participant pitch card</span></header>
+    <header className="pitch-public-header"><a href="/"><ArrowLeft size={17}/> ApplyFlow</a><span>{isFlyer?'Event attendance flyer':'Participant pitch card'}</span></header>
     <main className="pitch-public-box">
       <div className="pitch-public-heading">
-        <span className="pitch-public-eyebrow">Pitch Competition</span>
+        <span className="pitch-public-eyebrow">{isFlyer?'Event Attendee Flyer':'Pitch Competition'}</span>
         <h1>{event?.title||'Pitch card unavailable'}</h1>
-        <p>{finished?'Your photograph and pitch card details have been received.':'Verify your identity, upload a clear portrait, and preview your personalized pitch card.'}</p>
+        <p>{finished?'Your photograph and pitch card details have been received.':isFlyer?'Verify your identity, add your photo, and download your personalized event flyer to share on social media.':'Verify your identity, upload a clear portrait, and preview your personalized pitch card.'}</p>
       </div>
       {error&&<div className="form-error">{error}</div>}
+      {feedback&&<div className="form-success" role="status">{feedback}</div>}
       {!event?null:finished?<div className="pitch-success"><CheckCircle2 size={45}/><h2>Pitch card submitted!</h2><p>The organizers can now download your high-quality pitch card. You may close this page.</p></div>
       :!verified?<form className="pitch-verify-form" onSubmit={e=>void verify(e)}>
         <label>Registered email<input type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Enter the email you registered with"/></label>
         <label>Participant ID<input required value={participantId} onChange={e=>setParticipantId(e.target.value)} placeholder="e.g. EC-2026-00155" maxLength={80}/></label>
-        <button type="submit" className="primary-button" disabled={!!busy}>{busy==='verify'?'Verifying…':'Continue to my pitch card'}</button>
+        <button type="submit" className="primary-button" disabled={!!busy}>{busy==='verify'?'Verifying…':isFlyer?'Continue to my flyer':'Continue to my pitch card'}</button>
         <p className="pitch-hint">Your registered email and participant ID must match the programme's records.</p>
       </form>:<>
         <div className="pitch-verified"><CheckCircle2 size={21}/><div><strong>Identity verified</strong><small>Check the details below. You can correct them for your pitch card without changing your registration.</small></div></div>
         <div className="pitch-participant-details">
-          <div><h2>Your pitch card details</h2><p>We filled these from your registration. Edit either field if needed, or leave them as they are.</p></div>
+          <div><h2>Your {isFlyer?'flyer':'pitch card'} details</h2><p>We filled these from your registration. Edit either field if needed, or leave them as they are.</p></div>
           <label>Full name
             <input required type="text" maxLength={120} autoComplete="name" value={cardName} placeholder="Enter your name"
               onChange={e=>setCardName(e.target.value)} onBlur={()=>setCardName(name=>formatPitchName(name))}/>
@@ -144,11 +198,16 @@ export default function PublicPitchCard({slug}:{slug:string}){
         </label>
         {tooSmall&&<div className="pitch-warning">This photo is small and may look blurry when projected on a large screen. We recommend at least 1200 × 900 pixels.</div>}
         <div className="pitch-public-preview">
-          <div><h2>Your pitch card preview</h2><p>This is how your photograph, name and trade will appear on the design.</p></div>
+          <div><h2>Your {isFlyer?'event flyer':'pitch card'} preview</h2><p>This is how your photograph, name and trade will appear on the design.</p></div>
           <div className="pitch-artboard">{template?<canvas ref={canvasRef} aria-label="Your completed pitch card preview"/>:null}</div>
         </div>
-        <div className="pitch-public-actions"><button className="primary-button" type="button" disabled={!photoFile||!!busy} onClick={()=>void submit()}>
-          {busy==='submit'?<><Loader2 className="spin" size={16}/> Submitting…</>:<>Submit my pitch card</>}</button>
+        {isFlyer&&<div className="pitch-social-caption"><strong>Social media caption</strong><p>{caption}</p><button type="button" className="secondary-button" onClick={()=>void copyCaption()}><Copy size={15}/> Copy caption</button></div>}
+        <div className="pitch-public-actions">{isFlyer?<>
+          <button className="primary-button" type="button" disabled={!photoFile||!!busy||!cardName.trim()||!cardTrade.trim()} onClick={()=>void downloadFlyer()}><Download size={16}/> {busy==='download'?'Preparing PNG…':'Download my flyer'}</button>
+          <button className="secondary-button" type="button" disabled={!photoFile||!!busy||!cardName.trim()||!cardTrade.trim()} onClick={()=>void shareFlyer()}><Share2 size={16}/> {busy==='share'?'Preparing share…':'Share my flyer'}</button>
+        </>:<button className="primary-button" type="button" disabled={!photoFile||!!busy} onClick={()=>void submit()}>
+          {busy==='submit'?<><Loader2 className="spin" size={16}/> Submitting…</>:<>Submit my pitch card</>}</button>}
+          {isFlyer&&<p className="pitch-hint pitch-share-note">On phones, Share opens supported apps. If your browser cannot share files directly, the PNG will download so you can upload it yourself to Instagram, WhatsApp or other social media.</p>}
           <button type="button" className="secondary-button" onClick={()=>{setVerified(null);setCardName('');setCardTrade('');setPhoto(null);setPhotoFile(null);setError('')}} disabled={!!busy}>Back</button>
         </div>
       </>}

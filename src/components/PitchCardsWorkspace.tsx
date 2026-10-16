@@ -9,7 +9,7 @@ import './PitchCards.css'
 type Programme={id:string;name:string}
 type PitchEvent={
   id:string;organization_id:string;application_id:string;title:string;slug:string;status:'draft'|'published'|'closed';
-  template_path:string|null;layout:PitchLayout;updated_at:string
+  template_path:string|null;layout:PitchLayout;updated_at:string;card_mode:'pitch'|'flyer';share_caption:string
 }
 type Submission={id:string;event_id:string;participant_id:string;participant_name:string;trade:string;photo_path:string;submitted_at:string}
 type SelectedField='photo'|'name'|'trade'
@@ -17,7 +17,7 @@ type ExportQuality='full'|'ultra'
 type PreviewMetrics={usedPx:number;maxPx:number;fontPx:number;shrunk:boolean;usage:number}
 type PreviewMeasurements={name:PreviewMetrics;trade:PreviewMetrics}
 
-export default function PitchCardsWorkspace({organizationId,applications}:{organizationId:string;applications:Programme[]}){
+export default function PitchCardsWorkspace({organizationId,applications,mode='pitch'}:{organizationId:string;applications:Programme[];mode?:'pitch'|'flyer'}){
   const [events,setEvents]=useState<PitchEvent[]>([])
   const [selectedId,setSelectedId]=useState('')
   const [editing,setEditing]=useState<PitchEvent|null>(null)
@@ -32,7 +32,7 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
   const [quality,setQuality]=useState<ExportQuality>('ultra')
   const [creating,setCreating]=useState(false)
   const [newProgramme,setNewProgramme]=useState(applications[0]?.id||'')
-  const [newTitle,setNewTitle]=useState('Hertisan Pitch Competition')
+  const [newTitle,setNewTitle]=useState(mode==='flyer'?'Final Event Attendance Flyer':'Hertisan Pitch Competition')
   const [loading,setLoading]=useState(true)
   const [busy,setBusy]=useState('')
   const [progress,setProgress]=useState('')
@@ -42,24 +42,25 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
   const urls=useRef<string[]>([])
   const active=useMemo(()=>events.find(item=>item.id===selectedId),[events,selectedId])
   const count=submissions.length
-  const sharing=editing?window.location.origin+'/pitch/'+editing.slug:''
+  const sharing=editing?window.location.origin+(mode==='flyer'?'/flyer/':'/pitch/')+editing.slug:''
   const layout=editing?.layout||DEFAULT_PITCH_LAYOUT
 
   async function refresh(preferred=''){
     const {data,error}=await supabase.from('pitch_card_events')
-      .select('id,organization_id,application_id,title,slug,status,template_path,layout,updated_at')
-      .eq('organization_id',organizationId).order('updated_at',{ascending:false})
+      .select('id,organization_id,application_id,title,slug,status,template_path,layout,updated_at,card_mode,share_caption')
+      .eq('organization_id',organizationId).eq('card_mode',mode).order('updated_at',{ascending:false})
     if(error)throw error
     const list=(data||[]).map((item:any)=>({...item,layout:normalizedLayout(item.layout)})) as PitchEvent[]
     setEvents(list)
     setSelectedId(current=>list.some(e=>e.id===(preferred||current))?(preferred||current):list[0]?.id||'')
   }
+  useEffect(()=>{setSelectedId('');setEditing(null);setEvents([])},[mode])
   useEffect(()=>{let mounted=true
     setLoading(true)
     refresh().catch(e=>{if(mounted)setError(friendlyErrorMessage(e,'Could not load pitch card events.'))})
       .finally(()=>{if(mounted)setLoading(false)})
     return()=>{mounted=false}
-  },[organizationId])
+  },[organizationId,mode])
   useEffect(()=>{setEditing(active?{...active,layout:normalizedLayout(active.layout)}:null);setError('');setNotice('')},[active?.id])
   useEffect(()=>{let cancelled=false
     setTemplate(null);setSamplePhoto(null);setSubmissions([])
@@ -71,16 +72,18 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
           const image=await readImage(publicUrl)
           if(!cancelled)setTemplate(image)
         }
-        const {data,error}=await supabase.from('pitch_card_submissions')
-          .select('id,event_id,participant_id,participant_name,trade,photo_path,submitted_at')
-          .eq('event_id',active!.id).order('submitted_at',{ascending:false})
-        if(error)throw error
-        if(!cancelled)setSubmissions(data||[])
+        if(mode==='pitch'){
+          const {data,error}=await supabase.from('pitch_card_submissions')
+            .select('id,event_id,participant_id,participant_name,trade,photo_path,submitted_at')
+            .eq('event_id',active!.id).order('submitted_at',{ascending:false})
+          if(error)throw error
+          if(!cancelled)setSubmissions(data||[])
+        }
       }catch(e){if(!cancelled)setError(friendlyErrorMessage(e,'Could not load pitch card details.'))}
     }
     void load()
     return()=>{cancelled=true}
-  },[active?.id,active?.template_path])
+  },[active?.id,active?.template_path,mode])
   useEffect(()=>{
     if(!template||!editing||!canvasRef.current){setPreviewMeasurements(null);return}
     try{
@@ -158,13 +161,13 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
     if(!newProgramme||!newTitle.trim()){setError('Choose a programme and enter an event title.');return}
     setBusy('create');setError('');setNotice('')
     try{
-      const slug='pitch-'+crypto.randomUUID().slice(0,12)
+      const slug=(mode==='flyer'?'flyer-':'pitch-')+crypto.randomUUID().slice(0,12)
       const {data,error}=await supabase.from('pitch_card_events').insert({
         organization_id:organizationId,application_id:newProgramme,
-        title:newTitle.trim(),slug,layout:DEFAULT_PITCH_LAYOUT
+        title:newTitle.trim(),slug,layout:DEFAULT_PITCH_LAYOUT,card_mode:mode
       }).select('id').single()
       if(error)throw error
-      await refresh(data.id);setCreating(false);setNotice('Pitch card event created. Upload your artwork to begin.')
+      await refresh(data.id);setCreating(false);setNotice((mode==='flyer'?'Event flyer':'Pitch card')+' created. Upload your artwork to begin.')
     }catch(e){setError(friendlyErrorMessage(e,'Could not create pitch event.'))}
     finally{setBusy('')}
   }
@@ -174,7 +177,7 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
     setBusy('save');setError('');setNotice('')
     try{
       const {error}=await supabase.from('pitch_card_events').update({
-        title:editing.title.trim(),layout:editing.layout,status:editing.status,updated_at:new Date().toISOString()
+        title:editing.title.trim(),layout:editing.layout,status:editing.status,share_caption:editing.share_caption,updated_at:new Date().toISOString()
       }).eq('id',editing.id).eq('organization_id',organizationId)
       if(error)throw error
       await refresh(editing.id)
@@ -272,16 +275,16 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
     finally{setBusy('');setProgress('')}
   }
   useEffect(()=>()=>{urls.current.forEach(url=>URL.revokeObjectURL(url))},[])
-  if(loading)return <section className="pitch-page"><div className="card">Loading pitch cards…</div></section>
+  if(loading)return <section className="pitch-page"><div className="card">Loading {mode==='flyer'?'event flyers':'pitch cards'}…</div></section>
   return <section className="pitch-page">
     <div className="page-heading compact">
-      <div><p className="eyebrow">Admin tools</p><h1>Pitch Cards</h1><p className="subtitle">Design once, share a secure link, and export every participant's TV-ready pitch card.</p></div>
-      <button className="primary-button" onClick={()=>setCreating(true)}><Plus size={16}/> New pitch event</button>
+      <div><p className="eyebrow">Admin tools</p><h1>{mode==='flyer'?'Event Flyers':'Pitch Cards'}</h1><p className="subtitle">{mode==='flyer'?'Upload your event artwork, place each participant field, and let attendees download and share their own flyer.':'Design once, share a secure link, and export every participant\'s TV-ready pitch card.'}</p></div>
+      <button className="primary-button" onClick={()=>setCreating(true)}><Plus size={16}/> {mode==='flyer'?'New event flyer':'New pitch event'}</button>
     </div>
     {error&&<div className="form-error">{error}</div>}
     {notice&&<div className="form-success">{notice}</div>}
     {creating&&<div className="card pitch-create">
-      <h2>Create pitch event</h2>
+      <h2>Create {mode==='flyer'?'event flyer':'pitch event'}</h2>
       <label>Event name<input value={newTitle} onChange={e=>setNewTitle(e.target.value)}/></label>
       <label>Programme<select value={newProgramme} onChange={e=>setNewProgramme(e.target.value)}>
         <option value="">Select programme</option>{applications.map(app=><option key={app.id} value={app.id}>{app.name}</option>)}
@@ -290,18 +293,19 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
     </div>}
     <div className="pitch-layout">
       <aside className="card pitch-library">
-        <h2>Saved pitch events</h2>
+        <h2>Saved {mode==='flyer'?'event flyers':'pitch events'}</h2>
         {events.map(item=><button key={item.id} type="button" className={'pitch-event-option '+(item.id===selectedId?'active':'')}
           onClick={()=>setSelectedId(item.id)}>
           <strong>{item.title}</strong><span>{item.status} · {applications.find(p=>p.id===item.application_id)?.name||'Programme'}</span>
         </button>)}
-        {!events.length&&<p>No pitch events yet. Create an event to begin.</p>}
+        {!events.length&&<p>No {mode==='flyer'?'event flyers':'pitch events'} yet. Create an event to begin.</p>}
       </aside>
       {editing&&<div className="pitch-edit-stack">
         <div className="pitch-editor">
           <div className="card pitch-controls">
             <h2>Template settings</h2>
             <label>Event title<input maxLength={120} value={editing.title} onChange={e=>setEditing({...editing,title:e.target.value})}/></label>
+            {mode==='flyer'&&<label>Social share caption<textarea maxLength={500} rows={3} value={editing.share_caption} placeholder={"I'm attending "+editing.title+"!"} onChange={e=>setEditing({...editing,share_caption:e.target.value})}/><small className="pitch-hint">Optional caption participants can copy or include when sharing.</small></label>}
             <label>Status<select value={editing.status} onChange={e=>setEditing({...editing,status:e.target.value as PitchEvent['status']})}>
               <option value="draft">Draft</option><option value="published">Published</option><option value="closed">Closed</option>
             </select></label>
@@ -364,10 +368,10 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
           </div>
         </div>
         <div className="card pitch-sharing">
-          <div className="pitch-section-title"><div><h2>Participant submission link</h2><p>Publish this event to enable identity verification and uploads.</p></div><span className={'status '+(editing.status==='published'?'green':'neutral')}>{editing.status}</span></div>
+          <div className="pitch-section-title"><div><h2>{mode==='flyer'?'Participant flyer link':'Participant submission link'}</h2><p>{mode==='flyer'?'Publish and share this link so verified participants can personalize, download and share their flyer. Photos stay on their device.':'Publish this event to enable identity verification and uploads.'}</p></div><span className={'status '+(editing.status==='published'?'green':'neutral')}>{editing.status}</span></div>
           <div className="pitch-link-field"><input readOnly value={sharing}/><button type="button" className="secondary-button" onClick={()=>{void navigator.clipboard.writeText(sharing);setNotice('Link copied to clipboard.')}} disabled={editing.status!=='published'}><Share2 size={15}/> Copy link</button></div>
         </div>
-        <div className="card pitch-submissions">
+        {mode==='pitch'&&<div className="card pitch-submissions">
           <div className="pitch-section-title"><div><h2>Participant submissions</h2><p>{count} completed cards · download individually or export a ZIP.</p></div><span className="pitch-submission-count"><Users size={16}/>{count}</span></div>
           <div className="pitch-export-tools"><label>Export resolution<select value={quality} onChange={e=>setQuality(e.target.value as ExportQuality)}>
             <option value="full">Full HD · 1920 wide</option><option value="ultra">4K · 3840 wide</option></select></label>
@@ -376,7 +380,7 @@ export default function PitchCardsWorkspace({organizationId,applications}:{organ
           {progress&&<p className="pitch-hint">{progress}</p>}
           {submissions.length?<div className="pitch-submission-table"><table><thead><tr><th>Participant</th><th>Trade</th><th>Submitted</th><th></th></tr></thead>
             <tbody>{submissions.map(row=><tr key={row.id}><td><strong>{row.participant_name}</strong></td><td>{row.trade||'Not provided'}</td><td>{new Date(row.submitted_at).toLocaleDateString()}</td><td><button type="button" className="secondary-button" disabled={!!busy||!template} onClick={()=>void exportCards([row])}><Download size={14}/> PNG</button></td></tr>)}</tbody></table></div>:<p>No photographs have been submitted yet.</p>}
-        </div>
+        </div>}
         <div className="pitch-danger"><button type="button" className="secondary-button" disabled={!!busy} onClick={()=>void deleteEvent()}><Trash2 size={15}/> Delete event</button></div>
       </div>}
     </div>
